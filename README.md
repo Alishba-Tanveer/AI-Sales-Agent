@@ -1,15 +1,53 @@
 # AI Sales Agent
 
-A web application for managing sales leads, discovering opportunities,
-drafting personalized outreach, and reviewing proposed actions before execution.
+A web application that helps with sales outreach. It manages leads, finds
+opportunities, writes personalized drafts, and asks a person to approve
+important actions before anything is sent or changed.
 
-## Technology stack
+## Features
 
-- Frontend: Next.js, React, TypeScript, Tailwind CSS, shadcn/ui
-- Backend: Node.js, Express, TypeScript
-- Database: PostgreSQL, Prisma
-- Background jobs: Redis, BullMQ
-- Validation: Zod
+- **Leads:** one shared lead list with stages (New, Reviewed, Contacted, Interested, Won, Lost)
+- **Opportunity finder:** collects public job and company data to find possible leads
+- **Email outreach:** AI-drafted emails that need approval before sending
+- **LinkedIn agent:** profile suggestions, content and video scripts, connection suggestions (all approved by a person; manual sending where automation is not allowed)
+- **Approvals:** profile changes, video scripts, outreach strategy and replies are approved by a person
+- **Analytics:** simple number cards (for example leads added this week, emails sent, replies)
+- **Light and dark mode:** one global theme file
+
+## Technology stack (all free)
+
+| Area | Technology |
+| --- | --- |
+| Frontend | Next.js (App Router), React, TypeScript, Tailwind CSS, shadcn/ui, TanStack Table |
+| Forms and validation | React Hook Form, Zod |
+| Backend | Node.js, Express, TypeScript, separate worker process |
+| Database | PostgreSQL, Prisma |
+| Background jobs | Redis, BullMQ |
+| AI | Gemini API (free tier) behind our own AI wrapper |
+| Research and data | Tavily search (free tier), free job APIs (Jobicy, Arbeitnow, Remotive, Adzuna) |
+| Email | Gmail API (OAuth) |
+| Auth and security | Auth.js or JWT, bcrypt, Node crypto for token encryption |
+| Tools | Docker, GitHub Actions, Vitest, Postman |
+
+Notes:
+- Free AI tiers may let the provider use your input. Use test data only.
+- Free tiers have limits. Check them before heavy use.
+
+## Project structure
+
+```
+ai-sales-agent/
+├── apps/
+│   ├── web/        Next.js dashboard
+│   └── api/        Express API and background worker
+├── packages/
+│   ├── database/   Prisma schema and client
+│   └── shared/     Shared Zod schemas and constants
+├── docker-compose.yml
+└── .env
+```
+
+Every database table has an `organizationId`, so each organization only sees its own data.
 
 ## Local development
 
@@ -28,4 +66,17 @@ drafting personalized outreach, and reviewing proposed actions before execution.
 - PostgreSQL: localhost:5433
 - Redis: localhost:6379
 
-Keep `.env` private and never commit credentials.
+## Theme (light and dark mode)
+
+All colors for both modes are defined in one file:
+`apps/web/src/styles/theme.css`.
+Change colors there only. Do not hard-code colors in components.
+
+## Optional cloud services
+
+- Neon (free PostgreSQL) can replace local PostgreSQL. Use the pooled connection string for the app and the direct connection string for migrations.
+- Vercel (free plan) can host the web app for non-commercial use.
+
+## Security
+
+Keep `.env` private and never commit credentials or API keys.
