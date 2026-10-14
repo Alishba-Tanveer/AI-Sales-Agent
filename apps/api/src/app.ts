@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import { env } from "./config/env";
 import { errorHandler } from "./middleware/error-handler";
+import { authRoutes } from "./modules/auth/auth.routes";
 
 const app = express();
 
@@ -16,6 +17,9 @@ app.get("/api/health", (_req, res) => {
     service: "ai-sales-agent-api",
   });
 });
+
+// Auth endpoints
+app.use("/api/auth", authRoutes);
 
 app.use(errorHandler);
 
