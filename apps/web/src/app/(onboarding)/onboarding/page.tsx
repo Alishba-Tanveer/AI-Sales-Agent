@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, ArrowRight, Bot, Check, ChevronDown, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bot, Building2, Check, ChevronDown, ClipboardCheck, Loader2, Pencil, Users, Wrench, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,12 +34,42 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
 );
 const Text = ({ v }: { v?: string }) => <p className="text-sm text-[#F1F5F9]">{v || <span className="text-[#7C8AA5]">Not provided</span>}</p>;
 
-function Section({ title, onEdit, children }: { title: string; onEdit: () => void; children: React.ReactNode }) {
+// One icon + colour per step (from the Stitch design)
+const STEP_ICONS: { Icon: LucideIcon; rgb: string; hex: string }[] = [
+  { Icon: Building2, rgb: "129,140,248", hex: "#818CF8" },
+  { Icon: Wrench, rgb: "96,165,250", hex: "#60A5FA" },
+  { Icon: Users, rgb: "74,222,128", hex: "#4ADE80" },
+  { Icon: ClipboardCheck, rgb: "251,191,36", hex: "#FBBF24" },
+];
+
+function IconTile({ index, size = 36 }: { index: number; size?: number }) {
+  const { Icon, rgb, hex } = STEP_ICONS[index];
+  const small = size < 32;
+  return (
+    <div
+      className="flex shrink-0 items-center justify-center"
+      style={{
+        width: size, height: size, borderRadius: small ? 6 : 10,
+        backgroundColor: `rgba(${rgb},0.12)`,
+        border: small ? undefined : `1px solid rgba(${rgb},0.30)`,
+      }}
+    >
+      <Icon size={small ? 16 : 20} color={hex} />
+    </div>
+  );
+}
+
+function Section({ icon, title, onEdit, children }: { icon: number; title: string; onEdit: () => void; children: React.ReactNode }) {
   return (
     <section className="rounded-[10px] border border-[#2A3350] bg-[#0D121F] p-4">
       <div className="mb-3.5 flex items-center justify-between border-b border-[#2A3350] pb-2.5">
-        <h3 className="text-[15px] font-semibold text-[#F1F5F9]">{title}</h3>
-        <button type="button" onClick={onEdit} className="text-[13px] font-medium text-[#818CF8] hover:underline">Edit</button>
+        <div className="flex items-center gap-2.5">
+          <IconTile index={icon} size={28} />
+          <h3 className="text-[15px] font-semibold text-[#F1F5F9]">{title}</h3>
+        </div>
+        <button type="button" onClick={onEdit} className="flex items-center gap-1 text-[13px] font-medium text-[#818CF8] hover:underline">
+          <Pencil size={14} />Edit
+        </button>
       </div>
       <div className="flex flex-col gap-3">{children}</div>
     </section>
@@ -115,10 +145,13 @@ export default function OnboardingPage() {
           <div className="mb-6 flex h-10 items-center rounded-lg border border-[#818CF8]/30 bg-[#818CF8]/10 px-4 text-[13px] text-[#C7D2FE]">
             We use this to write better drafts for the right people.
           </div>
-          <div className="mb-6">
-            <p className="mb-1 text-xs text-[#A8B3C7]">Step {step + 1} of 4 · about 1 minute</p>
-            <h2 className="text-[22px] font-semibold tracking-tight text-[#F8FAFC]">Step {step + 1}: {headers[0]}</h2>
-            <p className="mt-1 text-sm text-[#A8B3C7]">{headers[1]}</p>
+          <div className="mb-6 flex items-center gap-3">
+            <IconTile index={step} />
+            <div>
+              <p className="mb-1 text-xs text-[#A8B3C7]">Step {step + 1} of 4 · about 1 minute</p>
+              <h2 className="text-[22px] font-semibold tracking-tight text-[#F8FAFC]">Step {step + 1}: {headers[0]}</h2>
+              <p className="mt-1 text-sm text-[#A8B3C7]">{headers[1]}</p>
+            </div>
           </div>
 
           <ServerError message={error} />
@@ -204,7 +237,7 @@ export default function OnboardingPage() {
 
             {step === 3 && (
               <div className="flex flex-col gap-3">
-                <Section title="Company" onEdit={() => setStep(0)}>
+                <Section icon={0} title="Company" onEdit={() => setStep(0)}>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                     <Row label="Company name"><Text v={v.companyName} /></Row>
                     <Row label="Website"><Text v={v.websiteUrl} /></Row>
@@ -212,11 +245,11 @@ export default function OnboardingPage() {
                   </div>
                   <Row label="Description"><Text v={v.description} /></Row>
                 </Section>
-                <Section title="Services" onEdit={() => setStep(1)}>
+                <Section icon={1} title="Services" onEdit={() => setStep(1)}>
                   <Row label="Services"><Chips items={v.services} /></Row>
                   <Row label="What makes you different"><Text v={v.differentiation} /></Row>
                 </Section>
-                <Section title="Ideal customer" onEdit={() => setStep(2)}>
+                <Section icon={2} title="Ideal customer" onEdit={() => setStep(2)}>
                   <Row label="Target industries"><Chips items={v.targetIndustries} /></Row>
                   <Row label="Target job titles"><Chips items={v.targetTitles} /></Row>
                   <div className="grid gap-4 sm:grid-cols-2">
