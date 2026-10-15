@@ -1,0 +1,33 @@
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+
+export class ApiError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+  }
+}
+
+export const tokenStore = {
+  get: () => (typeof window === "undefined" ? null : localStorage.getItem("token")),
+  set: (t: string) => localStorage.setItem("token", t),
+  clear: () => localStorage.removeItem("token"),
+};
+
+export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = tokenStore.get();
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init.headers,
+      },
+    });
+  } catch {
+    throw new ApiError("Cannot reach the server. Please try again.", 0);
+  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(body.message ?? "Something went wrong", res.status);
+  return body as T;
+}
