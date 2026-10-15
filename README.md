@@ -80,3 +80,147 @@ Change colors there only. Do not hard-code colors in components.
 ## Security
 
 Keep `.env` private and never commit credentials or API keys.
+
+## Frontend Authentication and Onboarding
+
+### Project overview
+
+AI Sales Agent is a web application project intended to help users manage
+sales leads and AI-assisted sales workflows. The application is being built
+as a monorepo with separate web, API, worker, shared-package, and database
+areas.
+
+### Technology stack
+
+- **Frontend:** Next.js, React, TypeScript, Tailwind CSS
+- **UI components:** Reusable components under `apps/web/src/components`
+- **Forms:** React Hook Form
+- **Validation:** Zod and `@hookform/resolvers`
+- **Icons:** Lucide React
+- **Backend:** Node.js and Express
+- **Database:** PostgreSQL and Prisma
+- **Background jobs:** Redis and BullMQ
+- **Repository:** Git and GitHub, using task-specific branches
+
+### Frontend work completed
+
+Authentication and onboarding work currently includes:
+
+- Login page updates.
+- Signup page updates.
+- Forgot-password page.
+- Shared authentication layout.
+- Reusable authentication components.
+- Authentication feature utilities.
+- API helper at `apps/web/src/lib/api.ts`.
+- Multi-step onboarding page.
+- Onboarding form schema and field validation.
+- Onboarding tag-input component.
+- Company profile, services, ideal customer, and review steps.
+- Previous/next navigation, optional skipping, and review edit actions.
+- Dark theme styling consistent with the application's design system.
+- Background backdrop and translucent onboarding card.
+- Loading and error states for onboarding save actions.
+
+### Relevant frontend folders
+
+```text
+apps/web/src/
+├── app/
+│   ├── (auth)/
+│   │   ├── login/
+│   │   ├── signup/
+│   │   ├── forgot-password/
+│   │   └── layout.tsx
+│   ├── (onboarding)/
+│   │   └── onboarding/
+│   └── page.tsx
+├── components/
+│   ├── auth/
+│   └── ui/
+├── features/
+│   ├── auth/
+│   └── onboarding/
+└── lib/
+    └── api.ts
+```
+
+### Onboarding details
+
+The onboarding flow contains four steps:
+
+1. **Company:** company name, website, industry, and optional description.
+2. **Services:** services offered and optional differentiation.
+3. **Customer:** target industries, job titles, locations, company size,
+   and optional ideal-customer description.
+4. **Review:** review entered information and return to earlier sections
+   to edit it.
+
+The onboarding schema validates form data, and the interface displays
+field errors and save errors.
+
+**Integration note:** The onboarding page currently calls
+`saveOnboarding(...)`. Confirm the implementation in
+`apps/web/src/features/onboarding/api.ts`; the current implementation may
+still be a mock until the backend onboarding endpoint is available.
+A successful TypeScript check does not confirm database persistence or
+end-to-end authentication.
+
+### Development and validation
+
+Run these commands from the repository root in VS Code's Git Bash terminal:
+
+```bash
+npm install
+npx tsc --project apps/web/tsconfig.json --noEmit
+npm run dev:web
+```
+
+The web app normally runs at `http://localhost:3000`.
+
+To run all services together, use:
+
+```bash
+npm run dev
+```
+
+This requires the relevant environment variables and supporting services
+to be configured. Check the root `package.json` for available scripts.
+
+### Git collaboration workflow
+
+Long-lived branches:
+
+- `main` — stable releases.
+- `staging` — integration and testing.
+- `Frontend` — frontend integration branch.
+- `Backend` — backend integration branch.
+
+Use a separate task branch for each feature. For example:
+
+```text
+Frontend
+└── feature/auth-onboarding
+```
+
+Recommended workflow:
+
+1. Start from the appropriate up-to-date base branch.
+2. Create a descriptive task branch.
+3. Implement and test the task.
+4. Commit the task changes.
+5. Push the task branch to GitHub.
+6. Open a pull request into the appropriate integration branch.
+7. Review and test before merging.
+8. Promote tested integration work into `staging`, then `main`
+   through pull requests.
+
+Do not commit `.env` files, credentials, or API secrets. Use the project's
+`.env.example` as a template for required environment variables.
+
+### Current verification status
+
+The web TypeScript check previously passed for the onboarding work, but a
+later check found an unsupported `asChild` prop on the forgot-password page.
+Re-run the TypeScript command after fixing it. Record the check as passed
+only when the command exits without errors.

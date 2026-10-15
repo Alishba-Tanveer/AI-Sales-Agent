@@ -1,36 +1,120 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Sales Agent — Frontend
+
+The frontend is the web dashboard for AI Sales Agent, built with Next.js,
+React, TypeScript, and Tailwind CSS.
+
+## Features Done
+
+- Login, signup, forgot-password and 4-step onboarding screens
+- Signup connected to the backend (`POST /api/auth/register`)
+- Reusable auth components and a CSS-only gradient background
+- Form validation with React Hook Form and Zod
+- API helper for communicating with the backend
+
+## Pending Backend Integration
+
+- Login, forgot-password and onboarding save use mock functions
+  (`features/auth/api.ts`, `features/onboarding/api.ts`) until the
+  backend routes exist
+
+## Tech Stack
+
+- Next.js App Router
+- React and TypeScript
+- Tailwind CSS
+- React Hook Form
+- Zod and @hookform/resolvers
+- Lucide React icons
+
+## Project Structure
+
+```text
+apps/web/src/
+├── app/
+│   ├── (auth)/
+│   │   ├── login/
+│   │   ├── signup/
+│   │   ├── forgot-password/
+│   │   └── layout.tsx
+│   ├── (onboarding)/
+│   │   └── onboarding/
+│   └── page.tsx
+├── components/
+│   ├── auth/
+│   └── ui/
+├── features/
+│   ├── auth/
+│   └── onboarding/
+├── lib/
+│   └── api.ts
+└── styles/
+    └── theme.css
+```
 
 ## Getting Started
 
-First, run the development server:
+Run commands from the repository root, not from `apps/web`.
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Start only the frontend:
+
+```bash
+npm run dev:web
+```
+
+Start all configured services:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The complete application may also require environment variables, the backend
+API, PostgreSQL, and Redis. See the root README for setup instructions.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Validation
 
-## Learn More
+Check frontend TypeScript:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npx tsc --project apps/web/tsconfig.json --noEmit
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Authentication and Onboarding
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The onboarding flow includes four steps:
 
-## Deploy on Vercel
+1. Company profile
+2. Services offered
+3. Ideal customer
+4. Review and edit
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The interface includes validation, navigation, loading states, and error
+handling. Verify backend integration and database persistence before treating
+the flow as fully functional.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Password-reset behavior also depends on the available backend implementation.
+
+## Theme
+
+Shared theme variables are defined in:
+
+`apps/web/src/styles/theme.css`
+
+Use the existing design system when adding or updating frontend components.
+
+## Development Workflow
+
+Use a separate task branch for each feature. For example:
+
+`feature/auth-onboarding`
+
+Commit and push the task branch, then open a pull request into the `Frontend`
+integration branch. Review and test changes before promoting them to `staging`
+and then `main`.
