@@ -4,6 +4,7 @@ import helmet from "helmet";
 import { env } from "./config/env";
 import { errorHandler } from "./middleware/error-handler";
 import { authRoutes } from "./modules/auth/auth.routes";
+import { onboardingRoutes } from "./modules/onboarding/onboarding.routes";
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.get("/api/health", (_req, res) => {
 
 // Auth endpoints
 app.use("/api/auth", authRoutes);
+app.use("/api/onboarding", onboardingRoutes);
 
 app.use(errorHandler);
 
