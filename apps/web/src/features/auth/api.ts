@@ -1,5 +1,6 @@
 import { api, tokenStore } from "@/lib/api";
 import type { SignupValues } from "./schemas";
+import { userStore } from "./user-store";
 
 export type AuthUser = {
   id: string;
@@ -11,26 +12,37 @@ export type AuthUser = {
 };
 type AuthResponse = { message: string; data: { token: string; user: AuthUser } };
 
-/** LIVE: POST /api/auth/register */
+const post = <T>(path: string, body: unknown) =>
+  api<T>(path, { method: "POST", body: JSON.stringify(body) });
+
+/** POST /api/auth/register */
 export async function registerUser(v: SignupValues) {
-  const res = await api<AuthResponse>("/api/auth/register", {
-    method: "POST",
-    body: JSON.stringify({ name: v.name, email: v.email, password: v.password }),
-  });
+  const res = await post<AuthResponse>("/api/auth/register", { name: v.name, email: v.email, password: v.password });
   tokenStore.set(res.data.token);
+  userStore.set(res.data.user);
   return res.data.user;
 }
 
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-/** MOCK: backend has no login route yet. Replace with
- *  api<AuthResponse>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }) */
-export async function loginUser(_email: string, _password: string) {
-  await wait(600);
-  tokenStore.set("mock-token");
+/** POST /api/auth/login */
+export async function loginUser(email: string, password: string, remember = true) {
+  const res = await post<AuthResponse>("/api/auth/login", { email, password });
+  tokenStore.set(res.data.token, remember);
+  userStore.set(res.data.user, remember);
+  return res.data.user;
 }
 
-/** MOCK: backend has no forgot-password route yet. */
-export async function requestPasswordReset(_email: string) {
-  await wait(450);
+/** Clears the session on this device. Call router.replace("/login") afterwards. */
+export function logoutUser() {
+  tokenStore.clear();
+  userStore.clear();
+}
+
+/** POST /api/auth/forgot-password  (backend also returns resetToken for dev testing) */
+export function requestPasswordReset(email: string) {
+  return post<{ message: string; resetToken?: string }>("/api/auth/forgot-password", { email });
+}
+
+/** POST /api/auth/reset-password */
+export function resetPassword(token: string, newPassword: string) {
+  return post<{ message: string }>("/api/auth/reset-password", { token, newPassword });
 }

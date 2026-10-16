@@ -6,10 +6,19 @@ export class ApiError extends Error {
   }
 }
 
+// remember=true -> localStorage (survives browser restart); false -> sessionStorage
 export const tokenStore = {
-  get: () => (typeof window === "undefined" ? null : localStorage.getItem("token")),
-  set: (t: string) => localStorage.setItem("token", t),
-  clear: () => localStorage.removeItem("token"),
+  get: () =>
+    typeof window === "undefined" ? null : localStorage.getItem("token") ?? sessionStorage.getItem("token"),
+  set: (t: string, remember = true) => {
+    localStorage.removeItem("token");
+    sessionStorage.removeItem("token");
+    (remember ? localStorage : sessionStorage).setItem("token", t);
+  },
+  clear: () => {
+    localStorage.removeItem("token");
+    sessionStorage.removeItem("token");
+  },
 };
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {

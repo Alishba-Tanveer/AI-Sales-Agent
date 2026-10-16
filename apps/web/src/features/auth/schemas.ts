@@ -37,3 +37,11 @@ export function passwordStrength(p: string) {
   if (/[^A-Za-z0-9]/.test(p)) s++;
   return s;
 }
+
+export const resetSchema = z
+  .object({
+    newPassword: z.string().min(6, "New password must be at least 6 characters long"),
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.newPassword === v.confirmPassword, { path: ["confirmPassword"], message: "Passwords do not match." });
+export type ResetValues = z.infer<typeof resetSchema>;
