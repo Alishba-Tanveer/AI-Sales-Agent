@@ -8,6 +8,14 @@ export class AuthRepository {
     });
   }
 
+
+  async findUserById(id: string) {
+    return prisma.user.findUnique({
+      where: { id },
+      include: { organization: true },
+    });
+  }
+
   async createUserWithOrganization(data: {
     name: string;
     email: string;
@@ -29,6 +37,13 @@ export class AuthRepository {
       include: {
         organization: true,
       },
+    });
+  }
+
+    async updateUserPassword(id: string, passwordHash: string) {
+    return prisma.user.update({
+      where: { id },
+      data: { passwordHash },
     });
   }
 }
