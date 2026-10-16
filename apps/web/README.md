@@ -1,21 +1,20 @@
 # AI Sales Agent — Frontend
 
-The frontend is the web dashboard for AI Sales Agent, built with Next.js,
-React, TypeScript, and Tailwind CSS.
+The frontend is the web dashboard for AI Sales Agent, built with Next.js, React, TypeScript, and Tailwind CSS.
 
-## Features Done
+## Work Completed Today
 
-- Login, signup, forgot-password and 4-step onboarding screens
-- Signup connected to the backend (`POST /api/auth/register`)
-- Reusable auth components and a CSS-only gradient background
-- Form validation with React Hook Form and Zod
-- API helper for communicating with the backend
-
-## Pending Backend Integration
-
-- Login, forgot-password and onboarding save use mock functions
-  (`features/auth/api.ts`, `features/onboarding/api.ts`) until the
-  backend routes exist
+- Connected the login flow to the backend API.
+- Connected the forgot-password flow to the backend.
+- Added the reset-password page and backend integration.
+- Implemented the dashboard overview page and its components.
+- Created the shared dashboard layout with sidebar and top navigation.
+- Added dashboard navigation and the activity page.
+- Added theme switching and updated shared theme styling.
+- Removed the main logo hover effect from the sidebar.
+- Updated the Tailwind CSS source configuration.
+- Verified frontend and backend TypeScript checks.
+- Successfully ran the Next.js production build.
 
 ## Tech Stack
 
@@ -23,37 +22,12 @@ React, TypeScript, and Tailwind CSS.
 - React and TypeScript
 - Tailwind CSS
 - React Hook Form
-- Zod and @hookform/resolvers
+- Zod and `@hookform/resolvers`
 - Lucide React icons
-
-## Project Structure
-
-```text
-apps/web/src/
-├── app/
-│   ├── (auth)/
-│   │   ├── login/
-│   │   ├── signup/
-│   │   ├── forgot-password/
-│   │   └── layout.tsx
-│   ├── (onboarding)/
-│   │   └── onboarding/
-│   └── page.tsx
-├── components/
-│   ├── auth/
-│   └── ui/
-├── features/
-│   ├── auth/
-│   └── onboarding/
-├── lib/
-│   └── api.ts
-└── styles/
-    └── theme.css
-```
 
 ## Getting Started
 
-Run commands from the repository root, not from `apps/web`.
+Run commands from the repository root.
 
 Install dependencies:
 
@@ -61,7 +35,7 @@ Install dependencies:
 npm install
 ```
 
-Start only the frontend:
+Start the frontend:
 
 ```bash
 npm run dev:web
@@ -73,10 +47,9 @@ Start all configured services:
 npm run dev
 ```
 
-Open http://localhost:3000 in your browser.
+Open [http://localhost:3000](http://localhost:3000).
 
-The complete application may also require environment variables, the backend
-API, PostgreSQL, and Redis. See the root README for setup instructions.
+The application may require environment variables, the backend API, PostgreSQL, and Redis. Refer to the root README for complete setup instructions.
 
 ## Validation
 
@@ -86,35 +59,24 @@ Check frontend TypeScript:
 npx tsc --project apps/web/tsconfig.json --noEmit
 ```
 
-## Authentication and Onboarding
+Check backend TypeScript:
 
-The onboarding flow includes four steps:
+```bash
+npx tsc --project apps/api/tsconfig.json --noEmit
+```
 
-1. Company profile
-2. Services offered
-3. Ideal customer
-4. Review and edit
+Build the frontend:
 
-The interface includes validation, navigation, loading states, and error
-handling. Verify backend integration and database persistence before treating
-the flow as fully functional.
+```bash
+npm run build -w apps/web
+```
 
-Password-reset behavior also depends on the available backend implementation.
+All three checks passed during today's development session.
 
-## Theme
+## Notes
 
-Shared theme variables are defined in:
+Some dashboard widgets still use mock data. Other dashboard features may require further backend integration and runtime testing.
 
-`apps/web/src/styles/theme.css`
+## Git Workflow
 
-Use the existing design system when adding or updating frontend components.
-
-## Development Workflow
-
-Use a separate task branch for each feature. For example:
-
-`feature/auth-onboarding`
-
-Commit and push the task branch, then open a pull request into the `Frontend`
-integration branch. Review and test changes before promoting them to `staging`
-and then `main`.
+Work on a separate feature branch, commit and push changes, and open a pull request into the agreed integration branch. Review and test changes before merging into `staging` and then `main`.
