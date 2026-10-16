@@ -25,7 +25,7 @@ export default function LoginPage() {
   const onSubmit = async (v: LoginValues) => {
     setError(null);
     try {
-      await loginUser(v.email, v.password);
+      await loginUser(v.email, v.password, !!v.remember);
       router.push("/overview");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Incorrect email or password.");
@@ -58,7 +58,7 @@ export default function LoginPage() {
         <div className="flex items-center justify-between pt-1">
           <label className="flex cursor-pointer items-center gap-2 text-xs text-[#94A3B8]">
             <input type="checkbox" className="h-4 w-4 accent-[#818CF8]" {...register("remember")} />
-            Remember this device for 30 days
+            Keep me signed in on this device
           </label>
           <Link href="/forgot-password" className="text-xs font-medium text-[#818CF8] hover:underline">Forgot password?</Link>
         </div>
