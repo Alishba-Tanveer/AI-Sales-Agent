@@ -25,7 +25,7 @@ export async function registerUser(v: SignupValues) {
 
 /** POST /api/auth/login */
 export async function loginUser(email: string, password: string, remember = true) {
-  const res = await post<AuthResponse>("/api/auth/login", { email, password, remember });
+  const res = await post<AuthResponse>("/api/auth/login", { email, password });
   tokenStore.set(res.data.token, remember);
   userStore.set(res.data.user, remember);
   return res.data.user;
