@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { env } from "../../config/env";
 import { AppError } from "../../utils/app-error";
+import { blacklistToken } from "../../utils/token-blacklist";
 import { AuthRepository } from "./auth.repository";
 import type { RegisterInput,LoginInput,ForgotPasswordInput,ResetPasswordInput  } from "./auth.schema";
 
@@ -75,7 +76,11 @@ export class AuthService {
     if (!isPasswordValid) {
       throw new AppError("Invalid email or password", 401);
     }
-    // 3. Sign new JWT token
+    // 3. Set token expiry based on remember me checkbox
+    // If remember is false: 1 day session token
+    // If remember is true (or not specified): 30 days token
+    const expiresIn = input.remember === false ? "1d" : "30d";
+
     const token = jwt.sign(
       {
         userId: user.id,
@@ -84,7 +89,7 @@ export class AuthService {
         role: user.role,
       },
       env.JWT_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn }
     );
     return {
       token,
@@ -155,6 +160,18 @@ async forgotPassword(input: ForgotPasswordInput) {
     };
   }
 
+  async logout(token?: string) {
+    if (token) {
+      const decoded = jwt.decode(token) as { exp?: number } | null;
+      const ttl = decoded?.exp
+        ? Math.max(decoded.exp - Math.floor(Date.now() / 1000), 60)
+        : 3600;
+      await blacklistToken(token, ttl);
+    }
+    return {
+      message: "Logged out successfully",
+    };
+  }
 }
 
 
