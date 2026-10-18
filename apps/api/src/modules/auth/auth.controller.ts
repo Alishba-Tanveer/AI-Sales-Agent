@@ -78,5 +78,14 @@ forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
       next(error);
     }
   };
-  
+
+  logout = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const token = req.token || req.headers.authorization?.split(" ")[1];
+      const result = await this.authService.logout(token);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
 }
