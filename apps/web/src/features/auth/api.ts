@@ -1,6 +1,7 @@
 import { api, tokenStore } from "@/lib/api";
 import type { SignupValues } from "./schemas";
 import { userStore } from "./user-store";
+import { resetSetupReminder } from "@/features/onboarding/status";
 
 export type AuthUser = {
   id: string;
@@ -18,16 +19,20 @@ const post = <T>(path: string, body: unknown) =>
 /** POST /api/auth/register */
 export async function registerUser(v: SignupValues) {
   const res = await post<AuthResponse>("/api/auth/register", { name: v.name, email: v.email, password: v.password });
-  tokenStore.set(res.data.token);
-  userStore.set(res.data.user);
+  tokenStore.set(res.data.token, true);
+  userStore.set(res.data.user, true);
+  resetSetupReminder();
   return res.data.user;
 }
 
 /** POST /api/auth/login */
 export async function loginUser(email: string, password: string, remember = true) {
   const res = await post<AuthResponse>("/api/auth/login", { email, password });
+  // remember = true  -> localStorage: stays signed in after the browser is closed (until the token expires)
+  // remember = false -> sessionStorage: signed out when the tab/browser is closed
   tokenStore.set(res.data.token, remember);
   userStore.set(res.data.user, remember);
+  resetSetupReminder();
   return res.data.user;
 }
 
@@ -35,6 +40,7 @@ export async function loginUser(email: string, password: string, remember = true
 export function logoutUser() {
   tokenStore.clear();
   userStore.clear();
+  resetSetupReminder();
 }
 
 /** POST /api/auth/forgot-password  (backend also returns resetToken for dev testing) */

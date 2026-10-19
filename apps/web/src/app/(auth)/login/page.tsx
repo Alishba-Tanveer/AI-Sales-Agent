@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { AuthCard, FieldError, ServerError, inputCls, primaryBtn } from "@/components/auth/auth-shell";
 import { loginSchema, type LoginValues } from "@/features/auth/schemas";
 import { loginUser } from "@/features/auth/api";
+import { hasValidSession } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,6 +22,11 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
     defaultValues: { remember: true },
   });
+
+  // already signed in (e.g. "Keep me signed in" was ticked last time) -> go straight to the dashboard
+  useEffect(() => {
+    if (hasValidSession()) router.replace("/overview");
+  }, [router]);
 
   const onSubmit = async (v: LoginValues) => {
     setError(null);

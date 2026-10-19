@@ -14,25 +14,27 @@ import { Backdrop } from "@/components/auth/backdrop";
 import { TagInput } from "@/features/onboarding/tag-input";
 import { onboardingSchema, STEP_FIELDS, type OnboardingValues } from "@/features/onboarding/schema";
 import { saveOnboarding } from "@/features/onboarding/api";
+import { loadOnboarding } from "@/features/onboarding/status";
+import { INDUSTRIES, SIZES } from "@/features/onboarding/options";
 
 const STEPS = ["Company", "Services", "Customer", "Review"];
-const INDUSTRIES = [["b2b_saas", "B2B SaaS"], ["professional_services", "Professional Services"], ["ecommerce", "E-commerce"], ["healthcare", "Healthcare"], ["financial_tech", "Financial Tech"]];
-const SIZES = ["1-10", "11-50", "51-200", "201-500", "500+"];
 const SUGGESTED = ["Lead Research", "Email Outreach", "Follow-ups", "LinkedIn Content", "Reporting"];
 const field = "h-11 rounded-lg border border-[#2A3350] bg-[#0B0F19] px-3.5 text-sm text-[#F1F5F9] placeholder:text-[#7C8AA5] focus-visible:border-[#818CF8] focus-visible:ring-[3px] focus-visible:ring-[#818CF8]/20 focus-visible:ring-offset-0";
 const area = `${field} h-[104px] resize-none py-2.5`;
 const lbl = "text-sm font-medium text-[#E2E8F0]";
 
 const Req = () => <span className="ml-1 font-bold text-[#F87171]">*</span>;
-const Chips = ({ items }: { items?: string[] }) => (
-  <div className="flex flex-wrap gap-2">
-    {items?.map((i) => <span key={i} className="flex h-7 items-center rounded-md border border-[#818CF8]/35 bg-[#818CF8]/10 px-2.5 text-[13px] text-[#C7D2FE]">{i}</span>)}
-  </div>
-);
+const NotProvided = () => <p className="text-sm text-[#7C8AA5]">Not provided</p>;
+const Chips = ({ items }: { items?: string[] }) =>
+  items?.length ? (
+    <div className="flex flex-wrap gap-2">
+      {items.map((i) => <span key={i} className="flex h-7 items-center rounded-md border border-[#818CF8]/35 bg-[#818CF8]/10 px-2.5 text-[13px] text-[#C7D2FE]">{i}</span>)}
+    </div>
+  ) : <NotProvided />;
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div><span className="mb-1.5 block text-xs text-[#A8B3C7]">{label}</span>{children}</div>
 );
-const Text = ({ v }: { v?: string }) => <p className="text-sm text-[#F1F5F9]">{v || <span className="text-[#7C8AA5]">Not provided</span>}</p>;
+const Text = ({ v }: { v?: string }) => (v?.trim() ? <p className="text-sm text-[#F1F5F9]">{v}</p> : <NotProvided />);
 
 // One icon + colour per step (from the Stitch design)
 const STEP_ICONS: { Icon: LucideIcon; rgb: string; hex: string }[] = [
@@ -79,28 +81,54 @@ function Section({ icon, title, onEdit, children }: { icon: number; title: strin
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
-  const [busy, setBusy] = useState<"next" | "save" | "finish" | null>(null);
+  const [editing, setEditing] = useState(false); // true when a step was opened from "Edit" on the review page
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { register, control, trigger, getValues, watch, formState: { errors } } = useForm<OnboardingValues>({
     resolver: zodResolver(onboardingSchema),
     mode: "onTouched",
-    defaultValues: { industry: "", companySize: "", services: [], targetIndustries: [], targetTitles: [], locations: [] },
+    defaultValues: {
+      industry: "", companySize: "", services: [], targetIndustries: [], targetTitles: [], locations: [],
+      ...loadOnboarding(), // pick up where the person left off
+    },
   });
   const v = watch();
 
+  // Next: required fields of the current step must be valid. Progress is saved so a refresh doesn't lose it.
+  // While editing from the review page the same button reads "Save and review" and returns to the review.
   const next = async () => {
-    if (await trigger(STEP_FIELDS[step])) setStep((s) => s + 1);
-  };
-  const persist = async (complete: boolean, kind: "save" | "finish") => {
     setError(null);
-    if (complete && !(await trigger())) return setError("Some required details are missing. Use Edit to fix them.");
-    setBusy(kind);
+    if (!(await trigger(STEP_FIELDS[step]))) return;
+    await saveOnboarding(getValues()).catch(() => {});
+    if (editing) {
+      setEditing(false);
+      setStep(3);
+    } else {
+      setStep((s) => s + 1);
+    }
+  };
+  const edit = (target: number) => {
+    setError(null);
+    setEditing(true);
+    setStep(target);
+  };
+  const finish = async () => {
+    setError(null);
+    // send the person to the first step that still has a missing required answer
+    for (let i = 0; i < 3; i++) {
+      if (!(await trigger(STEP_FIELDS[i]))) {
+        setError("Some required details are missing. Please complete them to finish.");
+        edit(i);
+        return;
+      }
+    }
+    setBusy(true);
     try {
-      await saveOnboarding(getValues(), complete); // MOCK until backend route exists
-      router.push(complete ? "/overview" : "/login");
+      await saveOnboarding(getValues()); // MOCK until backend route exists
+      router.push("/overview");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save your details.");
-      setBusy(null);
+      setBusy(false);
     }
   };
 
@@ -164,7 +192,7 @@ export default function OnboardingPage() {
                 <FieldError message={errors.companyName?.message} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="websiteUrl" className={lbl}>Website URL<Req /></Label>
+                <Label htmlFor="websiteUrl" className={lbl}>Website URL <span className="ml-1 text-xs font-normal text-[#7C8AA5]">(optional)</span></Label>
                 <Input id="websiteUrl" placeholder="https://example.com" className={field} {...register("websiteUrl")} />
                 <FieldError message={errors.websiteUrl?.message} />
               </div>
@@ -237,7 +265,7 @@ export default function OnboardingPage() {
 
             {step === 3 && (
               <div className="flex flex-col gap-3">
-                <Section icon={0} title="Company" onEdit={() => setStep(0)}>
+                <Section icon={0} title="Company" onEdit={() => edit(0)}>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                     <Row label="Company name"><Text v={v.companyName} /></Row>
                     <Row label="Website"><Text v={v.websiteUrl} /></Row>
@@ -245,11 +273,11 @@ export default function OnboardingPage() {
                   </div>
                   <Row label="Description"><Text v={v.description} /></Row>
                 </Section>
-                <Section icon={1} title="Services" onEdit={() => setStep(1)}>
+                <Section icon={1} title="Services" onEdit={() => edit(1)}>
                   <Row label="Services"><Chips items={v.services} /></Row>
                   <Row label="What makes you different"><Text v={v.differentiation} /></Row>
                 </Section>
-                <Section icon={2} title="Ideal customer" onEdit={() => setStep(2)}>
+                <Section icon={2} title="Ideal customer" onEdit={() => edit(2)}>
                   <Row label="Target industries"><Chips items={v.targetIndustries} /></Row>
                   <Row label="Target job titles"><Chips items={v.targetTitles} /></Row>
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -262,26 +290,24 @@ export default function OnboardingPage() {
             )}
 
             <div className="mt-8 flex items-center justify-between border-t border-[#2A3350] pt-6">
-              <div className="flex items-center gap-3 text-sm font-medium text-[#A8B3C7]">
-                <button type="button" disabled={step === 0} onClick={() => setStep((s) => s - 1)} className="flex items-center gap-1 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+              {editing ? (
+                <button type="button" onClick={() => { setError(null); setEditing(false); setStep(3); }} className="flex items-center gap-1 text-sm font-medium text-[#A8B3C7] hover:text-white">
+                  <ArrowLeft size={18} />Back to review
+                </button>
+              ) : (
+                <button type="button" disabled={step === 0} onClick={() => setStep((s) => s - 1)} className="flex items-center gap-1 text-sm font-medium text-[#A8B3C7] hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
                   <ArrowLeft size={18} />Back
                 </button>
-                {step < 3 && <button type="button" onClick={() => setStep((s) => s + 1)} className="hover:text-white">Skip for now</button>}
-              </div>
-              <div className="flex items-center gap-3">
-                <Button type="button" variant="outline" disabled={!!busy} onClick={() => persist(false, "save")} className="h-10 rounded-lg border-[#2A3350] bg-transparent text-sm font-medium text-[#E2E8F0] hover:bg-[#1A2030]">
-                  {busy === "save" && <Loader2 size={16} className="animate-spin" />}Save and finish later
+              )}
+              {step < 3 ? (
+                <Button type="button" onClick={next} className="h-10 gap-2 rounded-lg bg-[#818CF8] px-5 text-sm font-semibold text-[#0B0F19] hover:bg-[#929BFA]">
+                  {editing ? <><Check size={18} />Save and review</> : <>Next<ArrowRight size={18} /></>}
                 </Button>
-                {step < 3 ? (
-                  <Button type="button" onClick={next} className="h-10 gap-2 rounded-lg bg-[#818CF8] px-5 text-sm font-semibold text-[#0B0F19] hover:bg-[#929BFA]">
-                    Next<ArrowRight size={18} />
-                  </Button>
-                ) : (
-                  <Button type="button" disabled={!!busy} onClick={() => persist(true, "finish")} className="h-10 gap-2 rounded-lg bg-[#818CF8] px-5 text-sm font-semibold text-[#0B0F19] hover:bg-[#929BFA]">
-                    {busy === "finish" ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}Finish setup
-                  </Button>
-                )}
-              </div>
+              ) : (
+                <Button type="button" disabled={busy} onClick={finish} className="h-10 gap-2 rounded-lg bg-[#818CF8] px-5 text-sm font-semibold text-[#0B0F19] hover:bg-[#929BFA]">
+                  {busy ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}Finish setup
+                </Button>
+              )}
             </div>
           </form>
         </div>
