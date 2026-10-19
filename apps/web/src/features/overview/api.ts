@@ -3,7 +3,7 @@ import { buildMockOverview, emptyMockOverview, mockNavCounts } from "./mock-data
 import type { NavCounts, OverviewData } from "./types";
 
 /**
- * The backend only exposes /api/auth/* today, so the dashboard runs on mock data.
+ * The backend has no /api/analytics routes yet, so the dashboard runs on mock data.
  * When your teammate ships the analytics routes, set in apps/web/.env.local:
  *
  *   NEXT_PUBLIC_USE_MOCK_DASHBOARD=false

@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { INDUSTRIES, MAX_SERVICES } from "@/features/onboarding/options";
 import type { OnboardingValues } from "@/features/onboarding/schema";
-import { loadOnboarding, updateProfile, validateFields } from "@/features/onboarding/status";
+import { updateProfile } from "@/features/onboarding/api";
+import { loadOnboarding, validateFields } from "@/features/onboarding/status";
 import { Field, Pill, SaveButton, SectionCard, TagGroup, inputCls, selectCls } from "./settings-ui";
 
 type Draft = Pick<OnboardingValues, "companyName" | "websiteUrl" | "industry" | "description" | "services" | "differentiation">;
@@ -28,11 +29,15 @@ export function BusinessTab() {
   const set = <K extends keyof Draft>(k: K, val: Draft[K]) => setV((p) => ({ ...p, [k]: val }));
   const text = (k: keyof Draft) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => set(k, e.target.value as never);
 
-  const save = (keys: (keyof Draft)[], message: string) => {
+  const save = async (keys: (keyof Draft)[], message: string) => {
     const error = validateFields(v, keys);
     if (error) return void toast.error(error);
-    updateProfile(v);
-    toast.success(message);
+    try {
+      await updateProfile(v);
+      toast.success(message);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save your changes.");
+    }
   };
 
   return (

@@ -79,8 +79,8 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   const counts = useNavCounts();
   const user = userStore.get();
 
-  const signOut = () => {
-    logoutUser();
+  const signOut = async () => {
+    await logoutUser();
     router.replace("/login");
   };
 

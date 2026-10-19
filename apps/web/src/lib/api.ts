@@ -49,6 +49,16 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new ApiError("Cannot reach the server. Please try again.", 0);
   }
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(body.message ?? "Something went wrong", res.status);
+  if (!res.ok) {
+    // A protected request was rejected (expired or revoked token, e.g. after logout): drop the session and sign in again.
+    // /api/auth/* is excluded so wrong-password / bad-OTP errors still show on their own forms.
+    if (res.status === 401 && token && !path.startsWith("/api/auth/") && typeof window !== "undefined") {
+      tokenStore.clear();
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.replace("/login");
+    }
+    throw new ApiError(body.message ?? "Something went wrong", res.status);
+  }
   return body as T;
 }

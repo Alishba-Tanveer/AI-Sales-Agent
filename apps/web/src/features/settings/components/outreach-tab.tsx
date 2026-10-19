@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import { cn } from "cn";
 import { Textarea } from "@/components/ui/textarea";
 import { SIZES } from "@/features/onboarding/options";
-import { loadOnboarding, updateProfile, validateFields } from "@/features/onboarding/status";
+import { updateProfile } from "@/features/onboarding/api";
+import { loadOnboarding, validateFields } from "@/features/onboarding/status";
 import type { MessageTone } from "../types";
 import { Field, NumberField, Pill, SaveButton, SectionCard, TagGroup, selectCls } from "./settings-ui";
 
@@ -44,12 +45,16 @@ export function OutreachTab({ dailyCap, onDailyCapChange }: { dailyCap: number; 
   const [followUps, setFollowUps] = useState(3);
   const [gapDays, setGapDays] = useState(3);
 
-  const saveTargeting = () => {
+  const saveTargeting = async () => {
     const patch = { targetIndustries: industries, targetTitles: titles, locations, companySize, customerDescription };
     const error = validateFields(patch, ["targetIndustries", "targetTitles", "locations", "companySize", "customerDescription"]);
     if (error) return void toast.error(error);
-    updateProfile(patch);
-    toast.success("Ideal customer details saved");
+    try {
+      await updateProfile(patch);
+      toast.success("Ideal customer details saved");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save your changes.");
+    }
   };
 
   return (

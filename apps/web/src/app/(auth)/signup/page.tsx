@@ -5,27 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRight, CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthCard, FieldError, ServerError, inputCls, primaryBtn } from "@/components/auth/auth-shell";
-import { PASSWORD_RULES, passwordStrength, signupSchema, type SignupValues } from "@/features/auth/schemas";
+import { PasswordInput, PasswordStrength } from "@/components/auth/password-fields";
+import { Input } from "@/components/ui/input";
+import { signupSchema, type SignupValues } from "@/features/auth/schemas";
 import { registerUser } from "@/features/auth/api";
-
-const BAR = ["#F87171", "#FBBF24", "#38BDF8", "#4ADE80"];
-const LABEL = ["Too weak", "Weak", "Okay", "Good", "Strong"];
-
-function PasswordInput({ id, show, onToggle, ...rest }: React.ComponentProps<typeof Input> & { show: boolean; onToggle: () => void }) {
-  return (
-    <div className="relative">
-      <Input id={id} type={show ? "text" : "password"} placeholder="••••••••••••" className={`${inputCls} pr-10`} {...rest} />
-      <button type="button" aria-label="Toggle password visibility" onClick={onToggle} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#E5E7EB]">
-        {show ? <EyeOff size={18} /> : <Eye size={18} />}
-      </button>
-    </div>
-  );
-}
 
 export default function SignupPage() {
   const router = useRouter();
@@ -36,7 +23,6 @@ export default function SignupPage() {
     resolver: zodResolver(signupSchema),
   });
   const pw = watch("password") ?? "";
-  const strength = passwordStrength(pw);
 
   const onSubmit = async (v: SignupValues) => {
     setError(null);
@@ -69,24 +55,7 @@ export default function SignupPage() {
         <div className="space-y-1.5">
           <Label htmlFor="password" className="text-xs font-medium text-[#94A3B8]">Password</Label>
           <PasswordInput id="password" show={showPw} onToggle={() => setShowPw((s) => !s)} autoComplete="new-password" {...register("password")} />
-          <div className="grid h-1 grid-cols-4 gap-1.5 pt-1">
-            {BAR.map((c, i) => <div key={c} className="h-1 rounded-full bg-[#232A3B] transition-colors" style={i < strength ? { background: c } : undefined} />)}
-          </div>
-          <p className="flex items-center gap-1 pt-1 text-[11px] text-[#94A3B8]">
-            {strength === 4 && <CheckCircle2 size={14} className="text-[#4ADE80]" />}
-            {LABEL[strength]}
-          </p>
-          <ul className="grid grid-cols-2 gap-x-3 gap-y-1 pt-1">
-            {PASSWORD_RULES.map((r) => {
-              const ok = r.test(pw);
-              return (
-                <li key={r.id} className={`flex items-center gap-1.5 text-[11px] ${ok ? "text-[#4ADE80]" : "text-[#94A3B8]"}`}>
-                  <CheckCircle2 size={13} className={ok ? "" : "opacity-40"} />
-                  {r.label}
-                </li>
-              );
-            })}
-          </ul>
+          <PasswordStrength value={pw} />
           <FieldError message={errors.password?.message} />
         </div>
         <div className="space-y-1.5">
