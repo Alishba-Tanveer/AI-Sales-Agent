@@ -14,9 +14,15 @@ export async function sendOtpEmail(toEmail: string, otp: string): Promise<boolea
   const smtpPass = (process.env.SMTP_PASS || env.SMTP_PASS)?.replace(/\s+/g, ""); // automatically strip spaces from 16-char Google App Password
 
   if (!smtpUser || !smtpPass) {
-    console.warn(
-      `\n[MAILER WARNING] SMTP_USER or SMTP_PASS is missing in .env. Skipping real email delivery. OTP for ${toEmail}: ${otp}\n`
-    );
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        `\n[MAILER WARNING] SMTP_USER or SMTP_PASS is missing in .env. Skipping real email delivery. OTP for ${toEmail}: ${otp}\n`
+      );
+    } else {
+      console.warn(
+        "\n[MAILER WARNING] SMTP_USER or SMTP_PASS is missing in .env. Skipping real email delivery.\n"
+      );
+    }
     return false;
   }
 

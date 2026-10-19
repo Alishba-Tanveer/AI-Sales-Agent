@@ -126,18 +126,18 @@ export class AuthService {
     // Store OTP for 10 minutes (600 seconds)
     await saveOtp(user.email, otp, 600);
 
-    console.log(`\n[PASSWORD RESET OTP for ${user.email}]: ${otp} (Expires in 10 minutes)\n`);
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`\n[PASSWORD RESET OTP for ${user.email}]: ${otp} (Expires in 10 minutes)\n`);
+    }
 
-    let emailSent = false;
     try {
-      emailSent = await sendOtpEmail(user.email, otp);
+      await sendOtpEmail(user.email, otp);
     } catch (error) {
       console.error("[MAILER ERROR] Failed to send OTP email:", error);
     }
 
     return {
       message: "If an account with that email exists, a 6-digit OTP has been sent to your email.",
-      emailSent,
     };
   }
 
