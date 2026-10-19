@@ -5,7 +5,12 @@ const list = (label: string, max = 10) =>
 
 export const onboardingSchema = z.object({
   companyName: z.string().trim().min(2, "Enter your company name"),
-  websiteUrl: z.string().trim().min(1, "Enter your website URL").regex(/^(https?:\/\/)?([\w-]+\.)+[a-z]{2,}(\/.*)?$/i, "Enter a valid URL, e.g. https://example.com"),
+  // optional: empty is fine, but if something is typed it must look like a URL
+  websiteUrl: z
+    .string()
+    .trim()
+    .optional()
+    .refine((v) => !v || /^(https?:\/\/)?([\w-]+\.)+[a-z]{2,}(\/.*)?$/i.test(v), "Enter a valid URL, e.g. https://example.com"),
   industry: z.string().min(1, "Select an industry"),
   description: z.string().optional(),
   services: list("service", 5),

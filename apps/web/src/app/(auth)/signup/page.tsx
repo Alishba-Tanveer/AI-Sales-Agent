@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthCard, FieldError, ServerError, inputCls, primaryBtn } from "@/components/auth/auth-shell";
-import { passwordStrength, signupSchema, type SignupValues } from "@/features/auth/schemas";
+import { PASSWORD_RULES, passwordStrength, signupSchema, type SignupValues } from "@/features/auth/schemas";
 import { registerUser } from "@/features/auth/api";
 
 const BAR = ["#F87171", "#FBBF24", "#38BDF8", "#4ADE80"];
@@ -35,7 +35,8 @@ export default function SignupPage() {
   const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<SignupValues>({
     resolver: zodResolver(signupSchema),
   });
-  const strength = passwordStrength(watch("password") ?? "");
+  const pw = watch("password") ?? "";
+  const strength = passwordStrength(pw);
 
   const onSubmit = async (v: SignupValues) => {
     setError(null);
@@ -73,8 +74,19 @@ export default function SignupPage() {
           </div>
           <p className="flex items-center gap-1 pt-1 text-[11px] text-[#94A3B8]">
             {strength === 4 && <CheckCircle2 size={14} className="text-[#4ADE80]" />}
-            {LABEL[strength]} — 8+ characters, mixed case, numbers &amp; symbols
+            {LABEL[strength]}
           </p>
+          <ul className="grid grid-cols-2 gap-x-3 gap-y-1 pt-1">
+            {PASSWORD_RULES.map((r) => {
+              const ok = r.test(pw);
+              return (
+                <li key={r.id} className={`flex items-center gap-1.5 text-[11px] ${ok ? "text-[#4ADE80]" : "text-[#94A3B8]"}`}>
+                  <CheckCircle2 size={13} className={ok ? "" : "opacity-40"} />
+                  {r.label}
+                </li>
+              );
+            })}
+          </ul>
           <FieldError message={errors.password?.message} />
         </div>
         <div className="space-y-1.5">
