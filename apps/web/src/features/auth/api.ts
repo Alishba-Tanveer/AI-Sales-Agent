@@ -36,19 +36,52 @@ export async function loginUser(email: string, password: string, remember = true
   return res.data.user;
 }
 
-/** Clears the session on this device. Call router.replace("/login") afterwards. */
-export function logoutUser() {
-  tokenStore.clear();
-  userStore.clear();
-  resetSetupReminder();
+/**
+ * POST /api/auth/logout revokes the token on the server (blacklist), then the session is cleared locally.
+ * The local clear always happens, even if the request fails (offline, token already expired/revoked).
+ * Call router.replace("/login") afterwards.
+ */
+export async function logoutUser() {
+  try {
+    if (tokenStore.get()) await post<{ message: string }>("/api/auth/logout", {});
+  } catch {
+    // ignore: we still sign the person out on this device
+  } finally {
+    tokenStore.clear();
+    userStore.clear();
+    resetSetupReminder();
+  }
 }
 
-/** POST /api/auth/forgot-password  (backend also returns resetToken for dev testing) */
+/* ---- Forgot password: 6-digit OTP flow (forgot-password -> verify-otp -> reset-password) ---- */
+
+/** POST /api/auth/forgot-password. Always answers generically, so the UI never reveals whether an email exists. */
 export function requestPasswordReset(email: string) {
-  return post<{ message: string; resetToken?: string }>("/api/auth/forgot-password", { email });
+  return post<{ message: string; emailSent?: boolean }>("/api/auth/forgot-password", { email });
 }
 
-/** POST /api/auth/reset-password */
-export function resetPassword(token: string, newPassword: string) {
-  return post<{ message: string }>("/api/auth/reset-password", { token, newPassword });
+/** POST /api/auth/verify-otp. Throws ApiError(400) for a wrong/expired code. */
+export function verifyOtp(email: string, otp: string) {
+  return post<{ message: string; valid: boolean }>("/api/auth/verify-otp", { email, otp });
 }
+
+/** POST /api/auth/reset-password. Consumes the OTP. */
+export function resetPassword(email: string, otp: string, newPassword: string) {
+  return post<{ message: string }>("/api/auth/reset-password", { email, otp, newPassword });
+}
+
+/** The verified email + code travel from the OTP page to the reset page in sessionStorage (not in the URL). */
+const RESET_KEY = "password-reset";
+export const resetFlow = {
+  set: (v: { email: string; otp: string }) => sessionStorage.setItem(RESET_KEY, JSON.stringify(v)),
+  get: (): { email: string; otp: string } | null => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = sessionStorage.getItem(RESET_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  },
+  clear: () => sessionStorage.removeItem(RESET_KEY),
+};

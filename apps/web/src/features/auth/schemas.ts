@@ -7,18 +7,21 @@ export const loginSchema = z.object({
 });
 export type LoginValues = z.infer<typeof loginSchema>;
 
+/** Password policy shared by Sign up and Reset password. */
+export const passwordSchema = z
+  .string()
+  .min(6, "Password must be at least 6 characters long")
+  .regex(/[A-Z]/, "Password must include at least one uppercase letter")
+  .regex(/[a-z]/, "Password must include at least one lowercase letter")
+  .regex(/[0-9]/, "Password must include at least one number")
+  .regex(/[^A-Za-z0-9]/, "Password must include at least one symbol (e.g. ! @ # $)");
+
 // Mirrors backend registerSchema (name >= 2, email, password >= 6) + UI-only fields
 export const signupSchema = z
   .object({
     name: z.string().trim().min(2, "Name must be at least 2 characters long"),
     email: z.string().trim().email("Enter a valid work email address"),
-    password: z
-      .string()
-      .min(6, "Password must be at least 6 characters long")
-      .regex(/[A-Z]/, "Password must include at least one uppercase letter")
-      .regex(/[a-z]/, "Password must include at least one lowercase letter")
-      .regex(/[0-9]/, "Password must include at least one number")
-      .regex(/[^A-Za-z0-9]/, "Password must include at least one symbol (e.g. ! @ # $)"),
+    password: passwordSchema,
     confirmPassword: z.string(),
     terms: z.literal(true, {
       errorMap: () => ({ message: "You must agree to the Terms of Service and Privacy Policy to continue." }),
@@ -49,9 +52,16 @@ export function passwordStrength(p: string) {
   return PASSWORD_RULES.filter((r) => r.id !== "length" && r.test(p)).length;
 }
 
+export const OTP_LENGTH = 6;
+
+export const otpSchema = z.object({
+  otp: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code from your email"),
+});
+export type OtpValues = z.infer<typeof otpSchema>;
+
 export const resetSchema = z
   .object({
-    newPassword: z.string().min(6, "New password must be at least 6 characters long"),
+    newPassword: passwordSchema,
     confirmPassword: z.string(),
   })
   .refine((v) => v.newPassword === v.confirmPassword, { path: ["confirmPassword"], message: "Passwords do not match." });
