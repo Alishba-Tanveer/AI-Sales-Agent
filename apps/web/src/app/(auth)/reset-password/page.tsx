@@ -1,32 +1,40 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRight, CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AuthCard, FieldError, ServerError, inputCls, primaryBtn } from "@/components/auth/auth-shell";
+import { AuthCard, FieldError, ServerError, primaryBtn } from "@/components/auth/auth-shell";
+import { PasswordInput, PasswordStrength } from "@/components/auth/password-fields";
 import { resetSchema, type ResetValues } from "@/features/auth/schemas";
-import { resetPassword } from "@/features/auth/api";
+import { resetFlow, resetPassword } from "@/features/auth/api";
 
-function ResetForm() {
-  const token = useSearchParams().get("token");
+type Flow = { email: string; otp: string };
+
+export default function ResetPasswordPage() {
+  // email + code were verified on the previous screen and kept in sessionStorage
+  const [flow, setFlow] = useState<Flow | null | undefined>(undefined); // undefined = not read yet
   const [show, setShow] = useState(false);
+  const [showC, setShowC] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<ResetValues>({
+  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<ResetValues>({
     resolver: zodResolver(resetSchema),
   });
+  const pw = watch("newPassword") ?? "";
 
-  if (!token) {
+  useEffect(() => setFlow(resetFlow.get()), []);
+
+  if (flow === undefined) return null;
+
+  if (!flow) {
     return (
-      <AuthCard title="Invalid reset link" subtitle="This link is missing its token. Request a new one to continue."
-        footer={<Link href="/forgot-password" className="font-medium text-[#818CF8] hover:underline">Request a new link</Link>}>
-        <ServerError message="The reset link is incomplete or has already been used." />
+      <AuthCard title="Verification needed" subtitle="Verify your email code before choosing a new password."
+        footer={<Link href="/forgot-password" className="font-medium text-[#818CF8] hover:underline">Request a new code</Link>}>
+        <ServerError message="Your reset session is missing or has expired." />
       </AuthCard>
     );
   }
@@ -45,7 +53,8 @@ function ResetForm() {
   const onSubmit = async (v: ResetValues) => {
     setError(null);
     try {
-      await resetPassword(token, v.newPassword);
+      await resetPassword(flow.email, flow.otp, v.newPassword);
+      resetFlow.clear();
       setDone(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not reset your password.");
@@ -53,23 +62,19 @@ function ResetForm() {
   };
 
   return (
-    <AuthCard title="Set a new password" subtitle="Choose a new password for your account."
-      footer={<Link href="/forgot-password" className="hover:text-[#818CF8]">Link expired? Request a new one</Link>}>
+    <AuthCard title="Set a new password" subtitle={`Choose a new password for ${flow.email}.`}
+      footer={<Link href="/forgot-password" className="hover:text-[#818CF8]">Code expired? Request a new one</Link>}>
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
         <ServerError message={error} />
         <div className="space-y-1.5">
           <Label htmlFor="newPassword" className="text-xs font-medium text-[#E5E7EB]">New password</Label>
-          <div className="relative">
-            <Input id="newPassword" type={show ? "text" : "password"} autoComplete="new-password" placeholder="••••••••••••" className={`${inputCls} pr-10`} {...register("newPassword")} />
-            <button type="button" aria-label="Toggle password visibility" onClick={() => setShow((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#E5E7EB]">
-              {show ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
-          </div>
+          <PasswordInput id="newPassword" show={show} onToggle={() => setShow((s) => !s)} autoComplete="new-password" {...register("newPassword")} />
+          <PasswordStrength value={pw} />
           <FieldError message={errors.newPassword?.message} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="confirmPassword" className="text-xs font-medium text-[#E5E7EB]">Confirm new password</Label>
-          <Input id="confirmPassword" type={show ? "text" : "password"} autoComplete="new-password" placeholder="••••••••••••" className={inputCls} {...register("confirmPassword")} />
+          <PasswordInput id="confirmPassword" show={showC} onToggle={() => setShowC((s) => !s)} autoComplete="new-password" {...register("confirmPassword")} />
           <FieldError message={errors.confirmPassword?.message} />
         </div>
         <Button type="submit" disabled={isSubmitting} className={primaryBtn}>
@@ -78,8 +83,4 @@ function ResetForm() {
       </form>
     </AuthCard>
   );
-}
-
-export default function ResetPasswordPage() {
-  return <Suspense><ResetForm /></Suspense>;
 }

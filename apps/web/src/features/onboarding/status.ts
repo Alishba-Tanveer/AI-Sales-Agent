@@ -2,11 +2,12 @@ import { userStore } from "@/features/auth/user-store";
 import { onboardingSchema, type OnboardingValues } from "./schema";
 
 /**
- * Onboarding + Settings share one saved company profile. It is still mocked on the frontend
- * (backend has no route yet) and kept per user in localStorage. When the backend route exists,
- * swap loadOnboarding/storeOnboarding for API calls; everything else keeps working.
+ * Onboarding + Settings share one company profile that lives on the backend (GET/POST /api/onboarding).
+ * It is mirrored in localStorage per user so synchronous reads (Settings tabs, the setup reminder)
+ * stay instant. The dashboard refreshes the mirror from the server on load (see ProfileSync).
  */
 const profileKey = () => `onboarding-profile:${userStore.get()?.id ?? "anon"}`;
+const doneKey = () => `onboarding-complete:${userStore.get()?.id ?? "anon"}`;
 const POPUP_FLAG = "setup-reminder-seen";
 
 export type SettingsTabTarget = "business" | "outreach";
@@ -21,16 +22,13 @@ export function loadOnboarding(): Partial<OnboardingValues> | null {
   }
 }
 
-export function storeOnboarding(values: Partial<OnboardingValues>) {
+/** Replace the local mirror with what the server returned. */
+export function cacheProfile(values: Partial<OnboardingValues>, completed: boolean) {
   localStorage.setItem(profileKey(), JSON.stringify(values));
+  localStorage.setItem(doneKey(), completed ? "1" : "0");
 }
 
-/** Merge a patch into the saved profile and return the result. */
-export function updateProfile(patch: Partial<OnboardingValues>) {
-  const next = { ...(loadOnboarding() ?? {}), ...patch };
-  storeOnboarding(next);
-  return next;
-}
+export const isOnboardingComplete = () => typeof window !== "undefined" && localStorage.getItem(doneKey()) === "1";
 
 /** First validation message for the given fields (same rules as onboarding), or null if they're fine. */
 export function validateFields(values: Partial<OnboardingValues>, keys: (keyof OnboardingValues)[]) {

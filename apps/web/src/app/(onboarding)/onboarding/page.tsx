@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,7 +13,7 @@ import { FieldError, ServerError } from "@/components/auth/auth-shell";
 import { Backdrop } from "@/components/auth/backdrop";
 import { TagInput } from "@/features/onboarding/tag-input";
 import { onboardingSchema, STEP_FIELDS, type OnboardingValues } from "@/features/onboarding/schema";
-import { saveOnboarding } from "@/features/onboarding/api";
+import { fetchOnboarding, saveOnboarding } from "@/features/onboarding/api";
 import { loadOnboarding } from "@/features/onboarding/status";
 import { INDUSTRIES, SIZES } from "@/features/onboarding/options";
 
@@ -78,7 +78,7 @@ function Section({ icon, title, onEdit, children }: { icon: number; title: strin
   );
 }
 
-export default function OnboardingPage() {
+function OnboardingForm({ initial }: { initial: Partial<OnboardingValues> }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [editing, setEditing] = useState(false); // true when a step was opened from "Edit" on the review page
@@ -89,7 +89,7 @@ export default function OnboardingPage() {
     mode: "onTouched",
     defaultValues: {
       industry: "", companySize: "", services: [], targetIndustries: [], targetTitles: [], locations: [],
-      ...loadOnboarding(), // pick up where the person left off
+      ...initial, // pick up where the person left off (saved on the server)
     },
   });
   const v = watch();
@@ -99,7 +99,7 @@ export default function OnboardingPage() {
   const next = async () => {
     setError(null);
     if (!(await trigger(STEP_FIELDS[step]))) return;
-    await saveOnboarding(getValues()).catch(() => {});
+    await saveOnboarding(getValues(), false).catch(() => {}); // progress save; a failure here must not block the step
     if (editing) {
       setEditing(false);
       setStep(3);
@@ -124,7 +124,7 @@ export default function OnboardingPage() {
     }
     setBusy(true);
     try {
-      await saveOnboarding(getValues()); // MOCK until backend route exists
+      await saveOnboarding(getValues(), true);
       router.push("/overview");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save your details.");
@@ -314,4 +314,34 @@ export default function OnboardingPage() {
       </main>
     </div>
   );
+}
+
+/** Loads the saved profile from the backend first, so refreshing or switching device resumes where the person left off. */
+export default function OnboardingPage() {
+  const router = useRouter();
+  const [initial, setInitial] = useState<Partial<OnboardingValues> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchOnboarding()
+      .then(({ profile, completed }) => {
+        if (cancelled) return;
+        // Only skip the wizard if the setup was explicitly finished; /onboarding stays reachable from signup.
+        if (completed) return router.replace("/overview");
+        setInitial(profile);
+      })
+      .catch(() => !cancelled && setInitial(loadOnboarding() ?? {})); // offline / server error: fall back to the local copy
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  if (!initial) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-[#A8B3C7]">
+        <Loader2 className="animate-spin" size={22} />
+      </div>
+    );
+  }
+  return <OnboardingForm initial={initial} />;
 }

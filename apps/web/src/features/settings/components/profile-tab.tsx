@@ -170,8 +170,8 @@ export function ProfileTab() {
             <Button
               variant="destructive"
               className="h-8 gap-1.5 px-3 text-xs"
-              onClick={() => {
-                logoutUser();
+              onClick={async () => {
+                await logoutUser();
                 router.replace("/login");
               }}
             >
