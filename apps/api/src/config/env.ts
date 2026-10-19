@@ -12,6 +12,8 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().url(),
   JWT_SECRET: z.string().min(16),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);
