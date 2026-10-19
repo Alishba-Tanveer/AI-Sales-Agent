@@ -1,6 +1,12 @@
 import type { Request, Response, NextFunction } from "express";
 import { AuthService } from "./auth.service";
-import { registerSchema,loginSchema,forgotPasswordSchema,resetPasswordSchema } from "./auth.schema";
+import {
+  registerSchema,
+  loginSchema,
+  forgotPasswordSchema,
+  verifyOtpSchema,
+  resetPasswordSchema,
+} from "./auth.schema";
 import { AppError } from "../../utils/app-error";
 
 export class AuthController {
@@ -27,7 +33,7 @@ export class AuthController {
     }
   };
 
- login = async (req: Request, res: Response, next: NextFunction) => {
+  login = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parseResult = loginSchema.safeParse(req.body);
       if (!parseResult.success) {
@@ -46,7 +52,7 @@ export class AuthController {
     }
   };
 
-forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
+  forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parseResult = forgotPasswordSchema.safeParse(req.body);
       if (!parseResult.success) {
@@ -62,6 +68,21 @@ forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
     }
   };
 
+  verifyOtp = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parseResult = verifyOtpSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        const errorMessages = parseResult.error.issues
+          .map((i) => i.message)
+          .join(", ");
+        throw new AppError(errorMessages, 400);
+      }
+      const result = await this.authService.verifyOtp(parseResult.data);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
 
   resetPassword = async (req: Request, res: Response, next: NextFunction) => {
     try {
