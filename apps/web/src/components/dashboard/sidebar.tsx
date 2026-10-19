@@ -17,7 +17,6 @@ import { logoutUser } from "@/features/auth/api";
 import { userStore } from "@/features/auth/user-store";
 import { useNavCounts } from "@/features/overview/hooks";
 import { NAV_SECTIONS, isNavActive, type NavItem } from "./nav-config";
-import { ThemeSwitch } from "./theme-switch";
 
 const pillTone = {
   warning: "border-warning/30 bg-warning-soft text-warning",
@@ -143,10 +142,8 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
           </nav>
         </div>
 
-        {/* footer: theme + user */}
+        {/* footer: user */}
         <div className="flex shrink-0 flex-col gap-2 border-t border-sidebar-border bg-sidebar p-2">
-          <ThemeSwitch />
-
           <DropdownMenu>
             <DropdownMenuTrigger
               className="group flex w-full cursor-pointer items-center gap-2 rounded-lg border border-border bg-card p-1.5 text-left transition-all duration-200 outline-none hover:border-primary/40 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"

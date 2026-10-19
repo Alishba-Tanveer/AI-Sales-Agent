@@ -12,7 +12,13 @@ export const signupSchema = z
   .object({
     name: z.string().trim().min(2, "Name must be at least 2 characters long"),
     email: z.string().trim().email("Enter a valid work email address"),
-    password: z.string().min(6, "Password must be at least 6 characters long"),
+    password: z
+      .string()
+      .min(6, "Password must be at least 6 characters long")
+      .regex(/[A-Z]/, "Password must include at least one uppercase letter")
+      .regex(/[a-z]/, "Password must include at least one lowercase letter")
+      .regex(/[0-9]/, "Password must include at least one number")
+      .regex(/[^A-Za-z0-9]/, "Password must include at least one symbol (e.g. ! @ # $)"),
     confirmPassword: z.string(),
     terms: z.literal(true, {
       errorMap: () => ({ message: "You must agree to the Terms of Service and Privacy Policy to continue." }),
@@ -29,13 +35,18 @@ export const forgotSchema = z.object({
 });
 export type ForgotValues = z.infer<typeof forgotSchema>;
 
+/** Each rule needs at least one match; more than one is fine. */
+export const PASSWORD_RULES = [
+  { id: "length", label: "6+ characters", test: (p: string) => p.length >= 6 },
+  { id: "upper", label: "Uppercase letter", test: (p: string) => /[A-Z]/.test(p) },
+  { id: "lower", label: "Lowercase letter", test: (p: string) => /[a-z]/.test(p) },
+  { id: "number", label: "Number", test: (p: string) => /[0-9]/.test(p) },
+  { id: "symbol", label: "Symbol", test: (p: string) => /[^A-Za-z0-9]/.test(p) },
+] as const;
+
+/** 0-4 for the strength bar: counts the four character-type rules. */
 export function passwordStrength(p: string) {
-  let s = 0;
-  if (p.length >= 8) s++;
-  if (/[a-z]/.test(p) && /[A-Z]/.test(p)) s++;
-  if (/\d/.test(p)) s++;
-  if (/[^A-Za-z0-9]/.test(p)) s++;
-  return s;
+  return PASSWORD_RULES.filter((r) => r.id !== "length" && r.test(p)).length;
 }
 
 export const resetSchema = z

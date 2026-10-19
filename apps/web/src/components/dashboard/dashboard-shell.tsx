@@ -1,8 +1,10 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import { Toaster } from "@/components/ui/sonner";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
+import { SetupReminder } from "./setup-reminder";
 
 /** Fixed 240px sidebar + fixed 64px top bar. On < lg screens the sidebar becomes a drawer. */
 export function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -19,6 +21,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <Topbar onMenuClick={() => setNavOpen(true)} />
         <div className="pt-16">{children}</div>
       </div>
+
+      {/* toasts (Settings uses these) */}
+      <Toaster position="bottom-right" />
+
+      {/* asks the person to finish onboarding if it isn't complete */}
+      <SetupReminder />
     </div>
   );
 }

@@ -21,6 +21,18 @@ export const tokenStore = {
   },
 };
 
+/** True when a token exists and has not expired. */
+export function hasValidSession() {
+  const t = tokenStore.get();
+  if (!t) return false;
+  try {
+    const payload = JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return !(typeof payload.exp === "number" && payload.exp * 1000 < Date.now());
+  } catch {
+    return false;
+  }
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = tokenStore.get();
   let res: Response;
