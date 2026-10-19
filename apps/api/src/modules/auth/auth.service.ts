@@ -1,14 +1,19 @@
+import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { env } from "../../config/env";
 import { AppError } from "../../utils/app-error";
+import { blacklistToken } from "../../utils/token-blacklist";
+import { saveOtp, verifyOtpCode } from "../../utils/otp-store";
+import { sendOtpEmail } from "../../utils/mailer";
 import { AuthRepository } from "./auth.repository";
-import type { RegisterInput,LoginInput,ForgotPasswordInput,ResetPasswordInput  } from "./auth.schema";
-
-interface ResetTokenPayload {
-  userId: string;
-  email: string;
-}
+import type {
+  RegisterInput,
+  LoginInput,
+  ForgotPasswordInput,
+  VerifyOtpInput,
+  ResetPasswordInput,
+} from "./auth.schema";
 
 export class AuthService {
   constructor(private readonly authRepository: AuthRepository) {}
@@ -75,7 +80,11 @@ export class AuthService {
     if (!isPasswordValid) {
       throw new AppError("Invalid email or password", 401);
     }
-    // 3. Sign new JWT token
+    // 3. Set token expiry based on remember me checkbox
+    // If remember is false: 1 day session token
+    // If remember is true (or not specified): 30 days token
+    const expiresIn = input.remember === false ? "1d" : "30d";
+
     const token = jwt.sign(
       {
         userId: user.id,
@@ -84,7 +93,7 @@ export class AuthService {
         role: user.role,
       },
       env.JWT_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn }
     );
     return {
       token,
@@ -102,59 +111,83 @@ export class AuthService {
     };
   }
 
-async forgotPassword(input: ForgotPasswordInput) {
+  async forgotPassword(input: ForgotPasswordInput) {
     const user = await this.authRepository.findUserByEmail(input.email);
     // Security practice: Always return generic message so attackers can't guess registered emails
     if (!user) {
       return {
-        message: "If an account with that email exists, a password reset link has been generated.",
+        message: "If an account with that email exists, a 6-digit OTP has been sent to your email.",
       };
     }
-    // Secret combines JWT_SECRET with the user's current password hash.
-    // When password is reset later, passwordHash changes and invalidates this token automatically!
-    const resetSecret = env.JWT_SECRET + user.passwordHash;
-    const resetToken = jwt.sign(
-      { userId: user.id, email: user.email },
-      resetSecret,
-      { expiresIn: "15m" }
-    );
-    const resetLink = `${env.WEB_URL}/reset-password?token=${resetToken}`;
-    console.log(`\n[PASSWORD RESET LINK for ${user.email}]: ${resetLink}\n`);
+
+    // Generate cryptographically secure 6-digit numeric OTP (100000 - 999999)
+    const otp = crypto.randomInt(100000, 1000000).toString();
+
+    // Store OTP for 10 minutes (600 seconds)
+    await saveOtp(user.email, otp, 600);
+
+    console.log(`\n[PASSWORD RESET OTP for ${user.email}]: ${otp} (Expires in 10 minutes)\n`);
+
+    let emailSent = false;
+    try {
+      emailSent = await sendOtpEmail(user.email, otp);
+    } catch (error) {
+      console.error("[MAILER ERROR] Failed to send OTP email:", error);
+    }
+
     return {
-      message: "If an account with that email exists, a password reset link has been generated.",
+      message: "If an account with that email exists, a 6-digit OTP has been sent to your email.",
+      emailSent,
       // Returned in response for easy testing in development/Postman:
-      resetToken,
+      otp,
     };
   }
 
+  async verifyOtp(input: VerifyOtpInput) {
+    const isValid = await verifyOtpCode(input.email, input.otp, false);
+    if (!isValid) {
+      throw new AppError("Invalid or expired OTP", 400);
+    }
+
+    return {
+      message: "OTP verified successfully",
+      valid: true,
+    };
+  }
 
   async resetPassword(input: ResetPasswordInput) {
-    // 1. Decode token to find userId without verifying yet
-    const decoded = jwt.decode(input.token) as ResetTokenPayload | null;
-    if (!decoded || !decoded.userId) {
-      throw new AppError("Invalid or expired reset token", 400);
+    // 1. Verify and consume the OTP (single-use)
+    const isValidOtp = await verifyOtpCode(input.email, input.otp, true);
+    if (!isValidOtp) {
+      throw new AppError("Invalid or expired OTP", 400);
     }
-    // 2. Fetch user to get their current passwordHash
-    const user = await this.authRepository.findUserById(decoded.userId);
+
+    // 2. Find user by email
+    const user = await this.authRepository.findUserByEmail(input.email);
     if (!user) {
-      throw new AppError("Invalid or expired reset token", 400);
+      throw new AppError("Invalid or expired OTP", 400);
     }
-    // 3. Verify token with current passwordHash
-    const resetSecret = env.JWT_SECRET + user.passwordHash;
-    try {
-      jwt.verify(input.token, resetSecret);
-    } catch {
-      throw new AppError("Invalid or expired reset token", 400);
-    }
-    // 4. Hash new password and update in database
+
+    // 3. Hash new password and update in database
     const saltRounds = 10;
     const newPasswordHash = await bcrypt.hash(input.newPassword, saltRounds);
     await this.authRepository.updateUserPassword(user.id, newPasswordHash);
+
     return {
       message: "Password has been reset successfully. You can now login with your new password.",
     };
   }
 
+  async logout(token?: string) {
+    if (token) {
+      const decoded = jwt.decode(token) as { exp?: number } | null;
+      const ttl = decoded?.exp
+        ? Math.max(decoded.exp - Math.floor(Date.now() / 1000), 60)
+        : 3600;
+      await blacklistToken(token, ttl);
+    }
+    return {
+      message: "Logged out successfully",
+    };
+  }
 }
-
-

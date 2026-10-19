@@ -13,17 +13,26 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 export const loginSchema = z.object({
   email: z.string().trim().email("Invalid email address"),
   password: z.string().min(1, "Password is required"),
+  remember: z.boolean().optional(),
 });
 
 
 export const forgotPasswordSchema = z.object({
   email: z.string().trim().email("Invalid email address"),
 });
+
+export const verifyOtpSchema = z.object({
+  email: z.string().trim().email("Invalid email address"),
+  otp: z.string().trim().regex(/^\d{6}$/, "OTP must be a 6-digit numeric code"),
+});
+
 export const resetPasswordSchema = z.object({
-  token: z.string().min(1, "Reset token is required"),
+  email: z.string().trim().email("Invalid email address"),
+  otp: z.string().trim().regex(/^\d{6}$/, "OTP must be a 6-digit numeric code"),
   newPassword: z.string().min(6, "New password must be at least 6 characters long"),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;

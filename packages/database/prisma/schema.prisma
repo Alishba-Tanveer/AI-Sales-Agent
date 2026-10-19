@@ -24,12 +24,23 @@ enum LeadStage {
 }
 
 model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  users     User[]
-  leads     Lead[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  name                String
+  websiteUrl          String?
+  industry            String?
+  description         String?
+  services            String[] @default([])
+  differentiation     String?
+  targetIndustries    String[] @default([])
+  targetTitles        String[] @default([])
+  locations           String[] @default([])
+  companySize         String?
+  customerDescription String?
+  onboardingCompleted Boolean  @default(false)
+  users               User[]
+  leads               Lead[]
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 model User {
