@@ -23,7 +23,9 @@ export class OnboardingRepository {
         locations: data.locations,
         companySize: data.companySize,
         customerDescription: data.customerDescription,
-        onboardingCompleted: data.complete ?? false,
+        ...(typeof data.complete === "boolean"
+          ? { onboardingCompleted: data.complete }
+          : {}),
       },
     });
   }

@@ -138,8 +138,6 @@ export class AuthService {
     return {
       message: "If an account with that email exists, a 6-digit OTP has been sent to your email.",
       emailSent,
-      // Returned in response for easy testing in development/Postman:
-      otp,
     };
   }
 
