@@ -38,7 +38,22 @@ export const resetPasswordSchema = z.object({
   newPassword: strongPasswordSchema,
 });
 
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Current password is required").optional(),
+    current: z.string().min(1, "Current password is required").optional(),
+    newPassword: strongPasswordSchema.optional(),
+    next: strongPasswordSchema.optional(),
+  })
+  .refine((d) => Boolean(d.currentPassword || d.current), {
+    message: "Current password is required",
+  })
+  .refine((d) => Boolean(d.newPassword || d.next), {
+    message: "New password is required",
+  });
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

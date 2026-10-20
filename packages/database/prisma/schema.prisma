@@ -24,35 +24,92 @@ enum LeadStage {
 }
 
 model Organization {
-  id                  String   @id @default(cuid())
+  id                  String             @id @default(cuid())
   name                String
   websiteUrl          String?
   industry            String?
   description         String?
-  services            String[] @default([])
+  services            String[]           @default([])
   differentiation     String?
-  targetIndustries    String[] @default([])
-  targetTitles        String[] @default([])
-  locations           String[] @default([])
+  targetIndustries    String[]           @default([])
+  targetTitles        String[]           @default([])
+  locations           String[]           @default([])
   companySize         String?
   customerDescription String?
-  onboardingCompleted Boolean  @default(false)
+  onboardingCompleted Boolean            @default(false)
   users               User[]
   leads               Lead[]
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  invitations         TeamInvitation[]
+  settings            WorkspaceSettings?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
 }
 
 model User {
+  id                String       @id @default(cuid())
+  name              String
+  email             String       @unique
+  passwordHash      String
+  role              Role         @default(MEMBER)
+  roleTitle         String?      @default("Chief Growth Officer & Co-Founder")
+  timezone          String?      @default("(UTC-05:00) Eastern Time (US & Canada)")
+  avatarUrl         String?
+  passwordChangedAt DateTime     @default(now())
+  tokenVersion      Int          @default(0)
+  deletedAt         DateTime?
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+}
+
+model TeamInvitation {
   id             String       @id @default(cuid())
+  email          String
   name           String
-  email          String       @unique
-  passwordHash   String
   role           Role         @default(MEMBER)
+  token          String       @unique
+  expiresAt      DateTime
+  invitedById    String?
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, email])
+}
+
+model WorkspaceSettings {
+  id                          String       @id @default(cuid())
+  organizationId              String       @unique
+  organization                Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  // Outreach strategy
+  tone                        String       @default("professional")
+  maxFollowUps                Int          @default(3)
+  intervalDays                Int          @default(3)
+  dailyCap                    Int          @default(40)
+  weeklyLinkedinLimit         Int          @default(100)
+  postingFrequency            String       @default("3x_week")
+  outreachApproved            Boolean      @default(false)
+  outreachApprovedAt          DateTime?
+  // Approval rules
+  approvalThreshold           Int          @default(92)
+  requireApprovalNewEmails    Boolean      @default(true)
+  requireApprovalVideoScripts Boolean      @default(true)
+  requireApprovalReplies      Boolean      @default(true)
+  requireApprovalFollowups    Boolean      @default(false)
+  requireApprovalLinkedin     Boolean      @default(true)
+  // Notifications (JSON array/map of rules)
+  notificationRules           Json?
+  // Usage & Limits + Test Mode
+  sentToday                   Int          @default(14)
+  aiSpendThisMonth            Float        @default(0)
+  aiLimit                     Float        @default(5.0)
+  requestsToday               Int          @default(38)
+  requestsDailyLimit          Int          @default(250)
+  testMode                    Boolean      @default(false)
+  createdAt                   DateTime     @default(now())
+  updatedAt                   DateTime     @updatedAt
 }
 
 model Lead {

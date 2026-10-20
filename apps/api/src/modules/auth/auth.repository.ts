@@ -40,10 +40,37 @@ export class AuthRepository {
     });
   }
 
-    async updateUserPassword(id: string, passwordHash: string) {
+  async updateUserPassword(id: string, passwordHash: string) {
     return prisma.user.update({
       where: { id },
-      data: { passwordHash },
+      data: {
+        passwordHash,
+        passwordChangedAt: new Date(),
+      },
+    });
+  }
+
+  async incrementTokenVersion(id: string) {
+    return prisma.user.update({
+      where: { id },
+      data: {
+        tokenVersion: { increment: 1 },
+      },
+      include: {
+        organization: true,
+      },
+    });
+  }
+
+  async restoreUserAccount(id: string) {
+    return prisma.user.update({
+      where: { id },
+      data: {
+        deletedAt: null,
+      },
+      include: {
+        organization: true,
+      },
     });
   }
 }
