@@ -6,6 +6,7 @@ import {
   forgotPasswordSchema,
   verifyOtpSchema,
   resetPasswordSchema,
+  changePasswordSchema,
 } from "./auth.schema";
 import { AppError } from "../../utils/app-error";
 
@@ -94,6 +95,40 @@ export class AuthController {
         throw new AppError(errorMessages, 400);
       }
       const result = await this.authService.resetPassword(parseResult.data);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  changePassword = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user?.userId) {
+        throw new AppError("Authentication required", 401);
+      }
+      const parseResult = changePasswordSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        const errorMessages = parseResult.error.issues
+          .map((i) => i.message)
+          .join(", ");
+        throw new AppError(errorMessages, 400);
+      }
+      const result = await this.authService.changePassword(
+        req.user.userId,
+        parseResult.data
+      );
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  logoutOthers = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user?.userId) {
+        throw new AppError("Authentication required", 401);
+      }
+      const result = await this.authService.logoutOthers(req.user.userId);
       res.status(200).json(result);
     } catch (error) {
       next(error);

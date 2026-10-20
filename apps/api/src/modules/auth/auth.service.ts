@@ -13,6 +13,7 @@ import type {
   ForgotPasswordInput,
   VerifyOtpInput,
   ResetPasswordInput,
+  ChangePasswordInput,
 } from "./auth.schema";
 
 export class AuthService {
@@ -47,6 +48,7 @@ export class AuthService {
         email: user.email,
         organizationId: user.organizationId,
         role: user.role,
+        tokenVersion: user.tokenVersion,
       },
       env.JWT_SECRET,
       { expiresIn: "7d" }
@@ -70,7 +72,7 @@ export class AuthService {
 
   async login(input: LoginInput) {
     // 1. Find user by email
-    const user = await this.authRepository.findUserByEmail(input.email);
+    let user = await this.authRepository.findUserByEmail(input.email);
     if (!user) {
       // Use generic message to prevent email enumeration
       throw new AppError("Invalid email or password", 401);
@@ -80,6 +82,22 @@ export class AuthService {
     if (!isPasswordValid) {
       throw new AppError("Invalid email or password", 401);
     }
+
+    // 2b. If account was soft-deleted within 30 days, automatically restore it on sign-in
+    let accountRestored = false;
+    if (user.deletedAt) {
+      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+      const elapsedMs = Date.now() - user.deletedAt.getTime();
+      if (elapsedMs > thirtyDaysMs) {
+        throw new AppError(
+          "This account was permanently deleted after the 30-day recovery window.",
+          403
+        );
+      }
+      user = await this.authRepository.restoreUserAccount(user.id);
+      accountRestored = true;
+    }
+
     // 3. Set token expiry based on remember me checkbox
     // If remember is false: 1 day session token
     // If remember is true (or not specified): 30 days token
@@ -91,12 +109,14 @@ export class AuthService {
         email: user.email,
         organizationId: user.organizationId,
         role: user.role,
+        tokenVersion: user.tokenVersion,
       },
       env.JWT_SECRET,
       { expiresIn }
     );
     return {
       token,
+      accountRestored,
       user: {
         id: user.id,
         name: user.name,
@@ -126,20 +146,18 @@ export class AuthService {
     // Store OTP for 10 minutes (600 seconds)
     await saveOtp(user.email, otp, 600);
 
-    console.log(`\n[PASSWORD RESET OTP for ${user.email}]: ${otp} (Expires in 10 minutes)\n`);
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`\n[PASSWORD RESET OTP for ${user.email}]: ${otp} (Expires in 10 minutes)\n`);
+    }
 
-    let emailSent = false;
     try {
-      emailSent = await sendOtpEmail(user.email, otp);
+      await sendOtpEmail(user.email, otp);
     } catch (error) {
       console.error("[MAILER ERROR] Failed to send OTP email:", error);
     }
 
     return {
       message: "If an account with that email exists, a 6-digit OTP has been sent to your email.",
-      emailSent,
-      // Returned in response for easy testing in development/Postman:
-      otp,
     };
   }
 
@@ -175,6 +193,55 @@ export class AuthService {
 
     return {
       message: "Password has been reset successfully. You can now login with your new password.",
+    };
+  }
+
+  async changePassword(userId: string, input: ChangePasswordInput) {
+    const user = await this.authRepository.findUserById(userId);
+    if (!user) {
+      throw new AppError("User not found", 404);
+    }
+
+    const currentPassword = input.currentPassword || input.current || "";
+    const newPassword = input.newPassword || input.next || "";
+
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new AppError("Current password is incorrect", 400);
+    }
+
+    const saltRounds = 10;
+    const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
+    const updated = await this.authRepository.updateUserPassword(userId, newPasswordHash);
+
+    return {
+      message: "Password updated successfully",
+      data: {
+        passwordChangedAt: updated.passwordChangedAt,
+      },
+    };
+  }
+
+  async logoutOthers(userId: string) {
+    const updatedUser = await this.authRepository.incrementTokenVersion(userId);
+
+    const token = jwt.sign(
+      {
+        userId: updatedUser.id,
+        email: updatedUser.email,
+        organizationId: updatedUser.organizationId,
+        role: updatedUser.role,
+        tokenVersion: updatedUser.tokenVersion,
+      },
+      env.JWT_SECRET,
+      { expiresIn: "30d" }
+    );
+
+    return {
+      message: "Signed out of other sessions",
+      data: {
+        token,
+      },
     };
   }
 

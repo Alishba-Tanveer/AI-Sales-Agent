@@ -12,7 +12,7 @@ export const onboardingSchema = z.object({
   locations: z.array(z.string()).default([]),
   companySize: z.string().optional().or(z.literal("")),
   customerDescription: z.string().optional(),
-  complete: z.boolean().optional().default(false),
+  complete: z.boolean().optional(),
 });
 
 export type OnboardingInput = z.infer<typeof onboardingSchema>;
