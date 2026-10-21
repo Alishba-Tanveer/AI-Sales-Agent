@@ -8,6 +8,12 @@ import { onboardingRoutes } from "./modules/onboarding/onboarding.routes";
 import { usersRoutes } from "./modules/users/users.routes";
 import { teamRoutes } from "./modules/team/team.routes";
 import { settingsRoutes } from "./modules/settings/settings.routes";
+import { approvalsRoutes } from "./modules/approvals/approvals.routes";
+import {
+  activityRoutes,
+  notificationsRoutes,
+} from "./modules/activity/activity.routes";
+import { analyticsRoutes } from "./modules/analytics/analytics.routes";
 
 const app = express();
 
@@ -28,6 +34,10 @@ app.use("/api/onboarding", onboardingRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/team", teamRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/approvals", approvalsRoutes);
+app.use("/api/activity", activityRoutes);
+app.use("/api/notifications", notificationsRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 app.use(errorHandler);
 

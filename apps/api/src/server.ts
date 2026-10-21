@@ -1,5 +1,8 @@
 import app from "./app";
 import { env } from "./config/env";
+import { initBullMqWorker } from "./queue/job-queue";
+
+initBullMqWorker();
 
 app.listen(env.API_PORT, () => {
   console.log(`API running at http://localhost:${env.API_PORT}`);

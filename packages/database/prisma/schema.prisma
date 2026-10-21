@@ -23,26 +23,46 @@ enum LeadStage {
   LOST
 }
 
+enum ApprovalType {
+  NEW_EMAIL
+  VIDEO_SCRIPT
+  REPLY
+  FOLLOW_UP
+  LINKEDIN_PROFILE
+  LINKEDIN_POST
+  CONNECTION_NOTE
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  AUTO_APPROVED
+  REJECTED
+}
+
 model Organization {
-  id                  String             @id @default(cuid())
+  id                  String              @id @default(cuid())
   name                String
   websiteUrl          String?
   industry            String?
   description         String?
-  services            String[]           @default([])
+  services            String[]            @default([])
   differentiation     String?
-  targetIndustries    String[]           @default([])
-  targetTitles        String[]           @default([])
-  locations           String[]           @default([])
+  targetIndustries    String[]            @default([])
+  targetTitles        String[]            @default([])
+  locations           String[]            @default([])
   companySize         String?
   customerDescription String?
-  onboardingCompleted Boolean            @default(false)
+  onboardingCompleted Boolean             @default(false)
   users               User[]
   leads               Lead[]
   invitations         TeamInvitation[]
   settings            WorkspaceSettings?
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  approvals           ApprovalItem[]
+  activityLogs        ActivityLog[]
+  notifications       InAppNotification[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 }
 
 model User {
@@ -110,6 +130,67 @@ model WorkspaceSettings {
   testMode                    Boolean      @default(false)
   createdAt                   DateTime     @default(now())
   updatedAt                   DateTime     @updatedAt
+}
+
+model ApprovalItem {
+  id              String         @id @default(cuid())
+  organizationId  String
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  type            ApprovalType
+  status          ApprovalStatus @default(PENDING)
+  title           String
+  subtitle        String?
+  content         Json
+  confidence      Int            @default(90)
+  leadId          String?
+  createdById     String?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+  testMode        Boolean        @default(false)
+  dispatchedAt    DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([organizationId, status])
+  @@index([organizationId, type])
+}
+
+model ActivityLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  type           String
+  status         String       @default("completed")
+  title          String
+  text           String
+  jobName        String?
+  jobId          String?
+  attempts       Int          @default(1)
+  maxAttempts    Int          @default(3)
+  error          String?
+  metadata       Json?
+  testMode       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status])
+}
+
+model InAppNotification {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ruleId         String       @default("system")
+  title          String
+  message        String
+  tone           String       @default("primary")
+  read           Boolean      @default(false)
+  link           String?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, read, createdAt])
 }
 
 model Lead {

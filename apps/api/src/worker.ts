@@ -1,28 +1,38 @@
-import { Worker } from "bullmq";
-import IORedis from "ioredis";
-import { env } from "./config/env";
+import {
+  initBullMqWorker,
+  runPurgeExpiredDataJob,
+} from "./queue/job-queue";
 
-const connection = new IORedis(env.REDIS_URL, {
-  maxRetriesPerRequest: null,
-});
+const worker = initBullMqWorker();
 
-const worker = new Worker(
-  "sales-agent-jobs",
-  async (job) => {
-    console.log(`Processing job ${job.id}: ${job.name}`);
+if (worker) {
+  worker.on("completed", (job) => {
+    console.log(`[WORKER] Job ${job.id} (${job.name}) completed.`);
+  });
 
-    // Sales research, email generation, and follow-up
-    // jobs will be implemented in later project steps.
-  },
-  { connection },
-);
+  worker.on("failed", (job, error) => {
+    console.error(
+      `[WORKER] Job ${job?.id ?? "unknown"} (${job?.name ?? "unknown"}) failed:`,
+      error.message
+    );
+  });
+}
 
-worker.on("completed", (job) => {
-  console.log(`Job ${job.id} completed.`);
-});
+// Run 30-day soft-delete & expired-invite purge job on startup and every 24 hours
+runPurgeExpiredDataJob()
+  .then((summary) => {
+    console.log(
+      `[WORKER PURGE JOB] Initial cleanup complete: ${summary.purgedUsers} expired accounts, ${summary.purgedInvitations} expired invites removed.`
+    );
+  })
+  .catch((err) => {
+    console.error("[WORKER PURGE JOB] Error during initial cleanup:", err.message);
+  });
 
-worker.on("failed", (job, error) => {
-  console.error(`Job ${job?.id ?? "unknown"} failed:`, error.message);
-});
+setInterval(() => {
+  runPurgeExpiredDataJob().catch((err) => {
+    console.error("[WORKER PURGE JOB] Scheduled cleanup error:", err.message);
+  });
+}, 24 * 60 * 60 * 1000);
 
 console.log("Sales agent background worker started.");
