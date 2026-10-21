@@ -8,6 +8,7 @@ import { onboardingRoutes } from "./modules/onboarding/onboarding.routes";
 import { usersRoutes } from "./modules/users/users.routes";
 import { teamRoutes } from "./modules/team/team.routes";
 import { settingsRoutes } from "./modules/settings/settings.routes";
+import { linkedinRoutes, heygenWebhookRoutes } from "./modules/linkedin/linkedin.routes";
 
 const app = express();
 
@@ -28,6 +29,8 @@ app.use("/api/onboarding", onboardingRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/team", teamRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/linkedin", linkedinRoutes);
+app.use("/api/webhooks", heygenWebhookRoutes);
 
 app.use(errorHandler);
 
