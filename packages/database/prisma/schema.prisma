@@ -41,6 +41,9 @@ model Organization {
   leads               Lead[]
   invitations         TeamInvitation[]
   settings            WorkspaceSettings?
+  linkedinConfig      LinkedinConfig?
+  linkedinScripts     LinkedinScript[]
+  linkedinLeads       LinkedinLead[]
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 }
@@ -110,6 +113,84 @@ model WorkspaceSettings {
   testMode                    Boolean      @default(false)
   createdAt                   DateTime     @default(now())
   updatedAt                   DateTime     @updatedAt
+}
+
+model LinkedinConfig {
+  id                   String       @id @default(cuid())
+  organizationId       String       @unique
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  // Profile Optimizer
+  profileUrl           String?
+  offer                String       @default("I build AI agents for B2B SaaS outbound")
+  audience             String       @default("")
+  groundingFacts       Json?
+  latestScore          Int          @default(84)
+  latestReadAt         String?
+  suggestions          Json?
+  auditHistory         Json?
+  // Content Engine settings
+  remindAt             String       @default("08:30")
+  avatar               String       @default("Ahmed Avatar v2")
+  heygenConnected      Boolean      @default(true)
+  contentSources       Json?
+  // Engagement & Connections Outreach Strategy
+  strategyAgreedOn     String       @default("2026-10-10")
+  strategyWho          String       @default("VPs and Heads of Sales at B2B SaaS companies, 50-500 employees, US and UK")
+  strategyPerDay       Int          @default(15)
+  strategyMessage      String       @default("Hi {first_name}, I saw your post on {topic}. I work with SaaS sales teams on outbound, would be glad to connect.")
+  strategyFollowUpDays Int          @default(3)
+  // LinkedIn Account connection metadata
+  accountConnected     Boolean      @default(true)
+  accountName          String?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+}
+
+model LinkedinScript {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  status         String       @default("needs_approval")
+  draftNo        Int          @default(1)
+  source         String
+  sourceUrl      String       @default("")
+  date           String
+  title          String
+  hook           String
+  points         String[]     @default([])
+  cta            String
+  seconds        Int          @default(40)
+  words          Int          @default(100)
+  scheduledFor   String?
+  postedAt       String?
+  postUrl        String?
+  postDeleted    Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, status])
+}
+
+model LinkedinLead {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  role           String
+  company        String
+  source         String       @default("buyer")
+  status         String       @default("suggested")
+  reason         String
+  reasonKind     String       @default("fit")
+  note           String
+  url            String?
+  sentAt         String?
+  connectedAt    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, status])
+  @@index([organizationId, source])
 }
 
 model Lead {
