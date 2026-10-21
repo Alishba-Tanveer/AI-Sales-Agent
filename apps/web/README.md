@@ -1,68 +1,15 @@
-# Frontend: Authentication, Onboarding, Dashboard & Settings
+## Latest Frontend Progress
 
-## Overview
+### LinkedIn Pages
 
-This branch improves the frontend authentication and onboarding experience, connects onboarding data with Settings, adds a setup reminder to the dashboard, and introduces smarter global search routing.
+Added three LinkedIn frontend sections within the existing dashboard layout:
 
-## Changes Implemented
+- **Profile Optimizer (`/linkedin`)** — Enter a business niche and LinkedIn profile URL to view profile improvement suggestions, copy suggestions, open LinkedIn, mark tasks as complete, and track progress.
+- **Content Engine (`/linkedin?tab=content`)** — Manage content drafts through approval, scheduled, and posted views. Supports adding topics, editing drafts, regenerating content, dismissing drafts, and approving posts.
+- **Engagement & Connections (`/linkedin?tab=connections`)** — View potential connections across engagement, target buyers, pending, and connected tabs. Includes bulk selection and approval, daily-limit enforcement, editing outreach notes, adding people, and editing the outreach strategy.
 
-### 1. Authentication
-- Added password validation requiring uppercase and lowercase letters, a number, and a symbol.
-- Added a live password requirements checklist on signup.
-- Implemented persistent sign-in using `localStorage` when "Keep me signed in" is checked and `sessionStorage` otherwise.
-- Added `hasValidSession()` to check whether a valid session exists.
-- Redirected authenticated users visiting `/` or `/login` to `/overview`.
-
-### 2. Onboarding
-- Made the company website URL optional while retaining URL validation when provided.
-- Added clearer review information, displaying "Not provided" for empty fields.
-- Enabled editing individual onboarding steps from the review page.
-- Added a "Save and review" action when editing a previously completed step.
-- Removed the skip and finish-later options.
-- Added validation before advancing through required onboarding steps.
-- Saved onboarding progress when moving to the next step.
-- Added a shared options file for industries and company sizes.
-- Redirected users to `/overview` after completing setup.
-
-### 3. Dashboard Setup Reminder
-- Added a setup reminder popup for incomplete onboarding information.
-- Grouped missing fields by their corresponding Settings tabs.
-- Added links that navigate directly to the relevant Settings tab.
-- Designed the reminder to appear once per login when setup information is incomplete.
-
-### 4. Settings Synchronization
-- Added Business settings for company information and services.
-- Added Outreach Strategy settings for target industries, job titles, locations, company size, and ideal customer description.
-- Connected onboarding and Settings to the same client-side profile data.
-- Added supporting components for profile, team, notifications, approval rules, usage, and account deletion.
-- Improved Settings layouts, themed icon tiles, card accents, and popup sizing.
-- Removed unnecessary tab-bar scroll arrows and expanded the Usage and Limits page width.
-
-### 5. Global Search
-- Added search query routing through `features/search/resolve.ts`.
-- Added destination matching for queries such as `lead`, `settings team`, and `linkedin content`.
-- Preserved the existing Leads search as the fallback for unmatched queries.
-
-### 6. Theme Toggle
-- Updated `ThemeToggle` to accept an optional `className` prop.
-- Preserved the existing dark/light theme-switching behavior.
-- Fixed the TypeScript error caused by passing `className` from the dashboard topbar.
-
-## Implementation Notes
-- Onboarding and Settings profile data currently use `localStorage` per user.
-- A backend onboarding API is not yet implemented; the profile persistence layer can be updated when that API becomes available.
-- Some Settings features still use mock data or placeholder handlers.
-
-## Validation
-- Frontend TypeScript check passed:
-  `npx tsc --project apps/web/tsconfig.json --noEmit`
-- Production frontend build passed:
-  `npm run build -w apps/web`
-
-## Files and Areas Updated
-- Authentication pages and validation
-- Onboarding pages, schemas, options, and profile status
-- Dashboard shell, sidebar, topbar, and setup reminder
-- Settings page and supporting components
-- Global search routing
-- Theme toggle component
+**Implementation notes:**
+- Reuses the existing dashboard shell, theme, and UI styling.
+- LinkedIn functionality currently uses mock data.
+- `apps/web/src/features/linkedin/api.ts` provides a frontend API layer intended for future backend integration.
+- Real LinkedIn API integration and live actions remain pending.
