@@ -2,36 +2,70 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BadgeCheck, LogOut, ShieldCheck, SquarePen, TriangleAlert, Trash2, User } from "lucide-react";
+import { BadgeCheck, Loader2, LogOut, Save, ShieldCheck, SquarePen, TriangleAlert, Trash2, User } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { logoutUser } from "@/features/auth/api";
-import { userStore } from "@/features/auth/user-store";
-import { TIMEZONES } from "../mock-data";
+import { passwordSchema } from "@/features/auth/schemas";
+import { changePassword, getProfile, removeAvatar, saveProfile, signOutOtherSessions, uploadAvatar } from "../api";
+import { TIMEZONES } from "../constants";
+import { useLoad } from "../use-load";
+import type { UserProfile } from "../types";
 import { DeleteAccountDialog } from "./delete-account-dialog";
-import { Field, Pill, SaveButton, SectionCard, initials, inputCls, selectCls } from "./settings-ui";
+import { TabError, TabLoading } from "./load-states";
+import { Field, Pill, SectionCard, initials, inputCls, selectCls } from "./settings-ui";
 
 const MAX_AVATAR = 2 * 1024 * 1024;
 
+/** "3 weeks ago" style text for the password-changed line. */
+function timeAgo(iso: string | null) {
+  if (!iso) return "Password has not been changed yet";
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 1) return "Password updated just now";
+  const units: [string, number][] = [["minute", 60], ["hour", 24], ["day", 7], ["week", 4.345], ["month", 12], ["year", Infinity]];
+  let value = mins;
+  for (const [name, step] of units) {
+    if (value < step) {
+      const n = Math.max(1, Math.floor(value));
+      return `Password updated ${n} ${name}${n === 1 ? "" : "s"} ago`;
+    }
+    value /= step;
+  }
+  return "Password updated a long time ago";
+}
+
 export function ProfileTab() {
+  const { state, reload } = useLoad(getProfile);
+  if (state.status === "loading") return <TabLoading label="Loading your profile…" />;
+  if (state.status === "error") return <TabError message={state.message} onRetry={reload} />;
+  return <ProfileForm initial={state.data} />;
+}
+
+function ProfileForm({ initial }: { initial: UserProfile }) {
   const router = useRouter();
-  const user = userStore.get();
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [name, setName] = useState(user?.name ?? "");
-  const [email, setEmail] = useState(user?.email ?? "");
-  const [roleTitle, setRoleTitle] = useState("Chief Growth Officer & Co-Founder");
-  const [tz, setTz] = useState(TIMEZONES[1]);
-  const [avatar, setAvatar] = useState<string | null>(null);
+  const [saved, setSaved] = useState(initial);
+  const [name, setName] = useState(initial.name);
+  const [email, setEmail] = useState(initial.email);
+  const [roleTitle, setRoleTitle] = useState(initial.roleTitle);
+  const [tz, setTz] = useState(initial.timezone);
+  // a photo picked but not saved yet (it uploads together with "Save Changes")
+  const [pending, setPending] = useState<{ file: File; preview: string } | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const [pwOpen, setPwOpen] = useState(false);
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
   const [pwError, setPwError] = useState<string | null>(null);
+  const [pwBusy, setPwBusy] = useState(false);
+  const [othersBusy, setOthersBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const roleLabel = user?.role ? user.role.charAt(0) + user.role.slice(1).toLowerCase() : "Member";
+  const roleLabel = saved.role ? saved.role.charAt(0) + saved.role.slice(1).toLowerCase() : "Member";
+  const avatar = pending?.preview ?? saved.avatar;
+  const timezones = TIMEZONES.includes(tz) || !tz ? TIMEZONES : [tz, ...TIMEZONES];
 
   const onPickPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -39,18 +73,79 @@ export function ProfileTab() {
     if (!file) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) return void toast.error("Use a JPG, PNG or WEBP image.");
     if (file.size > MAX_AVATAR) return void toast.error("Image is larger than 2MB.");
-    setAvatar(URL.createObjectURL(file));
+    if (pending) URL.revokeObjectURL(pending.preview);
+    setPending({ file, preview: URL.createObjectURL(file) });
     toast.success("Photo selected. Save changes to apply it.");
   };
 
-  const savePassword = () => {
+  const onRemovePhoto = async () => {
+    if (pending) {
+      URL.revokeObjectURL(pending.preview);
+      setPending(null);
+    }
+    if (!saved.avatar) return void toast("Photo removed");
+    try {
+      setSaved(await removeAvatar());
+      toast("Photo removed");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not remove your photo.");
+    }
+  };
+
+  const save = async () => {
+    if (name.trim().length < 2) return void toast.error("Name must be at least 2 characters long");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return void toast.error("Invalid email address");
+    setSaving(true);
+    try {
+      let next = saved;
+      if (pending) {
+        next = await uploadAvatar(pending.file);
+        URL.revokeObjectURL(pending.preview);
+        setPending(null);
+        setSaved(next);
+      }
+      next = await saveProfile({ name: name.trim(), email: email.trim(), roleTitle: roleTitle.trim(), timezone: tz });
+      setSaved(next);
+      setName(next.name);
+      setEmail(next.email);
+      toast.success("Profile saved");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save your profile.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const savePassword = async () => {
     if (!pw.current) return setPwError("Enter your current password.");
-    if (pw.next.length < 6) return setPwError("New password must be at least 6 characters long.");
+    const strength = passwordSchema.safeParse(pw.next);
+    if (!strength.success) return setPwError(strength.error.issues[0].message);
     if (pw.next !== pw.confirm) return setPwError("Passwords do not match.");
     setPwError(null);
-    setPw({ current: "", next: "", confirm: "" });
-    setPwOpen(false);
-    toast.success("Password updated successfully");
+    setPwBusy(true);
+    try {
+      const res = await changePassword(pw.current, pw.next);
+      setSaved((s) => ({ ...s, passwordChangedAt: res.passwordChangedAt }));
+      setPw({ current: "", next: "", confirm: "" });
+      setPwOpen(false);
+      toast.success("Password updated successfully");
+    } catch (e) {
+      setPwError(e instanceof Error ? e.message : "Could not update your password.");
+    } finally {
+      setPwBusy(false);
+    }
+  };
+
+  const signOutOthers = async () => {
+    setOthersBusy(true);
+    try {
+      await signOutOtherSessions();
+      toast.success("Signed out of other sessions");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not sign out other sessions.");
+    } finally {
+      setOthersBusy(false);
+    }
   };
 
   return (
@@ -76,14 +171,7 @@ export function ProfileTab() {
               <Button variant="outline" className="h-8 px-3 text-xs" onClick={() => fileRef.current?.click()}>
                 Change photo
               </Button>
-              <Button
-                variant="ghost"
-                className="h-8 px-3 text-xs text-muted-foreground hover:text-destructive"
-                onClick={() => {
-                  setAvatar(null);
-                  toast("Photo removed");
-                }}
-              >
+              <Button variant="ghost" className="h-8 px-3 text-xs text-muted-foreground hover:text-destructive" onClick={onRemovePhoto}>
                 Remove
               </Button>
             </div>
@@ -112,21 +200,26 @@ export function ProfileTab() {
           </Field>
           <Field label="Timezone Offset" htmlFor="pf-tz">
             <select id="pf-tz" value={tz} onChange={(e) => setTz(e.target.value)} className={selectCls}>
-              {TIMEZONES.map((t) => (
+              {timezones.map((t) => (
                 <option key={t}>{t}</option>
               ))}
             </select>
           </Field>
         </div>
 
-        <SaveButton onClick={() => toast.success("Profile saved")} />
+        <div className="flex items-center justify-end border-t border-border pt-4">
+          <Button type="button" onClick={save} disabled={saving} className="h-9 gap-1.5 px-5 text-sm font-semibold">
+            {saving ? <Loader2 className="size-[18px] animate-spin" /> : <Save className="size-[18px]" />}
+            {saving ? "Saving…" : "Save Changes"}
+          </Button>
+        </div>
       </SectionCard>
 
       <SectionCard
         icon={ShieldCheck}
         tone="warning"
         title="Security & Authentication"
-        description="Password updated 3 weeks ago"
+        description={timeAgo(saved.passwordChangedAt)}
         aside={
           <Button variant="outline" className="h-9 gap-1.5 px-3.5 text-sm" onClick={() => setPwOpen((o) => !o)}>
             <SquarePen className="size-4" />
@@ -148,11 +241,15 @@ export function ProfileTab() {
                 <Input id={`pw-${key}`} type="password" autoComplete={ac} placeholder={ph} value={pw[key]} onChange={(e) => setPw((p) => ({ ...p, [key]: e.target.value }))} className="h-9" />
               </div>
             ))}
+            <p className="text-xs text-muted-foreground md:col-span-3">Use at least 6 characters with an uppercase letter, a lowercase letter, a number and a symbol.</p>
             <div className="flex items-center justify-between gap-3 md:col-span-3">
               <p role="alert" className="text-xs text-destructive">{pwError}</p>
               <div className="flex gap-2">
-                <Button variant="outline" className="h-9 text-xs" onClick={() => { setPwOpen(false); setPwError(null); }}>Cancel</Button>
-                <Button className="h-9 px-4 text-xs font-semibold" onClick={savePassword}>Save</Button>
+                <Button variant="outline" className="h-9 text-xs" disabled={pwBusy} onClick={() => { setPwOpen(false); setPwError(null); }}>Cancel</Button>
+                <Button className="h-9 px-4 text-xs font-semibold" disabled={pwBusy} onClick={savePassword}>
+                  {pwBusy && <Loader2 className="animate-spin" />}
+                  Save
+                </Button>
               </div>
             </div>
           </div>
@@ -164,7 +261,8 @@ export function ProfileTab() {
             <span className="text-xs text-muted-foreground">Currently signed in on this device</span>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" className="h-8 px-3 text-xs" onClick={() => toast.success("Signed out of other sessions")}>
+            <Button variant="outline" className="h-8 px-3 text-xs" disabled={othersBusy} onClick={signOutOthers}>
+              {othersBusy && <Loader2 className="animate-spin" />}
               Sign out other sessions
             </Button>
             <Button

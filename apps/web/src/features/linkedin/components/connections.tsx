@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Clock, ClipboardCopy, ExternalLink, Eye, Heart, Lightbulb, Loader2, MessageSquare, Pencil, Plus, Send, Target, UserPlus, Users, type LucideIcon } from "lucide-react";
+import { Check, Clock, ClipboardCopy, ExternalLink, Eye, Heart, Lightbulb, Loader2, MessageSquare, Pencil, Plus, Send, Target, TriangleAlert, UserPlus, Users, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
@@ -9,13 +9,15 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, Pill, SectionCard, TONES, initials, inputCls, type Tone } from "@/features/settings/components/settings-ui";
-import { fetchLeads, fetchStrategy } from "../api";
+import { bulkApproveLeads, createLead, fetchLeads, fetchStrategy, saveLeadNote, saveStrategy, sendLead, skipLead } from "../api";
 import { copyText, normalizeLinkedInProfileUrl, personSearchUrl } from "../links";
 import type { Lead, OutreachStrategy } from "../types";
 import { ConfirmDialog, HowItWorksDialog, IconTile, LinkButton, PageHeader, TabBar, fmtDate } from "./linkedin-ui";
 
 type TabId = "engaged" | "buyers" | "pending" | "connected";
 const PAGE_SIZE = 8;
+
+const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
 const REASON_ICON = { like: Heart, comment: MessageSquare, view: Eye, fit: Target } as const;
 /** Avatar colors: five of the app's accent colors (red is kept for warnings). */
@@ -37,6 +39,8 @@ const REASON_TONE = { like: "text-destructive", comment: "text-sky-700 dark:text
 export function Connections() {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [strategy, setStrategy] = useState<OutreachStrategy | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [tab, setTab] = useState<TabId>("engaged");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
@@ -49,15 +53,24 @@ export function Connections() {
 
   useEffect(() => {
     let live = true;
-    Promise.all([fetchLeads(), fetchStrategy()]).then(([l, s]) => {
-      if (!live) return;
-      setLeads(l);
-      setStrategy(s);
-    });
+    Promise.all([fetchLeads(), fetchStrategy()])
+      .then(([l, s]) => {
+        if (!live) return;
+        setLeads(l);
+        setStrategy(s);
+      })
+      .catch((e) => live && setLoadError(errMsg(e, "Could not load your connections.")));
     return () => {
       live = false;
     };
-  }, []);
+  }, [attempt]);
+
+  const retryLoad = () => {
+    setLoadError(null);
+    setLeads(null);
+    setStrategy(null);
+    setAttempt((a) => a + 1);
+  };
 
   const all = leads ?? [];
   const open = (l: Lead) => l.status === "suggested" || l.status === "approved";
@@ -71,37 +84,52 @@ export function Connections() {
   const safePage = Math.min(page, pageCount);
   const visible = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  const patch = (ids: string[], p: Partial<Lead>) => setLeads((cur) => (cur ?? []).map((l) => (ids.includes(l.id) ? { ...l, ...p } : l)));
+  /** Swap in the person exactly as the server returned them. */
+  const replaceLead = (next: Lead) => setLeads((cur) => (cur ?? []).map((l) => (l.id === next.id ? next : l)));
+  const unselect = (id: string) => setSelected((s) => { const n = new Set(s); n.delete(id); return n; });
   const changeTab = (t: TabId) => {
     setTab(t);
     setPage(1);
     setSelected(new Set());
   };
 
-  const send = (l: Lead) => {
-    patch([l.id], { status: "pending", sentAt: new Date().toISOString().slice(0, 10) });
-    setSelected((s) => { const n = new Set(s); n.delete(l.id); return n; });
-    toast.success(`Request sent to ${l.name}`);
+  const send = async (l: Lead, note?: string) => {
+    try {
+      replaceLead(await sendLead(l.id, note));
+      unselect(l.id);
+      toast.success(`Request sent to ${l.name}`);
+    } catch (e) {
+      // e.g. "Daily limit of 15 requests reached."
+      toast.error(errMsg(e, `Could not send the request to ${l.name}.`));
+    }
   };
-  const skip = (l: Lead) => {
-    patch([l.id], { status: "skipped" });
-    setSelected((s) => { const n = new Set(s); n.delete(l.id); return n; });
-    toast(`Skipped ${l.name}`);
+  const skip = async (l: Lead) => {
+    try {
+      replaceLead(await skipLead(l.id, "skip"));
+      unselect(l.id);
+      toast(`Skipped ${l.name}`);
+    } catch (e) {
+      toast.error(errMsg(e, `Could not skip ${l.name}.`));
+    }
   };
-  const withdraw = (l: Lead) => {
-    patch([l.id], { status: "skipped" });
-    toast(`Request to ${l.name} withdrawn`);
+  const withdraw = async (l: Lead) => {
+    try {
+      replaceLead(await skipLead(l.id, "withdraw"));
+      toast(`Request to ${l.name} withdrawn`);
+    } catch (e) {
+      toast.error(errMsg(e, `Could not withdraw the request to ${l.name}.`));
+    }
   };
-  const approveSelected = () => {
-    const ids = [...selected];
-    const limit = strategy?.perDay ?? ids.length;
-    const todays = all.filter((l) => l.status === "pending" && l.sentAt === new Date().toISOString().slice(0, 10)).length;
-    const room = Math.max(0, limit - todays);
-    const go = ids.slice(0, room);
-    if (!go.length) return void toast.error(`Daily limit of ${limit} requests reached.`);
-    patch(go, { status: "pending", sentAt: new Date().toISOString().slice(0, 10) });
-    setSelected(new Set());
-    toast.success(`${go.length} request${go.length > 1 ? "s" : ""} sent${go.length < ids.length ? ` (daily limit of ${limit} reached)` : ""}`);
+  /** The server applies the daily limit and returns the refreshed list. */
+  const approveSelected = async () => {
+    try {
+      const res = await bulkApproveLeads([...selected]);
+      setLeads(res.leads);
+      setSelected(new Set());
+      toast.success(`${res.sentCount} request${res.sentCount > 1 ? "s" : ""} sent${res.limitReached ? ` (daily limit of ${res.dailyLimit} reached)` : ""}`);
+    } catch (e) {
+      toast.error(errMsg(e, "Could not send the requests."));
+    }
   };
 
   const selectable = visible.filter(open);
@@ -114,10 +142,30 @@ export function Connections() {
   });
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
-  const addPerson = (l: Lead) => {
+  /** Throws on failure so the dialog stays open. */
+  const addPerson = async (v: { name: string; role?: string; company?: string; url: string }) => {
+    const l = await createLead(v);
     setLeads((cur) => [l, ...(cur ?? [])]);
     changeTab(l.source === "buyer" ? "buyers" : "engaged");
     toast.success(`${l.name} added`);
+  };
+
+  /** "Save & send" on someone waiting for approval, or just save the message for someone already connected. */
+  const submitNote = async (l: Lead, note: string) => {
+    if (open(l)) {
+      replaceLead(await sendLead(l.id, note));
+      unselect(l.id);
+      toast.success(`Request sent to ${l.name}`);
+    } else {
+      replaceLead(await saveLeadNote(l.id, note));
+      toast.success(`Message saved for ${l.name}`);
+    }
+    setNoteLead(null);
+  };
+
+  const submitStrategy = async (v: Pick<OutreachStrategy, "who" | "message" | "perDay" | "followUpDays">) => {
+    setStrategy(await saveStrategy(v));
+    toast.success("Strategy updated");
   };
 
   const showSelect = tab === "engaged" || tab === "buyers";
@@ -183,7 +231,13 @@ export function Connections() {
         ]}
       />
 
-      {leads === null ? (
+      {loadError ? (
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-destructive/30 bg-destructive-soft/40 px-6 py-12 text-center" role="alert">
+          <TriangleAlert className="size-5 text-destructive" />
+          <p className="text-sm text-foreground">{loadError}</p>
+          <Button variant="outline" onClick={retryLoad}>Try again</Button>
+        </div>
+      ) : leads === null ? (
         <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Loading people…</div>
       ) : rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-card/50 p-10 text-center">
@@ -264,8 +318,8 @@ export function Connections() {
         </div>
       )}
 
-      <NoteDialog lead={noteLead} onClose={() => setNoteLead(null)} onSend={(l, note) => { patch([l.id], { note }); if (open(l)) send({ ...l, note }); else toast.success(`Message saved for ${l.name}`); setNoteLead(null); }} />
-      {strategy && <StrategyDialog open={strategyOpen} onOpenChange={setStrategyOpen} value={strategy} onSave={(s) => { setStrategy(s); toast.success("Strategy updated"); }} />}
+      <NoteDialog lead={noteLead} onClose={() => setNoteLead(null)} onSend={submitNote} />
+      {strategy && <StrategyDialog open={strategyOpen} onOpenChange={setStrategyOpen} value={strategy} onSave={submitStrategy} />}
       <AddPersonDialog open={addOpen} onOpenChange={setAddOpen} onAdd={addPerson} />
       <LeadDialog lead={detail} onClose={() => setDetail(null)} onEditNote={(l) => { setDetail(null); setNoteLead(l); }} />
 
@@ -356,7 +410,7 @@ function Check3({ checked, onChange, label }: { checked: boolean; onChange: () =
   );
 }
 
-function NoteDialog({ lead, onClose, onSend }: { lead: Lead | null; onClose: () => void; onSend: (l: Lead, note: string) => void }) {
+function NoteDialog({ lead, onClose, onSend }: { lead: Lead | null; onClose: () => void; onSend: (l: Lead, note: string) => Promise<void> }) {
   return (
     <Dialog open={!!lead} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>{lead && <NoteForm key={lead.id} lead={lead} onClose={onClose} onSend={onSend} />}</DialogContent>
@@ -364,8 +418,18 @@ function NoteDialog({ lead, onClose, onSend }: { lead: Lead | null; onClose: () 
   );
 }
 
-function NoteForm({ lead, onClose, onSend }: { lead: Lead; onClose: () => void; onSend: (l: Lead, note: string) => void }) {
+function NoteForm({ lead, onClose, onSend }: { lead: Lead; onClose: () => void; onSend: (l: Lead, note: string) => Promise<void> }) {
   const [note, setNote] = useState(lead.note);
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    setBusy(true);
+    try {
+      await onSend(lead, note.trim());
+    } catch (e) {
+      toast.error(errMsg(e, "Could not save your note."));
+      setBusy(false);
+    }
+  };
   const isOpen = lead.status === "suggested" || lead.status === "approved";
   const over = note.length > 300;
   return (
@@ -384,33 +448,42 @@ function NoteForm({ lead, onClose, onSend }: { lead: Lead; onClose: () => void; 
       </Field>
       <p className="text-xs text-muted-foreground">LinkedIn does not let apps send from here. Copy your note into LinkedIn if you want to send it yourself.</p>
       <DialogFooter>
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button disabled={over || !note.trim()} onClick={() => onSend(lead, note.trim())}>{isOpen ? "Save & send" : "Save message"}</Button>
+        <Button variant="ghost" disabled={busy} onClick={onClose}>Cancel</Button>
+        <Button disabled={over || !note.trim() || busy} onClick={submit}>{busy && <Loader2 className="animate-spin" />} {isOpen ? "Save & send" : "Save message"}</Button>
       </DialogFooter>
     </div>
   );
 }
 
-function StrategyDialog({ open, onOpenChange, value, onSave }: { open: boolean; onOpenChange: (o: boolean) => void; value: OutreachStrategy; onSave: (s: OutreachStrategy) => void }) {
+type StrategyInput = Pick<OutreachStrategy, "who" | "message" | "perDay" | "followUpDays">;
+
+function StrategyDialog({ open, onOpenChange, value, onSave }: { open: boolean; onOpenChange: (o: boolean) => void; value: OutreachStrategy; onSave: (s: StrategyInput) => Promise<void> }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">{open && <StrategyForm value={value} onCancel={() => onOpenChange(false)} onSave={(s) => { onSave(s); onOpenChange(false); }} />}</DialogContent>
+      <DialogContent className="sm:max-w-lg">{open && <StrategyForm value={value} onCancel={() => onOpenChange(false)} onSave={async (s) => { await onSave(s); onOpenChange(false); }} />}</DialogContent>
     </Dialog>
   );
 }
 
-function StrategyForm({ value, onCancel, onSave }: { value: OutreachStrategy; onCancel: () => void; onSave: (s: OutreachStrategy) => void }) {
+function StrategyForm({ value, onCancel, onSave }: { value: OutreachStrategy; onCancel: () => void; onSave: (s: StrategyInput) => Promise<void> }) {
   const [who, setWho] = useState(value.who);
   const [perDay, setPerDay] = useState(String(value.perDay));
   const [message, setMessage] = useState(value.message);
   const [days, setDays] = useState(String(value.followUpDays));
-  const submit = (e: React.FormEvent) => {
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const p = Number(perDay), d = Number(days);
     if (!who.trim() || !message.trim()) return void toast.error("Fill in who to target and what to say.");
     if (!Number.isInteger(p) || p < 1 || p > 40) return void toast.error("Requests per day must be between 1 and 40.");
     if (!Number.isInteger(d) || d < 1 || d > 30) return void toast.error("Follow-up must be between 1 and 30 days.");
-    onSave({ ...value, who: who.trim(), message: message.trim(), perDay: p, followUpDays: d, agreedOn: new Date().toISOString().slice(0, 10) });
+    setBusy(true);
+    try {
+      await onSave({ who: who.trim(), message: message.trim(), perDay: p, followUpDays: d });
+    } catch (err) {
+      toast.error(errMsg(err, "Could not save your strategy."));
+      setBusy(false);
+    }
   };
   return (
     <form onSubmit={submit} className="grid gap-4">
@@ -425,31 +498,36 @@ function StrategyForm({ value, onCancel, onSave }: { value: OutreachStrategy; on
       </div>
       <Field label="What to say" htmlFor="msg"><Textarea id="msg" rows={3} value={message} onChange={(e) => setMessage(e.target.value)} /></Field>
       <DialogFooter>
-        <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
-        <Button type="submit">Save strategy</Button>
+        <Button type="button" variant="ghost" disabled={busy} onClick={onCancel}>Cancel</Button>
+        <Button type="submit" disabled={busy}>{busy && <Loader2 className="animate-spin" />} Save strategy</Button>
       </DialogFooter>
     </form>
   );
 }
 
-function AddPersonDialog({ open, onOpenChange, onAdd }: { open: boolean; onOpenChange: (o: boolean) => void; onAdd: (l: Lead) => void }) {
+function AddPersonDialog({ open, onOpenChange, onAdd }: { open: boolean; onOpenChange: (o: boolean) => void; onAdd: (v: { name: string; role?: string; company?: string; url: string }) => Promise<void> }) {
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [company, setCompany] = useState("");
   const [url, setUrl] = useState("");
   const clean = useMemo(() => normalizeLinkedInProfileUrl(url), [url]);
   const [touched, setTouched] = useState(false);
+  const [busy, setBusy] = useState(false);
   const valid = name.trim().length > 1 && !!clean;
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setTouched(true);
-    if (!valid) return void toast.error("Enter a name and a LinkedIn profile link.");
-    onAdd({
-      id: `p${Date.now()}`, name: name.trim(), role: role.trim() || "—", company: company.trim() || "—", source: "buyer", status: "suggested",
-      reasonKind: "fit", reason: "Added by you", url: clean ?? undefined, note: `Hi ${name.trim().split(" ")[0]}, I'd love to connect.`,
-    });
-    setName(""); setRole(""); setCompany(""); setUrl(""); setTouched(false);
-    onOpenChange(false);
+    if (!valid || !clean) return void toast.error("Enter a name and a LinkedIn profile link.");
+    setBusy(true);
+    try {
+      await onAdd({ name: name.trim(), role: role.trim() || undefined, company: company.trim() || undefined, url: clean });
+      setName(""); setRole(""); setCompany(""); setUrl(""); setTouched(false);
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(errMsg(err, "Could not add that person."));
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -468,8 +546,8 @@ function AddPersonDialog({ open, onOpenChange, onAdd }: { open: boolean; onOpenC
             {touched && !clean ? <p className="text-xs text-destructive">That doesn’t look like a LinkedIn profile link.</p> : <p className="text-xs text-muted-foreground">With or without https:// both work.</p>}
           </Field>
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit">Add person</Button>
+            <Button type="button" variant="ghost" disabled={busy} onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" disabled={busy}>{busy && <Loader2 className="animate-spin" />} Add person</Button>
           </DialogFooter>
         </form>
       </DialogContent>

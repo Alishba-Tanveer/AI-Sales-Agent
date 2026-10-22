@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Bell, Building2, Megaphone, ShieldCheck, SlidersHorizontal, User, Users, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { Reveal } from "@/features/overview/components/reveal";
-import { SENT_TODAY } from "../mock-data";
 import { TONES, type Tone } from "./settings-ui";
 import type { SettingsTabId } from "../types";
 import { ApprovalRulesTab } from "./approval-rules-tab";
@@ -34,9 +32,6 @@ export function SettingsPage() {
   const params = useSearchParams();
   const raw = params.get("tab");
   const tab: SettingsTabId = isTab(raw) ? raw : "profile";
-
-  // shared between "Outreach Strategy" (where it is edited) and "Usage and Limits" (where it is shown)
-  const [dailyCap, setDailyCap] = useState(Math.max(40, SENT_TODAY));
 
   const go = (id: SettingsTabId) => router.replace(id === "profile" ? pathname : `${pathname}?tab=${id}`, { scroll: false });
 
@@ -84,10 +79,10 @@ export function SettingsPage() {
           {tab === "profile" && <ProfileTab />}
           {tab === "business" && <BusinessTab />}
           {tab === "team" && <TeamTab />}
-          {tab === "outreach" && <OutreachTab dailyCap={dailyCap} onDailyCapChange={setDailyCap} />}
+          {tab === "outreach" && <OutreachTab />}
           {tab === "governance" && <ApprovalRulesTab />}
           {tab === "notifications" && <NotificationsTab />}
-          {tab === "usage" && <UsageTab dailyCap={dailyCap} onOpenOutreach={() => go("outreach")} />}
+          {tab === "usage" && <UsageTab onOpenOutreach={() => go("outreach")} />}
         </div>
       </Reveal>
     </main>

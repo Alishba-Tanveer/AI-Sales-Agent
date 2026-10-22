@@ -13,7 +13,7 @@ export function ProfileSync({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetchOnboarding()
+    fetchOnboarding({ keepSessionOn401: true })
       .catch(() => {})
       .finally(() => !cancelled && setReady(true));
     return () => {

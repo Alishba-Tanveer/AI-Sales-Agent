@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Check, CheckCircle2, ChevronDown, ChevronsDownUp, ChevronsUpDown, ClipboardCopy, ExternalLink, Info, Link2, Loader2, RefreshCw,
   ScanSearch, Target, TriangleAlert, UserRoundPen, Lightbulb, type LucideIcon,
@@ -12,9 +12,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, Pill, SectionCard, inputCls, type Tone } from "@/features/settings/components/settings-ui";
-import { analyzeProfile } from "../api";
+import { ApiError } from "@/lib/api";
+import { analyzeProfile, fetchSavedAudit, setSuggestionDone } from "../api";
 import { copyText, editTarget, normalizeLinkedInProfileUrl } from "../links";
-import { DEFAULT_NICHE } from "../mock-data";
 import type { ProfileAnalysis, ProfileSuggestion, SuggestionKey } from "../types";
 import { ConfirmDialog, HowItWorksDialog, IconTile, LinkButton, PageHeader, StepStrip, fmtDate } from "./linkedin-ui";
 
@@ -27,9 +27,10 @@ const SECTION_TONE: Record<SuggestionKey, Tone> = {
 };
 
 export function ProfileOptimizer() {
-  const [offer, setOffer] = useState(DEFAULT_NICHE.offer);
-  const [audience, setAudience] = useState(DEFAULT_NICHE.audience);
+  const [offer, setOffer] = useState("");
+  const [audience, setAudience] = useState("");
   const [url, setUrl] = useState("");
+  const [loading, setLoading] = useState(true);
   const [urlError, setUrlError] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
   const [analysis, setAnalysis] = useState<ProfileAnalysis | null>(null);
@@ -38,6 +39,29 @@ export function ProfileOptimizer() {
   const [guide, setGuide] = useState<ProfileSuggestion | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [rereadOpen, setRereadOpen] = useState(false);
+
+  // Pick up where the person left off: the niche, the profile link, the last list of changes and the ticks.
+  useEffect(() => {
+    let live = true;
+    fetchSavedAudit()
+      .then((saved) => {
+        if (!live) return;
+        setOffer(saved.offer);
+        setAudience(saved.audience);
+        if (saved.profileUrl) {
+          setUrl(saved.profileUrl);
+          setAnalysis(saved.analysis);
+          setDone(new Set(saved.analysis.doneKeys));
+        }
+      })
+      .catch(() => {
+        /* first visit or the server is unreachable: start with an empty form */
+      })
+      .finally(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const read = async () => {
     if (!offer.trim() || !audience.trim()) return void toast.error("Tell us what you do and who you sell to first.");
@@ -50,24 +74,35 @@ export function ProfileOptimizer() {
     setUrlError(null);
     setReading(true);
     try {
-      setAnalysis(await analyzeProfile(clean, { offer: offer.trim(), audience: audience.trim() }));
-      setDone(new Set());
+      const result = await analyzeProfile(clean, { offer: offer.trim(), audience: audience.trim() });
+      setAnalysis(result);
+      setDone(new Set(result.doneKeys));
       setOpenKeys(new Set());
       toast.success("Profile read. Your changes are ready.");
-    } catch {
-      toast.error("Could not read that profile. Check the link and try again.");
+    } catch (e) {
+      // the backend explains bad links itself; anything else gets the generic message
+      toast.error(e instanceof ApiError && e.status === 400 ? e.message : "Could not read that profile. Check the link and try again.");
     } finally {
       setReading(false);
     }
   };
 
-  const toggleDone = (key: string) =>
-    setDone((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
+  /** Tick / untick a change. Updates the screen at once, then saves it; the tick is rolled back if the save fails. */
+  const setDoneKey = (key: string, value: boolean) => {
+    const apply = (on: boolean) =>
+      setDone((prev) => {
+        const next = new Set(prev);
+        if (on) next.add(key);
+        else next.delete(key);
+        return next;
+      });
+    apply(value);
+    setSuggestionDone(key, value).catch(() => {
+      apply(!value);
+      toast.error("Could not save that. Please try again.");
     });
+  };
+  const toggleDone = (key: string) => setDoneKey(key, !done.has(key));
   const toggleOpen = (key: string) =>
     setOpenKeys((prev) => {
       const next = new Set(prev);
@@ -146,7 +181,7 @@ export function ProfileOptimizer() {
                 placeholder="linkedin.com/in/your-name"
                 className={cn(inputCls, "flex-1")}
               />
-              <Button onClick={read} disabled={reading} className="h-10 sm:w-auto">
+              <Button onClick={read} disabled={reading || loading} className="h-10 sm:w-auto">
                 {reading ? <Loader2 className="animate-spin" /> : <ScanSearch />} {reading ? "Reading…" : "Read my profile"}
               </Button>
             </div>
@@ -159,7 +194,11 @@ export function ProfileOptimizer() {
         </div>
       </SectionCard>
 
-      {!analysis ? (
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-card/50 p-10 text-sm text-muted-foreground" role="status">
+          <Loader2 className="size-4 animate-spin" /> Loading your last profile read…
+        </div>
+      ) : !analysis ? (
         <div className="rounded-xl border border-dashed border-border bg-card/50 p-10 text-center">
           <p className="text-sm font-medium text-foreground">Your list of changes will appear here</p>
           <p className="mt-1 text-sm text-muted-foreground">Add your niche and profile link above, then press “Read my profile”.</p>
@@ -205,7 +244,7 @@ export function ProfileOptimizer() {
         profileUrl={url}
         done={guide ? done.has(guide.key) : false}
         onClose={() => setGuide(null)}
-        onMarkDone={(key) => { setDone((p) => new Set(p).add(key)); toast.success("Nice. Marked as done."); }}
+        onMarkDone={(key) => { setDoneKey(key, true); toast.success("Nice. Marked as done."); }}
       />
 
       <ConfirmDialog

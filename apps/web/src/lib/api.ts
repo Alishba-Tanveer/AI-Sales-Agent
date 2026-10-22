@@ -33,16 +33,17 @@ export function hasValidSession() {
   }
 }
 
-export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function api<T>(path: string, init: RequestInit & { keepSessionOn401?: boolean } = {}): Promise<T> {
+  const { keepSessionOn401, ...fetchInit } = init;
   const token = tokenStore.get();
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, {
-      ...init,
+      ...fetchInit,
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...init.headers,
+        ...fetchInit.headers,
       },
     });
   } catch {
@@ -52,7 +53,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!res.ok) {
     // A protected request was rejected (expired or revoked token, e.g. after logout): drop the session and sign in again.
     // /api/auth/* is excluded so wrong-password / bad-OTP errors still show on their own forms.
-    if (res.status === 401 && token && !path.startsWith("/api/auth/") && typeof window !== "undefined") {
+    if (res.status === 401 && token && !keepSessionOn401 && !path.startsWith("/api/auth/") && typeof window !== "undefined") {
       tokenStore.clear();
       localStorage.removeItem("user");
       sessionStorage.removeItem("user");

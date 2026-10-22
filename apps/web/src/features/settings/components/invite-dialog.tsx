@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Send, UserPlus } from "lucide-react";
+import { Loader2, Send, UserPlus } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,16 +16,21 @@ export function InviteDialog({
   open,
   onOpenChange,
   onInvite,
+  canAssignOwner,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  onInvite: (email: string, role: TeamRole) => void;
+  /** Should throw (with a readable message) when the invitation fails. */
+  onInvite: (email: string, role: TeamRole) => Promise<void>;
+  canAssignOwner: boolean;
 }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<TeamRole>("Member");
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const close = (o: boolean) => {
+    if (busy) return;
     if (!o) {
       setEmail("");
       setRole("Member");
@@ -34,11 +39,18 @@ export function InviteDialog({
     onOpenChange(o);
   };
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!EMAIL_RE.test(email.trim())) return setError("Please provide a valid work email.");
-    onInvite(email.trim(), role);
-    close(false);
+    setBusy(true);
+    try {
+      await onInvite(email.trim(), role);
+      setBusy(false);
+      close(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send the invitation.");
+      setBusy(false);
+    }
   };
 
   return (
@@ -64,16 +76,16 @@ export function InviteDialog({
               <select id="inv-role" value={role} onChange={(e) => setRole(e.target.value as TeamRole)} className={cn(selectCls, "h-9")}>
                 <option>Member</option>
                 <option>Admin</option>
-                <option>Owner</option>
+                {canAssignOwner && <option>Owner</option>}
               </select>
             </div>
             <p className="text-xs text-muted-foreground">An invitation link will be sent to their email valid for 7 days.</p>
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => close(false)}>Cancel</Button>
-            <Button type="submit" className="gap-1.5 font-semibold">
-              <Send className="size-4" />
+            <Button type="button" variant="outline" disabled={busy} onClick={() => close(false)}>Cancel</Button>
+            <Button type="submit" disabled={busy} className="gap-1.5 font-semibold">
+              {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
               Send Invite
             </Button>
           </DialogFooter>
