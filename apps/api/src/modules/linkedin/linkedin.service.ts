@@ -6,24 +6,84 @@ import {
   ContentSourceItem,
   DEFAULT_SOURCES,
   linkedinRepository,
+  ProfileContext,
   ProfileSuggestionItem,
-  SuggestionKey,
 } from "./linkedin.repository";
 import {
   normalizeLinkedInProfileUrl,
   normalizeWebUrl,
 } from "./linkedin.schema";
 
+/** Helper to extract a human name from a LinkedIn profile URL slug, e.g. "alishba-tanveer" -> "Alishba Tanveer" */
+function extractNameFromLinkedInUrl(url: string): string | null {
+  const match = url.match(/linkedin\.com\/(?:in|pub)\/([^/?#\s]+)/i);
+  if (!match) return null;
+  const slug = match[1];
+  const cleaned = slug.replace(/[0-9a-f]{8,}$/i, "").replace(/[-_.]+/g, " ").trim();
+  if (cleaned.length < 2) return null;
+  return cleaned.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Fetches real-time live tech/business stories from TechCrunch RSS */
+async function fetchLiveTechNews(): Promise<
+  Array<{ title: string; link: string; date: string }>
+> {
+  try {
+    const res = await fetch("https://techcrunch.com/feed/", {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+      signal: AbortSignal.timeout(3500),
+    });
+    if (!res.ok) return [];
+    const xml = await res.text();
+    const itemMatches = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 5);
+    const results = [];
+    const today = new Date().toISOString().slice(0, 10);
+
+    for (const m of itemMatches) {
+      const item = m[1];
+      const titleMatch =
+        item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) || item.match(/<title>(.*?)<\/title>/);
+      const linkMatch = item.match(/<link>(.*?)<\/link>/);
+      const pubDateMatch = item.match(/<pubDate>(.*?)<\/pubDate>/);
+
+      if (titleMatch && linkMatch) {
+        const cleanTitle = titleMatch[1]
+          .replace(/&#\d+;/g, "")
+          .replace(/&amp;/g, "&")
+          .trim();
+        results.push({
+          title: cleanTitle,
+          link: linkMatch[1].trim(),
+          date: pubDateMatch
+            ? new Date(pubDateMatch[1]).toISOString().slice(0, 10)
+            : today,
+        });
+      }
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
+
 export class LinkedinService {
   /* ========================================================================
    * 1. PROFILE OPTIMIZER
    * ======================================================================== */
 
-  private parseSuggestions(raw: Prisma.JsonValue | null, offer: string, audience: string): ProfileSuggestionItem[] {
+  private parseSuggestions(
+    raw: Prisma.JsonValue | null,
+    offer: string,
+    audience: string,
+    ctx?: ProfileContext,
+  ): ProfileSuggestionItem[] {
     if (Array.isArray(raw) && raw.length > 0) {
       return raw as unknown as ProfileSuggestionItem[];
     }
-    return buildSuggestionsForNiche(offer, audience);
+    return buildSuggestionsForNiche(offer, audience, ctx);
   }
 
   private parseHistory(raw: Prisma.JsonValue | null): AuditHistoryEntry[] {
@@ -33,16 +93,19 @@ export class LinkedinService {
     return [];
   }
 
-  private formatProfileAnalysis(config: {
-    id: string;
-    profileUrl: string | null;
-    offer: string;
-    audience: string;
-    latestScore: number;
-    latestReadAt: string | null;
-    suggestions: Prisma.JsonValue | null;
-  }) {
-    const suggestions = this.parseSuggestions(config.suggestions, config.offer, config.audience);
+  private formatProfileAnalysis(
+    config: {
+      id: string;
+      profileUrl: string | null;
+      offer: string;
+      audience: string;
+      latestScore: number;
+      latestReadAt: string | null;
+      suggestions: Prisma.JsonValue | null;
+    },
+    ctx?: ProfileContext,
+  ) {
+    const suggestions = this.parseSuggestions(config.suggestions, config.offer, config.audience, ctx);
     const doneKeys = suggestions.filter((s) => s.done).map((s) => s.key);
     const readAt = config.latestReadAt || new Date().toISOString().slice(0, 10);
 
@@ -64,8 +127,22 @@ export class LinkedinService {
   }
 
   async getProfileAudit(organizationId: string) {
-    const config = await linkedinRepository.getOrCreateConfig(organizationId);
-    return this.formatProfileAnalysis(config);
+    const [config, org, user] = await Promise.all([
+      linkedinRepository.getOrCreateConfig(organizationId),
+      prisma.organization.findUnique({ where: { id: organizationId } }),
+      prisma.user.findFirst({ where: { organizationId, deletedAt: null } }),
+    ]);
+
+    const ctx: ProfileContext = {
+      personName: user?.name,
+      roleTitle: user?.roleTitle || undefined,
+      orgName: org?.name,
+      services: org?.services,
+      targetTitles: org?.targetTitles,
+      targetIndustries: org?.targetIndustries,
+    };
+
+    return this.formatProfileAnalysis(config, ctx);
   }
 
   async analyzeProfile(
@@ -82,10 +159,21 @@ export class LinkedinService {
       featured?: string;
     },
   ) {
-    const config = await linkedinRepository.getOrCreateConfig(organizationId);
+    const [config, org, user] = await Promise.all([
+      linkedinRepository.getOrCreateConfig(organizationId),
+      prisma.organization.findUnique({ where: { id: organizationId } }),
+      prisma.user.findFirst({ where: { organizationId, deletedAt: null } }),
+    ]);
 
-    const offer = (input.offer ?? input.niche?.offer ?? config.offer).trim();
-    const audience = (input.audience ?? input.niche?.audience ?? config.audience).trim();
+    const fallbackOffer = org?.services?.length
+      ? org.services.join(", ")
+      : config.offer;
+    const fallbackAudience = org?.targetTitles?.length
+      ? `${org.targetTitles.join(", ")} at ${org?.targetIndustries?.join(", ") || "SaaS"} companies`
+      : config.audience;
+
+    const offer = (input.offer ?? input.niche?.offer ?? fallbackOffer).trim();
+    const audience = (input.audience ?? input.niche?.audience ?? fallbackAudience).trim();
 
     let cleanUrl = config.profileUrl ?? "https://www.linkedin.com/in/me";
     if (input.profileUrl !== undefined && input.profileUrl.trim() !== "") {
@@ -99,14 +187,28 @@ export class LinkedinService {
       cleanUrl = normalized;
     }
 
-    const suggestions = buildSuggestionsForNiche(offer, audience, {
-      headline: input.headline,
-      about: input.about,
-      experience: input.experience,
-      skills: input.skills,
-      featured: input.featured,
-    });
+    const extractedName = extractNameFromLinkedInUrl(cleanUrl);
+    const personName = extractedName || user?.name || "Growth Leader";
+    const roleTitle = user?.roleTitle || "Full Stack Engineer & Tech Lead";
+    const orgName = org?.name || "AI Sales Agent";
 
+    const ctx: ProfileContext = {
+      personName,
+      roleTitle,
+      orgName,
+      services: org?.services,
+      targetTitles: org?.targetTitles,
+      targetIndustries: org?.targetIndustries,
+      currentSections: {
+        headline: input.headline,
+        about: input.about,
+        experience: input.experience,
+        skills: input.skills,
+        featured: input.featured,
+      },
+    };
+
+    const suggestions = buildSuggestionsForNiche(offer, audience, ctx);
     const readAt = new Date().toISOString().slice(0, 10);
     const score = 78;
 
@@ -143,7 +245,7 @@ export class LinkedinService {
       } as unknown as Prisma.InputJsonValue,
     });
 
-    return this.formatProfileAnalysis(updated);
+    return this.formatProfileAnalysis(updated, ctx);
   }
 
   async updateRecommendation(
@@ -337,18 +439,54 @@ export class LinkedinService {
     organizationId: string,
     filters?: { status?: string; source?: string; search?: string },
   ) {
-    const [rows, config] = await Promise.all([
-      linkedinRepository.findScripts(organizationId),
-      linkedinRepository.getOrCreateConfig(organizationId),
-    ]);
+    let rows = await linkedinRepository.findScripts(organizationId);
+    const config = await linkedinRepository.getOrCreateConfig(organizationId);
 
-    // Sort custom added topics ("Your topic") newest-first at the top so adding a topic puts it first in queue
+    // If there are fewer than 2 needs_approval scripts, try fetching live RSS stories from TechCrunch
+    const pendingCount = rows.filter((r) => r.status === "needs_approval").length;
+    if (pendingCount <= 1) {
+      try {
+        const liveArticles = await fetchLiveTechNews();
+        for (const item of liveArticles.slice(0, 3)) {
+          const alreadyExists = rows.some(
+            (r) => r.title.toLowerCase() === item.title.toLowerCase() || r.sourceUrl === item.link,
+          );
+          if (!alreadyExists) {
+            const hook = `Here is what founders need to know about ${item.title.toLowerCase().slice(0, 70)}.`;
+            const points = [
+              "Enterprise automation and AI compute continue to accelerate across industries.",
+              "Teams adopting automated outbound workflows are closing deals faster with smaller teams.",
+              "Focusing on personalized messages beats high-volume spray-and-pray every time.",
+            ];
+            const cta = "Follow me for daily breakdowns on AI, automation, and outbound growth.";
+            const created = await linkedinRepository.createScript(organizationId, {
+              status: "needs_approval",
+              draftNo: 1,
+              source: "TechCrunch",
+              sourceUrl: item.link,
+              date: item.date,
+              title: item.title,
+              hook,
+              points,
+              cta,
+              seconds: 40,
+              words: 100,
+            });
+            rows.unshift(created);
+          }
+        }
+      } catch {
+        // Fallback: continue with existing scripts
+      }
+    }
+
+    // Sort custom added topics ("Your topic") newest-first at the top
     const sorted = [...rows].sort((a, b) => {
       const aCustom = a.source === "Your topic" ? 0 : 1;
       const bCustom = b.source === "Your topic" ? 0 : 1;
       if (aCustom !== bCustom) return aCustom - bCustom;
       if (aCustom === 0) return b.createdAt.getTime() - a.createdAt.getTime();
-      return a.createdAt.getTime() - b.createdAt.getTime();
+      return b.createdAt.getTime() - a.createdAt.getTime();
     });
 
     const allScripts = sorted.map((r) => this.formatScript(r));
@@ -739,13 +877,29 @@ export class LinkedinService {
    * ======================================================================== */
 
   async getStrategy(organizationId: string) {
-    const config = await linkedinRepository.getOrCreateConfig(organizationId);
+    const [config, org, settings] = await Promise.all([
+      linkedinRepository.getOrCreateConfig(organizationId),
+      prisma.organization.findUnique({ where: { id: organizationId } }),
+      prisma.workspaceSettings.findUnique({ where: { organizationId } }),
+    ]);
+
+    const dynamicWho = org?.targetTitles?.length
+      ? `${org.targetTitles.join(", ")} at ${org?.targetIndustries?.join(", ") || "B2B SaaS"} companies, 50-500 employees`
+      : config.strategyWho;
+
+    const dynamicMsg = org?.services?.length
+      ? `Hi {first_name}, I saw your post on {topic}. At ${org.name || "our company"}, we help ${org.targetIndustries?.[0] || "B2B"} teams with ${org.services[0]}. Would love to connect!`
+      : config.strategyMessage;
+
+    const perDay = settings?.dailyCap || config.strategyPerDay || 15;
+    const followUpDays = settings?.intervalDays || config.strategyFollowUpDays || 3;
+
     return {
-      agreedOn: config.strategyAgreedOn,
-      who: config.strategyWho,
-      perDay: config.strategyPerDay,
-      message: config.strategyMessage,
-      followUpDays: config.strategyFollowUpDays,
+      agreedOn: config.strategyAgreedOn || new Date().toISOString().slice(0, 10),
+      who: dynamicWho,
+      perDay,
+      message: dynamicMsg,
+      followUpDays,
     };
   }
 
@@ -766,6 +920,15 @@ export class LinkedinService {
       strategyMessage: input.message.trim(),
       strategyPerDay: input.perDay,
       strategyFollowUpDays: input.followUpDays,
+    });
+
+    // Also keep workspaceSettings in sync
+    await prisma.workspaceSettings.updateMany({
+      where: { organizationId },
+      data: {
+        dailyCap: input.perDay,
+        intervalDays: input.followUpDays,
+      },
     });
 
     return {
@@ -813,7 +976,7 @@ export class LinkedinService {
   ) {
     const rows = await linkedinRepository.findLeads(organizationId);
 
-    // Put manually added people ("Added by you") newest-first at the top so AddPersonDialog shows them first
+    // Put manually added people ("Added by you") newest-first at the top
     const sorted = [...rows].sort((a, b) => {
       const aAdded = a.reason === "Added by you" ? 0 : 1;
       const bAdded = b.reason === "Added by you" ? 0 : 1;
@@ -1042,25 +1205,34 @@ export class LinkedinService {
   }
 
   async discoverConnections(organizationId: string) {
-    const config = await linkedinRepository.getOrCreateConfig(organizationId);
+    const [config, org] = await Promise.all([
+      linkedinRepository.getOrCreateConfig(organizationId),
+      prisma.organization.findUnique({ where: { id: organizationId } }),
+    ]);
+
+    const targetTitle = org?.targetTitles?.[0] || "VP of Sales";
+    const targetIndustry = org?.targetIndustries?.[0] || "B2B SaaS";
+
     const discovered = [
       {
         name: "Liam O'Connor",
-        role: "VP of Sales",
+        role: targetTitle,
         company: "ScaleOps AI",
         source: "buyer" as const,
         status: "suggested" as const,
         reasonKind: "fit" as const,
-        reason: `Matches your target: ${config.strategyWho.slice(0, 60)}`,
+        reason: `Matches your target: ${targetTitle}, ${targetIndustry}, 120 employees`,
+        note: `Hi Liam, I saw your work at ScaleOps AI. At ${org?.name || "our company"}, we help ${targetIndustry} teams with ${org?.services?.[0] || "outbound automation"}. Would love to connect.`,
       },
       {
         name: "Sophia Martinez",
-        role: "Head of Revenue",
+        role: org?.targetTitles?.[1] || "Head of Revenue",
         company: "DataPulse",
         source: "buyer" as const,
         status: "suggested" as const,
         reasonKind: "fit" as const,
-        reason: "Hiring 2 Enterprise AEs and expanding outbound team",
+        reason: `Matches your target: ${org?.targetTitles?.[1] || "Head of Revenue"}, ${targetIndustry}, 85 employees`,
+        note: `Hi Sophia, saw your team's expansion at DataPulse. Would love to share insights on ${org?.services?.[0] || "sales growth"}.`,
       },
     ];
 
