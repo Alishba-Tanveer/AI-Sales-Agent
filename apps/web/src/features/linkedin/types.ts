@@ -3,6 +3,8 @@ export type SuggestionKey = "headline" | "about" | "experience" | "skills" | "fe
 
 export type ProfileSuggestion = {
   key: SuggestionKey;
+  /** set by the backend once the person marked this change as done */
+  done?: boolean;
   title: string;
   current: string;
   suggested: string;
@@ -14,6 +16,16 @@ export type ProfileSuggestion = {
 export type ProfileAnalysis = {
   readAt: string; // ISO date
   suggestions: ProfileSuggestion[];
+  /** keys of the suggestions already marked as done */
+  doneKeys: string[];
+};
+
+/** What the backend remembers from the last time the profile was read. */
+export type SavedAudit = {
+  profileUrl: string;
+  offer: string;
+  audience: string;
+  analysis: ProfileAnalysis;
 };
 
 export type NicheInput = { offer: string; audience: string };
@@ -43,6 +55,9 @@ export type ContentScript = {
 };
 
 export type NewTopic = { topic: string };
+
+/** Posting settings shown at the top of the Content Engine. */
+export type ContentSettings = { remindAt: string; avatar: string; heygenConnected: boolean };
 
 /* ---------- Engagement & Connections ---------- */
 export type LeadSource = "engaged" | "buyer";

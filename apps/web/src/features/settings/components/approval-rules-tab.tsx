@@ -3,6 +3,10 @@
 import { useState } from "react";
 import { Gavel, Lock, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { getApprovalRules, saveApprovalRules } from "../api";
+import { useLoad } from "../use-load";
+import type { ApprovalRules } from "../types";
+import { TabError, TabLoading } from "./load-states";
 import { Pill, SaveButton, SectionCard, Switch, type PillTone } from "./settings-ui";
 
 type RuleRow = {
@@ -22,8 +26,28 @@ const RULES: RuleRow[] = [
 ];
 
 export function ApprovalRulesTab() {
-  const [threshold, setThreshold] = useState(92);
-  const [on, setOn] = useState({ replies: true, followups: false, linkedin: true });
+  const { state, reload } = useLoad(getApprovalRules);
+  if (state.status === "loading") return <TabLoading label="Loading approval rules…" />;
+  if (state.status === "error") return <TabError message={state.message} onRetry={reload} />;
+  return <ApprovalRulesForm initial={state.data} />;
+}
+
+function ApprovalRulesForm({ initial }: { initial: ApprovalRules }) {
+  const [threshold, setThreshold] = useState(initial.threshold);
+  const [on, setOn] = useState({ replies: initial.replies, followups: initial.followups, linkedin: initial.linkedin });
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await saveApprovalRules({ threshold, ...on });
+      toast.success("Approval rules saved");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save approval rules.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <SectionCard
@@ -84,7 +108,7 @@ export function ApprovalRulesTab() {
         ))}
       </div>
 
-      <SaveButton onClick={() => toast.success("Approval rules saved")} />
+      <SaveButton busy={saving} onClick={save} />
     </SectionCard>
   );
 }

@@ -35,8 +35,8 @@ function fromOrg(o: OrgDto): Partial<OnboardingValues> {
 }
 
 /** GET /api/onboarding. Refreshes the local cache and returns the saved profile. */
-export async function fetchOnboarding() {
-  const res = await api<{ data: OrgDto }>("/api/onboarding");
+export async function fetchOnboarding(opts: { keepSessionOn401?: boolean } = {}) {
+  const res = await api<{ data: OrgDto }>("/api/onboarding", opts);
   const profile = fromOrg(res.data);
   const completed = !!res.data.onboardingCompleted;
   cacheProfile(profile, completed);

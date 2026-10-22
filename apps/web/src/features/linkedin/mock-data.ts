@@ -7,6 +7,7 @@ export const DEFAULT_NICHE = {
 
 export const MOCK_ANALYSIS: ProfileAnalysis = {
   readAt: "2026-10-21",
+  doneKeys: [],
   suggestions: [
     {
       key: "headline",

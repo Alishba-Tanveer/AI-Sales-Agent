@@ -1,73 +1,85 @@
 "use client";
 
 import { useState } from "react";
-import { TriangleAlert } from "lucide-react";
+import { Loader2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
-import { setTestMode, useTestMode } from "../test-mode";
-import { SENT_TODAY } from "../mock-data";
+import { getUsage, saveAiLimit } from "../api";
+import { saveTestMode, useTestMode } from "../test-mode";
+import { useLoad } from "../use-load";
+import type { UsageInfo } from "../types";
+import { TabError, TabLoading } from "./load-states";
 import { Pill, Switch } from "./settings-ui";
-
-type Preview = "normal" | "limit" | "test";
 
 function Bar({ pct, danger, thin }: { pct: number; danger?: boolean; thin?: boolean }) {
   return (
     <div className={cn("w-full overflow-hidden rounded-full bg-secondary", thin ? "h-1.5" : "h-2")}>
-      <div className={cn("h-full rounded-full transition-all duration-300", danger ? "bg-destructive" : "bg-primary")} style={{ width: `${pct}%` }} />
+      <div className={cn("h-full rounded-full transition-all duration-300", danger ? "bg-destructive" : "bg-primary")} style={{ width: `${Math.min(100, pct)}%` }} />
     </div>
   );
 }
 
-export function UsageTab({ dailyCap, onOpenOutreach }: { dailyCap: number; onOpenOutreach: () => void }) {
+const pctOf = (value: number, max: number) => (max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0);
+
+/** The AI spend counter resets on the 1st of every month. */
+function daysUntilReset() {
+  const now = new Date();
+  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  return Math.max(1, Math.ceil((next.getTime() - now.getTime()) / 86_400_000));
+}
+
+export function UsageTab({ onOpenOutreach }: { onOpenOutreach: () => void }) {
+  const { state, reload, set } = useLoad(getUsage);
+  if (state.status === "loading") return <TabLoading label="Loading usage and limits…" />;
+  if (state.status === "error") return <TabError message={state.message} onRetry={reload} />;
+  return <UsageView usage={state.data} onUsage={set} onOpenOutreach={onOpenOutreach} />;
+}
+
+function UsageView({ usage, onUsage, onOpenOutreach }: { usage: UsageInfo; onUsage: (u: UsageInfo) => void; onOpenOutreach: () => void }) {
   const testMode = useTestMode();
-  const [limitHit, setLimitHit] = useState(false);
-  const [aiLimit, setAiLimit] = useState("5.00");
+  const [aiLimit, setAiLimit] = useState(usage.aiLimit.toFixed(2));
+  const [savingLimit, setSavingLimit] = useState(false);
+  const [togglingTest, setTogglingTest] = useState(false);
 
-  const sent = limitHit ? dailyCap : Math.min(SENT_TODAY, dailyCap);
-  const pct = Math.min(100, Math.round((sent / dailyCap) * 100));
-  const active: Preview = limitHit ? "limit" : testMode ? "test" : "normal";
+  const limitHit = usage.dailyCap > 0 && usage.sentToday >= usage.dailyCap;
+  const sentPct = pctOf(usage.sentToday, usage.dailyCap);
+  const aiPct = pctOf(usage.aiSpendThisMonth, usage.aiLimit);
+  const reqPct = pctOf(usage.requestsToday, usage.requestsDailyLimit);
 
-  const preview = (p: Preview) => {
-    setLimitHit(p === "limit");
-    setTestMode(p === "test");
+  const toggleTestMode = async (on: boolean) => {
+    setTogglingTest(true);
+    try {
+      const message = await saveTestMode(on);
+      toast(message ?? (on ? "Test mode enabled: dry run only" : "Test mode disabled: live sending active"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not change test mode.");
+    } finally {
+      setTogglingTest(false);
+    }
   };
 
-  const saveAiLimit = () => {
+  const saveLimit = async () => {
     const n = Number(aiLimit);
     if (!Number.isFinite(n) || n <= 0) return void toast.error("Enter an amount greater than $0.");
-    setAiLimit(n.toFixed(2));
-    toast.success("Monthly AI limit saved successfully");
+    setSavingLimit(true);
+    try {
+      const next = await saveAiLimit(n);
+      onUsage(next);
+      setAiLimit(next.aiLimit.toFixed(2));
+      toast.success("Monthly AI limit saved successfully");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save the AI limit.");
+    } finally {
+      setSavingLimit(false);
+    }
   };
 
   return (
     <div className="flex w-full flex-col gap-6">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-        <div>
-          <h2 className="text-base font-semibold text-foreground">Usage and Limits</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">Manage operational boundaries, dry run simulations, and outbound allocations.</p>
-        </div>
-        <div role="group" aria-label="Preview state" className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
-          {(
-            [
-              ["normal", "Normal"],
-              ["limit", "Limit Reached"],
-              ["test", "Test Mode"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => preview(id)}
-              className={cn(
-                "rounded px-2.5 py-1 text-xs font-medium transition-all",
-                active === id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      <div>
+        <h2 className="text-base font-semibold text-foreground">Usage and Limits</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">Manage operational boundaries, dry run simulations, and outbound allocations.</p>
       </div>
 
       <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6">
@@ -78,14 +90,10 @@ export function UsageTab({ dailyCap, onOpenOutreach }: { dailyCap: number; onOpe
               When on, nothing is actually sent. Emails go through the whole flow but are only saved as test sends.
             </p>
           </div>
-          <Switch
-            checked={testMode}
-            label="Test mode"
-            onChange={(v) => {
-              setTestMode(v);
-              toast(v ? "Test mode enabled: dry run only" : "Test mode disabled: live sending active");
-            }}
-          />
+          <div className={cn("flex items-center gap-2", togglingTest && "pointer-events-none opacity-60")}>
+            {togglingTest && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
+            <Switch checked={testMode} label="Test mode" onChange={toggleTestMode} />
+          </div>
         </div>
         {testMode && (
           <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning-soft p-3 text-xs font-medium text-warning">
@@ -102,10 +110,10 @@ export function UsageTab({ dailyCap, onOpenOutreach }: { dailyCap: number; onOpe
         </div>
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-medium text-foreground">Emails sent today: {sent} of {dailyCap}</span>
-            <span className="text-muted-foreground">{pct}%</span>
+            <span className="font-medium text-foreground">Emails sent today: {usage.sentToday} of {usage.dailyCap}</span>
+            <span className="text-muted-foreground">{sentPct}%</span>
           </div>
-          <Bar pct={pct} danger={limitHit} />
+          <Bar pct={sentPct} danger={limitHit} />
           {limitHit && <p role="alert" className="pt-1 text-xs font-medium text-destructive">Daily limit reached. Sending resumes tomorrow.</p>}
         </div>
         <div className="flex items-center justify-between border-t border-border pt-3 text-xs">
@@ -122,14 +130,14 @@ export function UsageTab({ dailyCap, onOpenOutreach }: { dailyCap: number; onOpe
             <h3 className="text-sm font-semibold text-foreground">AI usage</h3>
             <Pill tone="primary">Free tier</Pill>
           </div>
-          <span className="text-xs text-muted-foreground">Resets in 11 days</span>
+          <span className="text-xs text-muted-foreground">Resets in {daysUntilReset()} days</span>
         </div>
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-medium text-foreground">AI spending this month: $0.00 of ${aiLimit} limit</span>
-            <span className="text-muted-foreground">0%</span>
+            <span className="font-medium text-foreground">AI spending this month: ${usage.aiSpendThisMonth.toFixed(2)} of ${usage.aiLimit.toFixed(2)} limit</span>
+            <span className="text-muted-foreground">{aiPct}%</span>
           </div>
-          <Bar pct={0} />
+          <Bar pct={aiPct} danger={aiPct >= 100} />
         </div>
         <div className="flex flex-col gap-2 pt-2">
           <label htmlFor="ai-limit" className="text-xs font-medium text-muted-foreground">Monthly AI spending limit</label>
@@ -141,19 +149,23 @@ export function UsageTab({ dailyCap, onOpenOutreach }: { dailyCap: number; onOpe
                 inputMode="decimal"
                 value={aiLimit}
                 onChange={(e) => setAiLimit(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && saveLimit()}
                 className="h-9 w-full rounded-lg border border-input bg-transparent pr-3 pl-6 font-mono text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
               />
             </div>
-            <Button className="h-9 px-4 text-xs font-semibold" onClick={saveAiLimit}>Save</Button>
+            <Button className="h-9 px-4 text-xs font-semibold" disabled={savingLimit} onClick={saveLimit}>
+              {savingLimit && <Loader2 className="animate-spin" />}
+              Save
+            </Button>
           </div>
           <p className="text-xs text-muted-foreground">AI drafting stops when the limit is reached.</p>
         </div>
         <div className="flex flex-col gap-1.5 border-t border-border pt-3">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Requests today: 38 of 250</span>
-            <span className="font-mono text-muted-foreground">15.2%</span>
+            <span className="text-muted-foreground">Requests today: {usage.requestsToday} of {usage.requestsDailyLimit}</span>
+            <span className="font-mono text-muted-foreground">{usage.requestsDailyLimit > 0 ? ((usage.requestsToday / usage.requestsDailyLimit) * 100).toFixed(1) : "0.0"}%</span>
           </div>
-          <Bar pct={15.2} thin />
+          <Bar pct={reqPct} thin />
         </div>
       </section>
     </div>

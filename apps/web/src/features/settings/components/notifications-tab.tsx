@@ -3,11 +3,34 @@
 import { useState } from "react";
 import { BellRing } from "lucide-react";
 import { toast } from "sonner";
-import { DEFAULT_NOTIFICATIONS } from "../mock-data";
+import { getNotifications, saveNotifications } from "../api";
+import { useLoad } from "../use-load";
+import type { NotificationRule } from "../types";
+import { TabError, TabLoading } from "./load-states";
 import { Pill, SaveButton, SectionCard } from "./settings-ui";
 
 export function NotificationsTab() {
-  const [rules, setRules] = useState(DEFAULT_NOTIFICATIONS);
+  const { state, reload } = useLoad(getNotifications);
+  if (state.status === "loading") return <TabLoading label="Loading notification preferences…" />;
+  if (state.status === "error") return <TabError message={state.message} onRetry={reload} />;
+  return <NotificationsForm initial={state.data} />;
+}
+
+function NotificationsForm({ initial }: { initial: NotificationRule[] }) {
+  const [rules, setRules] = useState(initial);
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      setRules(await saveNotifications(rules));
+      toast.success("Notification preferences saved");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save notification preferences.");
+    } finally {
+      setSaving(false);
+    }
+  };
   const toggle = (id: string, key: "email" | "inApp") =>
     setRules((rs) => rs.map((r) => (r.id === id ? { ...r, [key]: !r[key] } : r)));
 
@@ -45,7 +68,7 @@ export function NotificationsTab() {
           </div>
         ))}
       </div>
-      <SaveButton onClick={() => toast.success("Notification preferences saved")} />
+      <SaveButton busy={saving} onClick={save} />
     </SectionCard>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Save, X, type LucideIcon } from "lucide-react";
+import { Loader2, Plus, Save, X, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -9,10 +9,23 @@ import { Label } from "@/components/ui/label";
 /* ---------- accent colors: only the theme's own colors ---------- */
 // Full class names are written out so Tailwind can see them.
 export const TONES = {
-  primary: { text: "text-primary", tile: "border-primary/30 bg-primary-soft text-primary", bar: "bg-primary" },
-  success: { text: "text-success", tile: "border-success/30 bg-success-soft text-success", bar: "bg-success" },
-  warning: { text: "text-warning", tile: "border-warning/30 bg-warning-soft text-warning", bar: "bg-warning" },
-  destructive: { text: "text-destructive", tile: "border-destructive/30 bg-destructive-soft text-destructive", bar: "bg-destructive" },
+  primary: { text: "text-primary", tile: "border-primary/30 bg-primary-soft text-primary", soft: "bg-primary-soft text-primary", bar: "bg-primary" },
+  success: { text: "text-success", tile: "border-success/30 bg-success-soft text-success", soft: "bg-success-soft text-success", bar: "bg-success" },
+  warning: { text: "text-warning", tile: "border-warning/30 bg-warning-soft text-warning", soft: "bg-warning-soft text-warning", bar: "bg-warning" },
+  destructive: { text: "text-destructive", tile: "border-destructive/30 bg-destructive-soft text-destructive", soft: "bg-destructive-soft text-destructive", bar: "bg-destructive" },
+  // sky + violet are the two Overview colors that have no theme token; they use the same hues (Tailwind sky/violet 400 in dark mode)
+  info: {
+    text: "text-sky-700 dark:text-sky-400",
+    tile: "border-sky-500/30 bg-sky-100 text-sky-700 dark:border-sky-400/30 dark:bg-sky-400/15 dark:text-sky-400",
+    soft: "bg-sky-100 text-sky-700 dark:bg-sky-400/15 dark:text-sky-400",
+    bar: "bg-sky-500 dark:bg-sky-400",
+  },
+  violet: {
+    text: "text-violet-700 dark:text-violet-400",
+    tile: "border-violet-500/30 bg-violet-100 text-violet-700 dark:border-violet-400/30 dark:bg-violet-400/15 dark:text-violet-400",
+    soft: "bg-violet-100 text-violet-700 dark:bg-violet-400/15 dark:text-violet-400",
+    bar: "bg-violet-500 dark:bg-violet-400",
+  },
 } as const;
 export type Tone = keyof typeof TONES;
 
@@ -61,6 +74,8 @@ const pillTone = {
   success: "border-success/30 bg-success-soft text-success",
   warning: "border-warning/30 bg-warning-soft text-warning",
   destructive: "border-destructive/30 bg-destructive-soft text-destructive",
+  info: "border-sky-500/30 bg-sky-100 text-sky-700 dark:border-sky-400/30 dark:bg-sky-400/15 dark:text-sky-400",
+  violet: "border-violet-500/30 bg-violet-100 text-violet-700 dark:border-violet-400/30 dark:bg-violet-400/15 dark:text-violet-400",
   muted: "border-border bg-secondary text-muted-foreground",
 } as const;
 export type PillTone = keyof typeof pillTone;
@@ -153,11 +168,13 @@ export function Switch({
   );
 }
 
-export function SaveButton({ onClick, label = "Save Changes", icon: Icon = Save }: { onClick: () => void; label?: string; icon?: LucideIcon }) {
+/** `busy` = a save is in flight: the button is disabled and shows a spinner. */
+export function SaveButton({ onClick, label = "Save Changes", icon, busy }: { onClick: () => void; label?: string; icon?: LucideIcon; busy?: boolean }) {
+  const Icon = busy ? Loader2 : (icon ?? Save);
   return (
     <div className="flex items-center justify-end border-t border-border pt-4">
-      <Button type="button" onClick={onClick} className="h-9 gap-1.5 px-5 text-sm font-semibold">
-        <Icon className="size-[18px]" />
+      <Button type="button" onClick={onClick} disabled={busy} className="h-9 gap-1.5 px-5 text-sm font-semibold">
+        <Icon className={cn("size-[18px]", busy && "animate-spin")} />
         {label}
       </Button>
     </div>

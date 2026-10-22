@@ -22,8 +22,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <div className="pt-16">{children}</div>
       </div>
 
-      {/* toasts (Settings uses these) */}
-      <Toaster position="bottom-right" />
+      {/* toasts: top-right, under the top bar (see ui/sonner.tsx) */}
+      <Toaster />
 
       {/* asks the person to finish onboarding if it isn't complete */}
       <SetupReminder />

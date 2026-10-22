@@ -8,7 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { SIZES } from "@/features/onboarding/options";
 import { updateProfile } from "@/features/onboarding/api";
 import { loadOnboarding, validateFields } from "@/features/onboarding/status";
-import type { MessageTone } from "../types";
+import { approveOutreach, getOutreach } from "../api";
+import { useLoad } from "../use-load";
+import type { MessageTone, OutreachSettings } from "../types";
+import { TabError, TabLoading } from "./load-states";
 import { Field, NumberField, Pill, SaveButton, SectionCard, TagGroup, selectCls } from "./settings-ui";
 
 const TONES: { id: MessageTone; title: string; text: string; hint: string }[] = [
@@ -33,7 +36,14 @@ function ThrottleCard({ title, icon: Icon, unit, note, children }: { title: stri
   );
 }
 
-export function OutreachTab({ dailyCap, onDailyCapChange }: { dailyCap: number; onDailyCapChange: (n: number) => void }) {
+export function OutreachTab() {
+  const { state, reload } = useLoad(getOutreach);
+  if (state.status === "loading") return <TabLoading label="Loading your outreach strategy…" />;
+  if (state.status === "error") return <TabError message={state.message} onRetry={reload} />;
+  return <OutreachForm initial={state.data} />;
+}
+
+function OutreachForm({ initial }: { initial: OutreachSettings }) {
   // ideal-customer answers from onboarding
   const saved = useState(() => loadOnboarding() ?? {})[0];
   const [industries, setIndustries] = useState<string[]>(saved.targetIndustries ?? []);
@@ -41,9 +51,25 @@ export function OutreachTab({ dailyCap, onDailyCapChange }: { dailyCap: number; 
   const [locations, setLocations] = useState<string[]>(saved.locations ?? []);
   const [companySize, setCompanySize] = useState(saved.companySize ?? "");
   const [customerDescription, setCustomerDescription] = useState(saved.customerDescription ?? "");
-  const [tone, setTone] = useState<MessageTone>("professional");
-  const [followUps, setFollowUps] = useState(3);
-  const [gapDays, setGapDays] = useState(3);
+  const [tone, setTone] = useState<MessageTone>(initial.tone);
+  const [followUps, setFollowUps] = useState(initial.followUps);
+  const [gapDays, setGapDays] = useState(initial.gapDays);
+  const [dailyCap, setDailyCap] = useState(initial.dailyCap);
+  const [approved, setApproved] = useState(initial.approved);
+  const [approving, setApproving] = useState(false);
+
+  const approve = async () => {
+    setApproving(true);
+    try {
+      const res = await approveOutreach({ tone, followUps, gapDays, dailyCap });
+      setApproved(res.settings.approved);
+      toast.success(res.message ?? "Outreach strategy saved and approved");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save your outreach strategy.");
+    } finally {
+      setApproving(false);
+    }
+  };
 
   const saveTargeting = async () => {
     const patch = { targetIndustries: industries, targetTitles: titles, locations, companySize, customerDescription };
@@ -69,7 +95,7 @@ export function OutreachTab({ dailyCap, onDailyCapChange }: { dailyCap: number; 
             Outreach initiates only after you review and approve these campaign parameters. Automated pipeline scrapers will adhere strictly to daily cap allocations and localized quiet periods.
           </p>
         </div>
-        <Pill tone="primary" className="hidden sm:inline-flex">Stage: Ready</Pill>
+        <Pill tone={approved ? "success" : "primary"} className="hidden sm:inline-flex">{approved ? "Stage: Approved" : "Stage: Ready"}</Pill>
       </div>
 
       <SectionCard
@@ -79,20 +105,21 @@ export function OutreachTab({ dailyCap, onDailyCapChange }: { dailyCap: number; 
         description="Define categorical tags used by LinkedIn scrapers and Apollo search queries."
         aside={<Pill tone="success">Precision Matching</Pill>}
       >
-        <TagGroup label="Target Industries *" tags={industries} onChange={setIndustries} addLabel="Add industry" placeholder="New industry" />
-        <TagGroup label="Target Decision Maker Titles *" tags={titles} onChange={setTitles} addLabel="Add title" placeholder="New job title" />
-        <TagGroup label="Target Locations *" tags={locations} onChange={setLocations} addLabel="Add location" placeholder="Country / region" />
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        {/* 2 columns: row 1 = industries + titles, row 2 = locations + company size, row 3 = full-width description */}
+        <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-2">
+          <TagGroup label="Target Industries *" tags={industries} onChange={setIndustries} addLabel="Add industry" placeholder="New industry" />
+          <TagGroup label="Target Decision Maker Titles *" tags={titles} onChange={setTitles} addLabel="Add title" placeholder="New job title" />
+          <TagGroup label="Target Locations *" tags={locations} onChange={setLocations} addLabel="Add location" placeholder="Country / region" />
           <Field label="Target company size *" htmlFor="ot-size">
             <select id="ot-size" value={companySize} onChange={(e) => setCompanySize(e.target.value)} className={selectCls}>
               <option value="" disabled>Select size...</option>
               {SIZES.map((s) => <option key={s}>{s}</option>)}
             </select>
           </Field>
+          <Field label="Ideal customer description (optional)" htmlFor="ot-desc" className="md:col-span-2">
+            <Textarea id="ot-desc" rows={3} value={customerDescription} onChange={(e) => setCustomerDescription(e.target.value)} placeholder="e.g. Software companies with 20 to 150 employees that want more qualified leads." className="text-sm md:text-sm" />
+          </Field>
         </div>
-        <Field label="Ideal customer description (optional)" htmlFor="ot-desc">
-          <Textarea id="ot-desc" rows={3} value={customerDescription} onChange={(e) => setCustomerDescription(e.target.value)} placeholder="e.g. Software companies with 20 to 150 employees that want more qualified leads." className="text-sm md:text-sm" />
-        </Field>
         <SaveButton label="Save Targeting" onClick={saveTargeting} />
       </SectionCard>
 
@@ -146,7 +173,7 @@ export function OutreachTab({ dailyCap, onDailyCapChange }: { dailyCap: number; 
             <NumberField label="Interval between touches" value={gapDays} min={1} max={14} onChange={setGapDays} />
           </ThrottleCard>
           <ThrottleCard title="Daily Sending Cap / Mailbox" icon={MailCheck} unit="outbound emails" note="Spreads dispatch evenly across day">
-            <NumberField label="Daily sending cap per mailbox" value={dailyCap} min={10} max={100} onChange={onDailyCapChange} />
+            <NumberField label="Daily sending cap per mailbox" value={dailyCap} min={10} max={100} onChange={setDailyCap} />
           </ThrottleCard>
         </div>
 
@@ -161,7 +188,7 @@ export function OutreachTab({ dailyCap, onDailyCapChange }: { dailyCap: number; 
           <Pill tone="success">Enforced Globally</Pill>
         </div>
 
-        <SaveButton icon={BadgeCheck} label="Save and Approve Strategy" onClick={() => toast.success("Outreach strategy saved and approved")} />
+        <SaveButton icon={BadgeCheck} label={approving ? "Saving…" : "Save and Approve Strategy"} busy={approving} onClick={approve} />
       </SectionCard>
     </div>
   );

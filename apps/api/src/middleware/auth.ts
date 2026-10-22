@@ -81,8 +81,15 @@ export const requireAuth = async (
   } catch (error) {
     if (error instanceof AppError) {
       next(error);
-    } else {
+    } else if (error instanceof jwt.TokenExpiredError) {
+      next(new AppError("Your session has expired. Please log in again.", 401));
+    } else if (error instanceof jwt.JsonWebTokenError || error instanceof jwt.NotBeforeError) {
       next(new AppError("Invalid or expired session token", 401));
+    } else {
+      // Not a token problem (database error, outdated Prisma client / missing migration, ...).
+      // Do NOT report this as a 401: it would sign people out for a server-side fault.
+      console.error("[requireAuth] unexpected error while checking the session:", error);
+      next(new AppError("Could not verify your session because of a server error. Check the API logs.", 500));
     }
   }
 };
