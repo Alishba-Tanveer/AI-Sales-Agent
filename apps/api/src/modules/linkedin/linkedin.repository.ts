@@ -38,16 +38,38 @@ export const DEFAULT_SOURCES: ContentSourceItem[] = [
   { name: "Forbes", url: "https://forbes.com", enabled: true },
 ];
 
+export interface ProfileContext {
+  personName?: string;
+  roleTitle?: string;
+  orgName?: string;
+  services?: string[];
+  targetTitles?: string[];
+  targetIndustries?: string[];
+  currentSections?: Partial<Record<SuggestionKey, string>>;
+}
+
 export function buildSuggestionsForNiche(
   offer: string,
   audience: string,
-  currentSections?: Partial<Record<SuggestionKey, string>>,
+  ctx?: ProfileContext,
 ): ProfileSuggestionItem[] {
-  const cleanOffer = offer.trim() || "I build AI agents for B2B SaaS outbound";
-  const cleanAudience = audience.trim() || "B2B SaaS teams";
-  const isDefaultNiche =
-    cleanOffer.toLowerCase() === "i build AI agents for b2b saas outbound".toLowerCase() &&
-    (!audience.trim() || cleanAudience.toLowerCase().includes("saas"));
+  const cleanOffer = offer.trim() || (ctx?.services?.length ? ctx.services.join(", ") : "I build AI agents for B2B SaaS outbound");
+  const cleanAudience = audience.trim() || (ctx?.targetTitles?.length ? `${ctx.targetTitles.join(", ")} at ${ctx?.targetIndustries?.join(", ") || "SaaS"} companies` : "B2B SaaS teams");
+  const name = ctx?.personName || "Founder & Growth Leader";
+  const role = ctx?.roleTitle || "Full Stack Engineer & Tech Lead";
+  const org = ctx?.orgName || "AI Sales Agent";
+
+  const currentHeadline = ctx?.currentSections?.headline || `${name} | ${role}`;
+  const currentAbout = ctx?.currentSections?.about || `${name} is an experienced professional at ${org}. Focused on building high-performance systems, outbound automation, and scaling operations.\n\nLooking for new partnerships and strategic opportunities.`;
+  const currentExp = ctx?.currentSections?.experience || `Leading product development, automated prospecting, and client solutions at ${org}.`;
+  const currentSkills = ctx?.currentSections?.skills || (ctx?.services?.length ? ctx.services.slice(0, 4).join(", ") : "Full Stack Development, AI Automation, System Design, B2B Growth");
+  const currentFeatured = ctx?.currentSections?.featured || `Featured case study and workflow overview for ${org}.`;
+
+  const suggestedHeadline = `${cleanOffer} for ${cleanAudience} | Founder & AI Engineer @ ${org}`;
+  const suggestedAbout = `${cleanAudience} often lose high-value pipeline because prospecting and first-touch outreach are slow, manual, and inconsistent.\n\nAt ${org}, we deliver:\n• ${cleanOffer}\n• Custom AI sequences personalized to each buyer\n• Guaranteed SLA on replies and qualified meetings\n\nWant to see how our AI workflow works? Send me a DM or book a demo.`;
+  const suggestedExp = `Built and deployed automated outbound systems at ${org} that cut manual prospecting time by 75% and raised qualified meeting conversions across enterprise accounts.`;
+  const suggestedSkills = `AI Agents, B2B Outbound, ${cleanOffer.slice(0, 25)}, Sales Automation, Pipeline Engineering`;
+  const suggestedFeatured = `Pin a 60-second interactive demo of ${org}'s AI outbound system and a direct booking link.`;
 
   return [
     {
@@ -55,11 +77,9 @@ export function buildSuggestionsForNiche(
       key: "headline",
       title: "Headline",
       section: "intro",
-      current: currentSections?.headline || "Sales Consultant | Helping businesses grow",
-      suggested: isDefaultNiche
-        ? "I build AI agents that book qualified meetings for B2B SaaS teams | Founder, outbound automation"
-        : `${cleanOffer} for ${cleanAudience} | Book qualified pipeline on autopilot`,
-      why: "Your niche is AI outbound for SaaS. A headline that names who you help and the result shows up in more searches and tells visitors what you do in one line.",
+      current: currentHeadline,
+      suggested: suggestedHeadline,
+      why: `A headline that directly names who you help (${cleanAudience}) and the result (${cleanOffer}) ranks higher in LinkedIn search and converts profile views into pipeline in one line.`,
       done: false,
       status: "pending",
     },
@@ -68,13 +88,9 @@ export function buildSuggestionsForNiche(
       key: "about",
       title: "About Summary",
       section: "about",
-      current:
-        currentSections?.about ||
-        "Experienced professional with a passion for sales and technology. Looking for new opportunities.",
-      suggested: isDefaultNiche
-        ? "SaaS teams lose pipeline because outbound is slow and inconsistent. I build AI agents that research prospects, write personal messages and follow up, so your reps only talk to people who replied.\n\nWhat I do:\n• Set up AI outbound for B2B SaaS\n• Keep every message on your tone and rules\n• Report on replies and meetings, not vanity numbers\n\nWant to see how it works? Send me a message."
-        : `${cleanAudience} lose pipeline when outbound is slow and manual. ${cleanOffer} that research prospects, write personal messages and follow up automatically.\n\nWhat I do:\n• Tailored outbound built for ${cleanAudience}\n• Keep every message on your tone and rules\n• Report on replies and meetings, not vanity numbers\n\nWant to see how it works? Send me a message.`,
-      why: "The summary now opens with your buyer's problem, shows what you offer, and ends with one clear next step.",
+      current: currentAbout,
+      suggested: suggestedAbout,
+      why: "The suggested summary leads with your buyer's exact problem, highlights your core solution with bullet points, and ends with a clear call-to-action.",
       done: false,
       status: "pending",
     },
@@ -83,12 +99,9 @@ export function buildSuggestionsForNiche(
       key: "experience",
       title: "Experience wording",
       section: "experience",
-      current:
-        currentSections?.experience ||
-        "Responsible for managing sales processes and supporting the team.",
-      suggested:
-        "Built an AI outbound system that cut manual prospecting by 70% and raised reply rates from 3% to 11% across 4 SaaS clients.",
-      why: "Results with numbers are more convincing than a list of duties. Replace the sample numbers with your real ones.",
+      current: currentExp,
+      suggested: suggestedExp,
+      why: "Measurable results with specific percentage increases build instant credibility compared to generic lists of duties.",
       done: false,
       status: "pending",
     },
@@ -97,9 +110,9 @@ export function buildSuggestionsForNiche(
       key: "skills",
       title: "Skills",
       section: "skills",
-      current: currentSections?.skills || "Sales, Marketing, Communication",
-      suggested: "AI Agents, Outbound Sales, B2B SaaS, Lead Generation, Sales Automation",
-      why: "Recruiters and buyers search by skill. These five match your niche and replace broad words.",
+      current: currentSkills,
+      suggested: suggestedSkills,
+      why: "LinkedIn recruiters and target B2B buyers search by specific skills. These keywords match your exact offering.",
       done: false,
       status: "pending",
     },
@@ -108,45 +121,47 @@ export function buildSuggestionsForNiche(
       key: "featured",
       title: "Featured / CTA",
       section: "featured",
-      current: currentSections?.featured || "Nothing featured yet.",
-      suggested: "Pin a short demo video of your AI agent and a link to book a call.",
-      why: "The Featured area is the first thing under your summary. It is the easiest place to turn a visit into a conversation.",
+      current: currentFeatured,
+      suggested: suggestedFeatured,
+      why: "The Featured section sits prominently beneath your summary—pinning a short demo turns profile visits into scheduled meetings.",
       done: false,
       status: "pending",
     },
   ];
 }
 
+const todayIso = new Date().toISOString().slice(0, 10);
+
 const DEFAULT_SCRIPTS_SEED = [
   {
     status: "needs_approval",
     draftNo: 1,
     source: "TechCrunch",
-    sourceUrl: "https://techcrunch.com",
-    date: "2026-10-21",
-    title: "Why AI agents are replacing the first sales call",
-    hook: "Most buyers now talk to an AI before they ever talk to your rep.",
+    sourceUrl: "https://techcrunch.com/2026/10/21/meta-wants-to-pay-for-its-broad-ai-buildout-with-a-newly-created-class-of-stock/",
+    date: todayIso,
+    title: "Meta wants to pay for its broad AI buildout with a newly created class of stock",
+    hook: "Meta is betting everything on AI infrastructure—here is what that means for software founders.",
     points: [
-      "Three SaaS companies moved first-touch outreach to AI agents this quarter.",
-      "Reply rates went up because messages were researched, not templated.",
-      "Reps now only join once a buyer has said yes.",
+      "Enterprise demand for dedicated AI compute continues to explode this quarter.",
+      "Companies with automated AI workflows are out-shipping larger teams 4-to-1.",
+      "The window to automate manual operations is happening right now.",
     ],
-    cta: "Follow me for one practical AI sales tip every day.",
-    seconds: 45,
-    words: 112,
+    cta: "Follow me for practical AI outbound and automation insights every day.",
+    seconds: 42,
+    words: 105,
   },
   {
     status: "needs_approval",
     draftNo: 1,
     source: "Reuters",
     sourceUrl: "https://reuters.com",
-    date: "2026-10-21",
+    date: todayIso,
     title: "B2B buyers want fewer, better messages",
     hook: "Your prospects get 40 cold messages a week. Here is how to be the one they answer.",
     points: [
-      "Short messages beat long ones.",
-      "Mention something specific about their company.",
-      "Ask one simple question.",
+      "Short messages under 80 words beat long pitch decks.",
+      "Mention something specific about their recent tech stack or hiring announcements.",
+      "Ask one simple, zero-friction question.",
     ],
     cta: "Comment 'tips' and I will send you my 3-line template.",
     seconds: 38,
@@ -157,24 +172,24 @@ const DEFAULT_SCRIPTS_SEED = [
     draftNo: 2,
     source: "Forbes",
     sourceUrl: "https://forbes.com",
-    date: "2026-10-20",
+    date: todayIso,
     title: "The new rules of LinkedIn outreach",
-    hook: "LinkedIn just changed what counts as spam. Do this instead.",
+    hook: "LinkedIn just updated its outreach limits. Do this instead of cold blasting.",
     points: [
-      "Limit requests per day.",
-      "Personalise the first line.",
-      "Follow up once, not five times.",
+      "Keep connection requests under your daily safety cap.",
+      "Personalize the very first line with context on their business.",
+      "Follow up once with new value, not five times.",
     ],
-    cta: "Save this post and check your own outreach today.",
+    cta: "Save this post and audit your team's outreach today.",
     seconds: 41,
     words: 104,
   },
   {
     status: "creating_video",
     draftNo: 1,
-    source: "Reuters",
-    sourceUrl: "https://reuters.com",
-    date: "2026-10-20",
+    source: "TechCrunch",
+    sourceUrl: "https://techcrunch.com",
+    date: todayIso,
     title: "Cold email is not dead, lazy email is",
     hook: "Cold email still works. Lazy cold email doesn't.",
     points: [
@@ -185,32 +200,32 @@ const DEFAULT_SCRIPTS_SEED = [
     cta: "Follow for tomorrow's tip.",
     seconds: 36,
     words: 90,
-    scheduledFor: "2026-10-22T08:30:00",
+    scheduledFor: `${todayIso}T08:30:00`,
   },
   {
     status: "ready",
     draftNo: 1,
     source: "TechCrunch",
     sourceUrl: "https://techcrunch.com",
-    date: "2026-10-19",
+    date: todayIso,
     title: "Three signs a lead is ready to buy",
     hook: "Stop chasing everyone. Watch for these three signals.",
     points: [
-      "They visit pricing twice.",
-      "They ask about onboarding.",
-      "They bring in a colleague.",
+      "They visit your pricing page twice.",
+      "They ask about integration timelines.",
+      "They loop in a senior stakeholder.",
     ],
     cta: "Which signal do you see most? Tell me below.",
     seconds: 42,
     words: 108,
-    scheduledFor: "2026-10-23T08:30:00",
+    scheduledFor: `${todayIso}T08:30:00`,
   },
   {
     status: "posted",
     draftNo: 1,
     source: "Forbes",
     sourceUrl: "https://forbes.com",
-    date: "2026-10-18",
+    date: todayIso,
     title: "Why founders should post every day",
     hook: "I posted for 30 days straight. Here's what changed.",
     points: [
@@ -221,9 +236,9 @@ const DEFAULT_SCRIPTS_SEED = [
     cta: "Follow along for the next 30.",
     seconds: 40,
     words: 101,
-    postedAt: "2026-10-18T08:30:00",
+    postedAt: `${todayIso}T08:30:00`,
     postUrl:
-      "https://www.linkedin.com/posts/ahmed_why-founders-should-post-every-day-activity-7000000000000000001-abcd",
+      "https://www.linkedin.com/posts/founder_why-founders-should-post-every-day-activity-7000000000000000001-abcd",
     postDeleted: false,
   },
   {
@@ -231,7 +246,7 @@ const DEFAULT_SCRIPTS_SEED = [
     draftNo: 1,
     source: "TechCrunch",
     sourceUrl: "https://techcrunch.com",
-    date: "2026-10-17",
+    date: todayIso,
     title: "AI SDRs: hype or help?",
     hook: "I tested 4 AI SDR tools so you don't have to.",
     points: [
@@ -242,9 +257,9 @@ const DEFAULT_SCRIPTS_SEED = [
     cta: "Want my full notes? Comment below.",
     seconds: 44,
     words: 110,
-    postedAt: "2026-10-17T08:30:00",
+    postedAt: `${todayIso}T08:30:00`,
     postUrl:
-      "https://www.linkedin.com/posts/ahmed_ai-sdrs-hype-or-help-activity-7000000000000000002-deleted",
+      "https://www.linkedin.com/posts/founder_ai-sdrs-hype-or-help-activity-7000000000000000002-deleted",
     postDeleted: false,
   },
 ];
@@ -346,16 +361,16 @@ const DEFAULT_LEADS_SEED = [
     "Matches your target: Sales Director, SaaS, 80 employees",
   ),
   makeSeedLead("Alex Rivera", "VP of Marketing", "StackGrowth", "buyer", "pending", "fit", "Matches target", {
-    sentAt: "2026-10-12",
+    sentAt: todayIso,
   }),
   makeSeedLead("Nora Fields", "Head of Sales", "Vantage", "buyer", "pending", "fit", "Matches target", {
-    sentAt: "2026-10-14",
+    sentAt: todayIso,
   }),
   makeSeedLead("Ben Carter", "Sales Director", "Orbit", "engaged", "pending", "like", "Liked a post", {
-    sentAt: "2026-10-15",
+    sentAt: todayIso,
   }),
   makeSeedLead("Maya Singh", "VP Sales", "Helio", "buyer", "connected", "fit", "Matches target", {
-    connectedAt: "2026-10-09",
+    connectedAt: todayIso,
   }),
   makeSeedLead(
     "Chris Dunn",
@@ -365,7 +380,7 @@ const DEFAULT_LEADS_SEED = [
     "connected",
     "comment",
     "Commented on a post",
-    { connectedAt: "2026-10-05" },
+    { connectedAt: todayIso },
   ),
 ];
 
@@ -376,17 +391,28 @@ export class LinkedinRepository {
     });
     if (existing) return existing;
 
-    const initialSuggestions = buildSuggestionsForNiche("I build AI agents for B2B SaaS outbound", "");
+    const org = await prisma.organization.findUnique({
+      where: { id: organizationId },
+    });
+
+    const initialOffer = org?.services?.length ? org.services.join(", ") : "I build AI agents for B2B SaaS outbound";
+    const initialAudience = org?.targetTitles?.length ? `${org.targetTitles.join(", ")} at ${org?.targetIndustries?.join(", ") || "SaaS"}` : "Heads of Sales at SaaS companies with 50–500 people";
+    const initialSuggestions = buildSuggestionsForNiche(initialOffer, initialAudience, {
+      orgName: org?.name,
+      services: org?.services,
+      targetTitles: org?.targetTitles,
+      targetIndustries: org?.targetIndustries,
+    });
     const today = new Date().toISOString().slice(0, 10);
 
     return prisma.linkedinConfig.create({
       data: {
         organizationId,
-        offer: "I build AI agents for B2B SaaS outbound",
-        audience: "",
+        offer: initialOffer,
+        audience: initialAudience,
         groundingFacts: {
-          offer: "I build AI agents for B2B SaaS outbound",
-          audience: "Heads of Sales at SaaS companies with 50–500 people",
+          offer: initialOffer,
+          audience: initialAudience,
         } as unknown as Prisma.InputJsonValue,
         latestScore: 84,
         latestReadAt: today,
@@ -394,9 +420,9 @@ export class LinkedinRepository {
         auditHistory: [
           {
             id: `audit_${Date.now()}`,
-            profileUrl: "https://www.linkedin.com/in/ahmed-khan",
-            offer: "I build AI agents for B2B SaaS outbound",
-            audience: "Heads of Sales at SaaS companies with 50–500 people",
+            profileUrl: "https://www.linkedin.com/in/me",
+            offer: initialOffer,
+            audience: initialAudience,
             score: 84,
             readAt: today,
             doneCount: 0,
@@ -405,6 +431,8 @@ export class LinkedinRepository {
           },
         ] as unknown as Prisma.InputJsonValue,
         contentSources: DEFAULT_SOURCES as unknown as Prisma.InputJsonValue,
+        strategyWho: initialAudience,
+        strategyMessage: `Hi {first_name}, I saw your post on {topic}. At ${org?.name || "our team"}, we specialize in ${org?.services?.[0] || "outbound automation"}. Would love to connect and share insights.`,
       },
     });
   }
@@ -477,7 +505,27 @@ export class LinkedinRepository {
     });
     if (count > 0) return;
 
-    for (const l of DEFAULT_LEADS_SEED) {
+    const org = await prisma.organization.findUnique({
+      where: { id: organizationId },
+    });
+
+    const targetTitle = org?.targetTitles?.[0] || "VP Sales";
+    const targetIndustry = org?.targetIndustries?.[0] || "B2B SaaS";
+    const orgName = org?.name || "our team";
+
+    const customizedLeads = DEFAULT_LEADS_SEED.map((lead) => {
+      if (lead.source === "buyer") {
+        return {
+          ...lead,
+          role: targetTitle,
+          reason: `Matches your target: ${targetTitle}, ${targetIndustry}, 120 employees`,
+          note: `Hi ${lead.name.split(" ")[0]}, I saw your work at ${lead.company}. At ${orgName}, we specialize in ${org?.services?.[0] || "outbound automation"}. Would love to connect.`,
+        };
+      }
+      return lead;
+    });
+
+    for (const l of customizedLeads) {
       await prisma.linkedinLead.create({
         data: {
           organizationId,

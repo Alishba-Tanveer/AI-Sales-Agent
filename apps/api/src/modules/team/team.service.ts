@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { Role } from "@ai-sales-agent/database";
+import { Role, prisma } from "@ai-sales-agent/database";
 import { TeamRepository } from "./team.repository";
 import type {
   CreateInvitationInput,
@@ -10,6 +10,7 @@ import type {
 } from "./team.schema";
 import { AppError } from "../../utils/app-error";
 import { env } from "../../config/env";
+import { sendTeamInviteEmail } from "../../utils/mailer";
 
 function formatRoleLabel(role: Role): "Owner" | "Admin" | "Member" {
   if (role === Role.OWNER) return "Owner";
@@ -108,10 +109,25 @@ export class TeamService {
       organizationId,
     });
 
-    if (process.env.NODE_ENV !== "production") {
-      console.log(
-        `\n[TEAM INVITE for ${invitation.email}]: token=${invitation.token} (Role: ${invitation.role})\n`
-      );
+    const inviter = await prisma.user.findUnique({
+      where: { id: invitedById },
+      include: { organization: true },
+    });
+
+    const orgName = inviter?.organization?.name || "your workspace";
+    const inviterName = inviter?.name || "A workspace administrator";
+
+    // Send real invitation email via Gmail SMTP
+    try {
+      await sendTeamInviteEmail({
+        toEmail: invitation.email,
+        inviterName,
+        organizationName: orgName,
+        role: formatRoleLabel(invitation.role),
+        token: invitation.token,
+      });
+    } catch (mailErr) {
+      console.error("[MAILER ERROR] Failed to deliver team invitation email:", mailErr);
     }
 
     return {
@@ -152,10 +168,23 @@ export class TeamService {
       expiresAt,
     });
 
-    if (process.env.NODE_ENV !== "production") {
-      console.log(
-        `\n[TEAM INVITE RESENT for ${updated.email}]: token=${updated.token}\n`
-      );
+    const org = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      include: { users: { where: { role: Role.OWNER }, take: 1 } },
+    });
+    const orgName = org?.name || "your workspace";
+    const inviterName = org?.users[0]?.name || "A workspace administrator";
+
+    try {
+      await sendTeamInviteEmail({
+        toEmail: updated.email,
+        inviterName,
+        organizationName: orgName,
+        role: formatRoleLabel(updated.role),
+        token: updated.token,
+      });
+    } catch (mailErr) {
+      console.error("[MAILER ERROR] Failed to deliver resend team invitation email:", mailErr);
     }
 
     return {
