@@ -9,6 +9,8 @@ import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { buildSuggestions } from "@/features/search/destinations";
 import { currentRole } from "@/lib/permissions";
 import { cn } from "cn";
+import { NotificationsSheet } from "@/features/notifications/components/notifications-sheet";
+import { useNotifications } from "@/features/notifications/store";
 
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const router = useRouter();
@@ -17,6 +19,8 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const { unread } = useNotifications();
 
   // Global search: as you type it suggests matching pages and tabs ("team" -> Settings > Team); the last row searches Leads.
   // The role is read here (client only, after typing starts) because it comes from localStorage.
@@ -132,12 +136,20 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
         <Button
           variant="ghost"
           size="icon-lg"
-          aria-label="Notifications"
+          aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
+          aria-haspopup="dialog"
+          aria-expanded={notifOpen}
+          onClick={() => setNotifOpen(true)}
           className="group relative text-muted-foreground transition-colors duration-200 hover:bg-primary-soft hover:text-primary"
         >
           <Bell className="size-5 origin-top transition-transform duration-300 motion-safe:group-hover:rotate-12" />
-          <span className="absolute top-2 right-2 size-2 rounded-full bg-primary ring-2 ring-sidebar transition-transform duration-200 group-hover:scale-125" />
+          {unread > 0 && (
+            <span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] leading-none font-semibold text-primary-foreground tabular-nums ring-2 ring-sidebar transition-transform duration-200 group-hover:scale-110">
+              {unread > 9 ? "9+" : unread}
+            </span>
+          )}
         </Button>
+        <NotificationsSheet open={notifOpen} onOpenChange={setNotifOpen} />
       </div>
       </div>
     </header>

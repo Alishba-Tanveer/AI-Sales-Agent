@@ -17,6 +17,7 @@ import { logoutUser } from "@/features/auth/api";
 import { userStore } from "@/features/auth/user-store";
 import { can } from "@/lib/permissions";
 import { useRole } from "@/lib/use-role";
+import { useRunningCount } from "@/features/activity/store";
 import { useNavCounts } from "@/features/overview/hooks";
 import { NAV_SECTIONS, isNavActive, type NavItem } from "./nav-config";
 
@@ -79,6 +80,8 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   const tab = useSearchParams().get("tab");
   const router = useRouter();
   const counts = useNavCounts();
+  // the Activity pill is the number of tasks running right now (live from the Activity feed, not a fixed count)
+  const runningTasks = useRunningCount();
   const user = userStore.get();
   // role is read after mount (localStorage) so the server render and the first client render match
   const role = useRole();
@@ -136,7 +139,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                       key={item.href}
                       item={item}
                       active={isNavActive(item, pathname, tab)}
-                      count={item.badge ? counts?.[item.badge.key] : undefined}
+                      count={item.badge ? (item.badge.key === "activity" ? runningTasks : counts?.[item.badge.key]) : undefined}
                       onNavigate={onClose}
                     />
                   ))}
