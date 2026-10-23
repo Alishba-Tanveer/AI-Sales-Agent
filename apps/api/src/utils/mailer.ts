@@ -14,6 +14,9 @@ function getSmtpCredentials() {
   return { smtpUser, smtpPass };
 }
 
+const escapeHtml = (v: string) =>
+  v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
 export async function sendOtpEmail(toEmail: string, otp: string): Promise<boolean> {
   const { smtpUser, smtpPass } = getSmtpCredentials();
 
@@ -80,7 +83,12 @@ export async function sendTeamInviteEmail(params: TeamInviteEmailParams): Promis
   });
 
   const webUrl = (process.env.WEB_URL || env.WEB_URL || "http://localhost:3000").replace(/\/$/, "");
-  const inviteLink = `${webUrl}/signup?inviteToken=${encodeURIComponent(params.token)}&email=${encodeURIComponent(params.toEmail)}`;
+  // The /accept-invite page reads the token, asks a new person for a name + password (or an existing account for its password)
+  // and signs them straight into the workspace.
+  const inviteLink = `${webUrl}/accept-invite?token=${encodeURIComponent(params.token)}`;
+  const inviterName = escapeHtml(params.inviterName);
+  const organizationName = escapeHtml(params.organizationName);
+  const role = escapeHtml(params.role);
 
   await transporter.sendMail({
     from: `"AI Sales Agent" <${smtpUser}>`,
@@ -93,7 +101,7 @@ export async function sendTeamInviteEmail(params: TeamInviteEmailParams): Promis
           <h2 style="margin: 0; color: #818cf8; font-size: 22px;">AI Sales Agent</h2>
         </div>
         <p style="font-size: 16px; line-height: 1.5; color: #e2e8f0; margin-bottom: 8px;">
-          <strong>${params.inviterName}</strong> has invited you to join <strong>${params.organizationName}</strong> as a <strong>${params.role}</strong>.
+          <strong>${inviterName}</strong> has invited you to join <strong>${organizationName}</strong> as a <strong>${role}</strong>.
         </p>
         <p style="font-size: 14px; color: #94a3b8; line-height: 1.5; margin-bottom: 24px;">
           Collaborate on AI-powered prospecting, multichannel sequences, and approval pipelines in real-time.

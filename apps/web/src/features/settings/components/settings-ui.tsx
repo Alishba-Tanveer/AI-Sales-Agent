@@ -9,27 +9,48 @@ import { Label } from "@/components/ui/label";
 /* ---------- accent colors: only the theme's own colors ---------- */
 // Full class names are written out so Tailwind can see them.
 export const TONES = {
-  primary: { text: "text-primary", tile: "border-primary/30 bg-primary-soft text-primary", soft: "bg-primary-soft text-primary", bar: "bg-primary" },
-  success: { text: "text-success", tile: "border-success/30 bg-success-soft text-success", soft: "bg-success-soft text-success", bar: "bg-success" },
-  warning: { text: "text-warning", tile: "border-warning/30 bg-warning-soft text-warning", soft: "bg-warning-soft text-warning", bar: "bg-warning" },
-  destructive: { text: "text-destructive", tile: "border-destructive/30 bg-destructive-soft text-destructive", soft: "bg-destructive-soft text-destructive", bar: "bg-destructive" },
+  primary: { text: "text-primary", tile: "border-primary/30 bg-primary-soft text-primary", soft: "bg-primary-soft text-primary", bar: "bg-primary", btn: "border-primary/30 bg-primary-soft text-primary hover:bg-primary/20 hover:text-primary dark:border-primary/30 dark:bg-primary-soft dark:hover:bg-primary/20" },
+  success: { text: "text-success", tile: "border-success/30 bg-success-soft text-success", soft: "bg-success-soft text-success", bar: "bg-success", btn: "border-success/30 bg-success-soft text-success hover:bg-success/20 hover:text-success dark:border-success/30 dark:bg-success-soft dark:hover:bg-success/20" },
+  warning: { text: "text-warning", tile: "border-warning/30 bg-warning-soft text-warning", soft: "bg-warning-soft text-warning", bar: "bg-warning", btn: "border-warning/30 bg-warning-soft text-warning hover:bg-warning/20 hover:text-warning dark:border-warning/30 dark:bg-warning-soft dark:hover:bg-warning/20" },
+  destructive: { text: "text-destructive", tile: "border-destructive/30 bg-destructive-soft text-destructive", soft: "bg-destructive-soft text-destructive", bar: "bg-destructive", btn: "border-destructive/30 bg-destructive-soft text-destructive hover:bg-destructive/20 hover:text-destructive dark:border-destructive/30 dark:bg-destructive-soft dark:hover:bg-destructive/20" },
   // sky + violet are the two Overview colors that have no theme token; they use the same hues (Tailwind sky/violet 400 in dark mode)
   info: {
     text: "text-sky-700 dark:text-sky-400",
     tile: "border-sky-500/30 bg-sky-100 text-sky-700 dark:border-sky-400/30 dark:bg-sky-400/15 dark:text-sky-400",
     soft: "bg-sky-100 text-sky-700 dark:bg-sky-400/15 dark:text-sky-400",
     bar: "bg-sky-500 dark:bg-sky-400",
+    btn: "border-sky-500/30 bg-sky-100 text-sky-700 hover:bg-sky-200 hover:text-sky-800 dark:border-sky-400/30 dark:bg-sky-400/15 dark:text-sky-400 dark:hover:bg-sky-400/25 dark:hover:text-sky-300",
   },
   violet: {
     text: "text-violet-700 dark:text-violet-400",
     tile: "border-violet-500/30 bg-violet-100 text-violet-700 dark:border-violet-400/30 dark:bg-violet-400/15 dark:text-violet-400",
     soft: "bg-violet-100 text-violet-700 dark:bg-violet-400/15 dark:text-violet-400",
     bar: "bg-violet-500 dark:bg-violet-400",
+    btn: "border-violet-500/30 bg-violet-100 text-violet-700 hover:bg-violet-200 hover:text-violet-800 dark:border-violet-400/30 dark:bg-violet-400/15 dark:text-violet-400 dark:hover:bg-violet-400/25 dark:hover:text-violet-300",
   },
 } as const;
 export type Tone = keyof typeof TONES;
 
 /* ---------- card ---------- */
+// The Overview page's hover language, shared by Settings and LinkedIn:
+//  CARD_HOVER  big panels      border turns primary, soft glow (Overview: Leads by stage, Recent activity)
+//  CARD_LIFT   small tiles     same + rises 4px; add `group` children to scale icons / brighten text (Overview: metric cards)
+//  CARD_INNER  boxes in panels border turns primary + row tint
+//  CARD_ROW    list / table rows  muted tint (Overview: activity rows)
+//  HOVER_BUTTONS  put on a page's root: every enabled button lifts 2px with a shadow, primary ones glow
+//  TAB_HOVER   tab underline turns primary on hover
+export const CARD_HOVER = "transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5";
+export const CARD_LIFT = "group transition-all duration-200 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10 motion-safe:hover:-translate-y-1";
+export const CARD_INNER = "group transition-all duration-200 hover:border-primary/30 hover:bg-muted/60";
+export const CARD_ROW = "group transition-colors duration-150 hover:bg-muted/60";
+export const ICON_POP = "transition-transform duration-200 motion-safe:group-hover:scale-110";
+export const HOVER_BUTTONS = [
+  "[&_[data-slot=button]:enabled]:transition-all [&_[data-slot=button]:enabled]:duration-200",
+  "motion-safe:[&_[data-slot=button]:enabled:hover]:-translate-y-0.5 [&_[data-slot=button]:enabled:hover]:shadow-md",
+  "[&_[data-slot=button].bg-primary:enabled:hover]:shadow-lg [&_[data-slot=button].bg-primary:enabled:hover]:shadow-primary/25",
+].join(" ");
+export const TAB_HOVER = "hover:border-primary/40";
+
 export function SectionCard({
   icon: Icon,
   title,
@@ -49,12 +70,12 @@ export function SectionCard({
 }) {
   const t = TONES[tone];
   return (
-    <section className={cn("relative flex flex-col gap-6 overflow-hidden rounded-xl border border-border bg-card p-6", className)}>
+    <section className={cn("group/card relative flex flex-col gap-6 overflow-hidden rounded-xl border border-border bg-card p-6", CARD_HOVER, className)}>
       <div className={cn("absolute inset-x-0 top-0 h-0.5", t.bar)} />
       <div className="flex flex-col justify-between gap-3 border-b border-border pb-4 sm:flex-row sm:items-center">
         <div className="min-w-0">
           <h2 className="flex items-center gap-2.5 text-base font-semibold text-foreground">
-            <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg border", t.tile)}>
+            <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg border transition-transform duration-200 motion-safe:group-hover/card:scale-110", t.tile)}>
               <Icon className="size-[18px]" />
             </span>
             {title}
@@ -299,4 +320,25 @@ export function initials(name?: string | null) {
   const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "?";
   return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+}
+
+
+/* ---------- one color per person (theme colors only) ---------- */
+// Red is left out on purpose: it already means "danger" everywhere else in the app.
+const PERSON_TONES: Tone[] = ["primary", "success", "warning", "info", "violet"];
+
+/** The same person always gets the same color, because it is picked from their id. */
+export function personTone(key: string): Tone {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return PERSON_TONES[h % PERSON_TONES.length];
+}
+
+/** Round avatar with the person's initials in their own color. */
+export function PersonAvatar({ name, id, className }: { name?: string | null; id: string; className?: string }) {
+  return (
+    <div className={cn("flex size-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold", ICON_POP, TONES[personTone(id)].tile, className)}>
+      {initials(name)}
+    </div>
+  );
 }

@@ -6,12 +6,14 @@ import { ArrowRight, ChevronRight, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getSetupStatus, markSetupReminderSeen, setupReminderSeen } from "@/features/onboarding/status";
+import { currentRole } from "@/lib/permissions";
 
 type Section = ReturnType<typeof getSetupStatus>["sections"][number];
 
 /**
  * Shown once per login on the dashboard while any setup detail is still empty.
  * It sends the person to the Settings tab that holds the missing details.
+ * Only the workspace Owner sees it: Admins and Members can't be asked to finish the owner's setup.
  */
 export function SetupReminder() {
   const router = useRouter();
@@ -19,6 +21,7 @@ export function SetupReminder() {
   const [sections, setSections] = useState<Section[]>([]);
 
   useEffect(() => {
+    if (currentRole() !== "OWNER") return;
     if (setupReminderSeen()) return;
     const status = getSetupStatus();
     if (!status.complete) {
@@ -44,10 +47,13 @@ export function SetupReminder() {
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="grid-cols-[minmax(0,1fr)] sm:max-w-[480px]">
         <DialogHeader>
-          <div className="mb-1 flex size-11 items-center justify-center rounded-xl border border-warning/30 bg-warning-soft text-warning">
-            <ClipboardCheck className="size-5" />
+          {/* icon and heading share one row, icon on the left; pr-8 keeps the text clear of the close button */}
+          <div className="flex items-center gap-3 pr-8">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-warning/30 bg-warning-soft text-warning">
+              <ClipboardCheck className="size-5" />
+            </span>
+            <DialogTitle className="min-w-0 text-lg leading-snug">Complete your workspace details</DialogTitle>
           </div>
-          <DialogTitle className="text-lg">Complete your workspace details</DialogTitle>
           <DialogDescription>
             A few details are still empty. Adding them helps the AI find the right leads and write better drafts.
           </DialogDescription>

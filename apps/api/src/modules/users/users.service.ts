@@ -1,9 +1,9 @@
-import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { UsersRepository } from "./users.repository";
 import type { UpdateProfileInput, DeleteAccountInput } from "./users.schema";
 import { AppError } from "../../utils/app-error";
 import { blacklistToken } from "../../utils/token-blacklist";
+import { RECOVERY_WINDOW_DAYS, RECOVERY_WINDOW_MS } from "../../utils/account-rules";
 
 const ALLOWED_AVATAR_MIMES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2MB
@@ -89,16 +89,44 @@ export class UsersService {
       throw new AppError("User not found", 404);
     }
 
-    if (input.confirm !== undefined && input.confirm.trim() !== "DELETE") {
-      throw new AppError("Please type DELETE to confirm account deletion", 400);
-    }
+    // What gets deleted:
+    //   Admin / Member  only their own login; the company keeps its data.
+    //   Owner           must choose. Either hand the workspace to a team member (then only the Owner's own login
+    //                   is deleted), or delete the whole business for everyone. An Owner who is alone in the
+    //                   workspace has nobody to hand it to, so that deletes the business.
+    let scope: "account" | "workspace" | "transfer" = "account";
+    let newOwnerName: string | undefined;
 
-    const isPasswordValid = await bcrypt.compare(input.password, user.passwordHash);
-    if (!isPasswordValid) {
-      throw new AppError("Incorrect password", 400);
+    if (user.role === "OWNER") {
+      if (input.transferToId) {
+        if (input.transferToId === userId) {
+          throw new AppError("You are already the Owner. Choose another team member.", 400);
+        }
+        const target = await this.usersRepository.findActiveMember(input.transferToId, user.organizationId);
+        if (!target) {
+          throw new AppError(
+            "Ownership can only go to an active team member. Invited people must accept first.",
+            404
+          );
+        }
+        await this.usersRepository.transferOwnershipAndSoftDelete(userId, target.id);
+        scope = "transfer";
+        newOwnerName = target.name;
+      } else {
+        const others = await this.usersRepository.countOtherActiveMembers(user.organizationId, userId);
+        if (others > 0 && input.deleteWorkspace !== true) {
+          throw new AppError(
+            "You are the Owner. Transfer ownership to a team member, or choose to delete the whole workspace.",
+            409,
+            { code: "OWNER_MUST_CHOOSE" }
+          );
+        }
+        await this.usersRepository.softDeleteWorkspace(user.organizationId, userId);
+        scope = "workspace";
+      }
+    } else {
+      await this.usersRepository.softDeleteUser(userId);
     }
-
-    await this.usersRepository.softDeleteUser(userId);
 
     if (token) {
       const decoded = jwt.decode(token) as { exp?: number } | null;
@@ -108,9 +136,17 @@ export class UsersService {
       await blacklistToken(token, ttl);
     }
 
+    const message =
+      scope === "workspace"
+        ? `Workspace deleted for everyone. You have ${RECOVERY_WINDOW_DAYS} days to restore it by signing in.`
+        : scope === "transfer"
+          ? `${newOwnerName} is now the Owner. Your account is deleted, and you have ${RECOVERY_WINDOW_DAYS} days to restore it by signing in.`
+          : `Account scheduled for deactivation. You have ${RECOVERY_WINDOW_DAYS} days to restore it by signing in.`;
+
     return {
-      message: "Account scheduled for deactivation. You have 30 days to restore it by signing in.",
-      restoreDeadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      message,
+      scope,
+      restoreDeadline: new Date(Date.now() + RECOVERY_WINDOW_MS).toISOString(),
     };
   }
 }

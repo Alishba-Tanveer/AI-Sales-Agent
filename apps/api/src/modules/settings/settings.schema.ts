@@ -59,17 +59,7 @@ export const updateAiLimitSchema = z.object({
     .positive("Enter an amount greater than $0."),
 });
 
-export const updateTestModeSchema = z
-  .object({
-    testMode: z.boolean().optional(),
-    enabled: z.boolean().optional(),
-  })
-  .refine((d) => typeof d.testMode === "boolean" || typeof d.enabled === "boolean", {
-    message: "Provide 'testMode' or 'enabled' as a boolean",
-  });
-
 export type OutreachSettingsInput = z.infer<typeof outreachSettingsSchema>;
 export type ApprovalRulesInput = z.infer<typeof approvalRulesSchema>;
 export type UpdateNotificationsInput = z.infer<typeof updateNotificationsSchema>;
 export type UpdateAiLimitInput = z.infer<typeof updateAiLimitSchema>;
-export type UpdateTestModeInput = z.infer<typeof updateTestModeSchema>;

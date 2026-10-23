@@ -4,7 +4,7 @@
  *   /api/users/me           profile, avatar, delete account
  *   /api/auth/*             change password, sign out other sessions
  *   /api/team/*             members + invitations
- *   /api/settings/*         outreach, approval rules, notifications, usage, test mode
+ *   /api/settings/*         outreach, approval rules, notifications, usage
  *
  * The company/ideal-customer fields live on /api/onboarding (see features/onboarding/api.ts).
  */
@@ -15,11 +15,13 @@ import type {
   MessageTone,
   NotificationRule,
   OutreachSettings,
+  RemovedMember,
   TeamMember,
   TeamRole,
   UsageInfo,
   UserProfile,
 } from "./types";
+import { isPendingInvite } from "./types";
 
 /**
  * These pages show the server's error message instead of signing the person out when a request is rejected
@@ -83,11 +85,16 @@ export async function signOutOtherSessions() {
   tokenStore.set(res.data.token, isRemembered());
 }
 
-/** DELETE /api/users/me. Deactivates the account (30 day restore window). The caller signs out afterwards. */
-export function deleteAccount(password: string) {
-  return api<{ message: string; restoreDeadline: string }>("/api/users/me", {
+/**
+ * DELETE /api/users/me. Deactivates the account (30 day restore window). The caller signs out afterwards.
+ * No password is needed. Admins and Members send nothing. An Owner who has a team must choose:
+ *   { transferToId }       hand the workspace to that member, delete only the Owner's own login
+ *   { deleteWorkspace }    delete the whole business for everyone
+ */
+export function deleteAccount(choice: { transferToId?: string; deleteWorkspace?: boolean } = {}) {
+  return api<{ message: string; scope: "account" | "workspace" | "transfer"; restoreDeadline: string }>("/api/users/me", {
     method: "DELETE",
-    body: json({ password, confirm: "DELETE" }),
+    body: json(choice),
   });
 }
 
@@ -109,7 +116,32 @@ export const changeMemberRole = (id: string, role: TeamRole) =>
 
 /** DELETE /api/team/members/:id for members, DELETE /api/team/invitations/:id for pending invites */
 export const removeTeamEntry = (m: Pick<TeamMember, "id" | "status">) =>
-  api<{ message: string }>(m.status === "Invited" ? `/api/team/invitations/${m.id}` : `/api/team/members/${m.id}`, { method: "DELETE" });
+  api<{ message: string }>(isPendingInvite(m) ? `/api/team/invitations/${m.id}` : `/api/team/members/${m.id}`, { method: "DELETE" });
+
+/**
+ * POST /api/team/members/:id/transfer-ownership (Owner only, no password).
+ * The chosen active member becomes Owner and the caller becomes Admin. The server revokes the caller's sessions,
+ * so the app must sign the caller out afterwards; they sign in again as an Admin.
+ */
+export const transferOwnership = (id: string) =>
+  api<{ message?: string; signedOut?: boolean }>(`/api/team/members/${id}/transfer-ownership`, { method: "POST", body: json({}) });
+
+/** Re-reads this person's role from the server. True when it changed (e.g. they were just made the Owner), so the app can reload. */
+export async function syncRole(): Promise<boolean> {
+  const p = await getProfile();
+  const u = userStore.get();
+  const role = (p.role ?? "").toUpperCase();
+  if (!u || !role || role === (u.role ?? "").toUpperCase()) return false;
+  userStore.set({ ...u, role }, isRemembered());
+  return true;
+}
+
+/** GET /api/team/members/removed (Owner/Admin): removed by an admin + deleted their own account, last 30 days */
+export const listRemoved = () => unwrap(api<Res<RemovedMember[]>>("/api/team/members/removed"));
+
+/** POST /api/team/members/:id/restore (only for people an admin removed) */
+export const restoreMember = (id: string) =>
+  api<Res<TeamMember>>(`/api/team/members/${id}/restore`, { method: "POST", body: json({}) });
 
 /* ---------------- Outreach strategy ---------------- */
 

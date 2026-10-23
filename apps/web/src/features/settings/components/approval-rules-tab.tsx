@@ -7,7 +7,8 @@ import { getApprovalRules, saveApprovalRules } from "../api";
 import { useLoad } from "../use-load";
 import type { ApprovalRules } from "../types";
 import { TabError, TabLoading } from "./load-states";
-import { Pill, SaveButton, SectionCard, Switch, type PillTone } from "./settings-ui";
+import { cn } from "cn";
+import { CARD_INNER, CARD_ROW, Pill, SaveButton, SectionCard, Switch, type PillTone } from "./settings-ui";
 
 type RuleRow = {
   title: string;
@@ -57,7 +58,7 @@ function ApprovalRulesForm({ initial }: { initial: ApprovalRules }) {
       description="Control mandatory manual checkpoints, auto-approvals, and AI drafting confidence thresholds."
       aside={<Pill tone="warning">Compliance Engine v2.4</Pill>}
     >
-      <div className="flex flex-col gap-3 rounded-lg border border-border bg-background p-4">
+      <div className={cn("flex flex-col gap-3 rounded-lg border border-border bg-background p-4", CARD_INNER)}>
         <div className="flex items-center justify-between gap-3">
           <div>
             <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -85,10 +86,10 @@ function ApprovalRulesForm({ initial }: { initial: ApprovalRules }) {
 
       <div className="flex flex-col divide-y divide-border">
         {RULES.map((r) => (
-          <div key={r.title} className="flex items-center justify-between gap-4 py-4">
+          <div key={r.title} className={cn("-mx-3 flex items-center justify-between gap-4 rounded-lg px-3 py-4", CARD_ROW)}>
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-semibold text-foreground">{r.title}</span>
+                <span className="text-sm font-semibold text-foreground transition-colors duration-200 group-hover:text-primary">{r.title}</span>
                 {r.locked && (
                   <Pill tone="muted" className="font-medium">
                     <Lock className="size-3" />

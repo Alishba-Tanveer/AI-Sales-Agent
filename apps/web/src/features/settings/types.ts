@@ -14,7 +14,28 @@ export type TeamMember = {
   name: string;
   email: string;
   role: TeamRole;
-  status: "Active" | "Invited";
+  status: "Active" | InviteStatus;
+  /** Why an invitation needs attention (Expired / Email failed); null otherwise. Only present on invitation rows. */
+  reason?: string | null;
+};
+
+/** Statuses of a pending invitation (GET /api/team/members). Anything else is an active member. */
+export type InviteStatus = "Invited" | "Expired" | "Email failed";
+
+/** True for every invitation row (Invited, Expired, Email failed), false for active members. */
+export const isPendingInvite = (m: Pick<TeamMember, "status">) => m.status !== "Active";
+
+/** A row of "Recently removed". reason ADMIN = removed by an admin (restorable by an admin); SELF = deleted their own account. */
+export type RemovedMember = {
+  id: string;
+  name: string;
+  email: string;
+  role: TeamRole;
+  reason: "ADMIN" | "SELF";
+  canRestore: boolean;
+  removedAt: string;
+  removedBy: string;
+  daysLeft: number;
 };
 
 export type MessageTone = "professional" | "friendly" | "direct";
@@ -66,5 +87,4 @@ export type UsageInfo = {
   aiLimit: number;
   requestsToday: number;
   requestsDailyLimit: number;
-  testMode: boolean;
 };

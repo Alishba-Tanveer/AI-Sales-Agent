@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Bot, ChevronsUpDown, LogOut, User } from "lucide-react";
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { logoutUser } from "@/features/auth/api";
 import { userStore } from "@/features/auth/user-store";
+import { can, currentRole, type AppRole } from "@/lib/permissions";
 import { useNavCounts } from "@/features/overview/hooks";
 import { NAV_SECTIONS, isNavActive, type NavItem } from "./nav-config";
 
@@ -78,6 +80,9 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   const router = useRouter();
   const counts = useNavCounts();
   const user = userStore.get();
+  // role is read after mount (localStorage) so the server render and the first client render match
+  const [role, setRole] = useState<AppRole | null>(null);
+  useEffect(() => setRole(currentRole()), []);
 
   const signOut = async () => {
     await logoutUser();
@@ -127,7 +132,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                   </div>
                 )}
                 <div className="space-y-0.5">
-                  {section.items.map((item) => (
+                  {section.items.filter((item) => !item.adminOnly || (role !== null && can.connectIntegrations(role))).map((item) => (
                     <NavLink
                       key={item.href}
                       item={item}

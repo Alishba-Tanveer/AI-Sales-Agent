@@ -93,3 +93,24 @@ export const requireAuth = async (
     }
   }
 };
+
+/**
+ * Role gate. Use AFTER requireAuth. The role comes from the database (requireAuth refreshes it on every request),
+ * so a role change or ownership transfer takes effect immediately, not when the token is reissued.
+ *
+ *   router.put("/usage/ai-limit", requireRole(Role.OWNER), handler)
+ */
+export const requireRole =
+  (...allowed: string[]) =>
+  (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.user) {
+      next(new AppError("Authentication required", 401));
+      return;
+    }
+    if (!allowed.includes(req.user.role)) {
+      const who = allowed.length === 1 && allowed[0] === "OWNER" ? "the workspace Owner" : "an Owner or Admin";
+      next(new AppError(`You don't have permission to do that. Ask ${who}.`, 403));
+      return;
+    }
+    next();
+  };

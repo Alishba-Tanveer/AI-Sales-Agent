@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Field, Pill, SectionCard, TONES, initials, inputCls, type Tone } from "@/features/settings/components/settings-ui";
+import { CARD_HOVER, CARD_INNER, HOVER_BUTTONS, Field, Pill, SectionCard, TONES, initials, inputCls, type Tone } from "@/features/settings/components/settings-ui";
 import { bulkApproveLeads, createLead, fetchLeads, fetchStrategy, saveLeadNote, saveStrategy, sendLead, skipLead } from "../api";
 import { copyText, normalizeLinkedInProfileUrl, personSearchUrl } from "../links";
 import type { Lead, OutreachStrategy } from "../types";
@@ -171,14 +171,14 @@ export function Connections() {
   const showSelect = tab === "engaged" || tab === "buyers";
 
   return (
-    <main className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 p-6 lg:p-8">
+    <main className={cn("mx-auto flex w-full max-w-[1280px] flex-col gap-6 p-6 lg:p-8", HOVER_BUTTONS)}>
       <PageHeader
         title="Engagement & Connections"
         description="See who engages with your posts, find buyers in your niche, and approve who gets a connection request."
         actions={
           <>
-            <Button variant="outline" onClick={() => setHelpOpen(true)}><Lightbulb /> How it works</Button>
-            <Button variant="outline" onClick={() => setAddOpen(true)}><Plus /> Add person</Button>
+            <Button variant="outline" className={TONES.warning.btn} onClick={() => setHelpOpen(true)}><Lightbulb /> How it works</Button>
+            <Button variant="outline" className={TONES.info.btn} onClick={() => setAddOpen(true)}><Plus /> Add person</Button>
             <Button onClick={() => setConfirm({ kind: "bulk" })} disabled={selected.size === 0}><Send /> Approve selected ({selected.size})</Button>
           </>
         }
@@ -192,7 +192,7 @@ export function Connections() {
         aside={
           <div className="flex items-center gap-2">
             <Pill tone="success">Active</Pill>
-            <Button variant="outline" size="sm" onClick={() => setStrategyOpen(true)} disabled={!strategy}><Pencil /> Edit strategy</Button>
+            <Button variant="outline" size="sm" className={TONES.violet.btn} onClick={() => setStrategyOpen(true)} disabled={!strategy}><Pencil /> Edit strategy</Button>
           </div>
         }
       >
@@ -245,7 +245,7 @@ export function Connections() {
           <p className="mt-1 text-sm text-muted-foreground">New people appear as they engage or match your target.</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className={cn("overflow-hidden rounded-xl border border-border bg-card", CARD_HOVER)}>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead className="border-b border-border bg-secondary/40 text-xs text-muted-foreground">
@@ -265,7 +265,7 @@ export function Connections() {
                 {visible.map((l, i) => {
                   const Icon = REASON_ICON[l.reasonKind];
                   return (
-                    <tr key={l.id} className={cn("align-middle transition-colors hover:bg-muted/40", selected.has(l.id) && "bg-primary-soft/60")}>
+                    <tr key={l.id} className={cn("align-middle transition-colors hover:bg-muted/60", selected.has(l.id) && "bg-primary-soft/60")}>
                       {showSelect && (
                         <td className="px-4 py-3"><Check3 checked={selected.has(l.id)} onChange={() => toggle(l.id)} label={`Select ${l.name}`} /></td>
                       )}
@@ -376,7 +376,7 @@ export function Connections() {
 
 function FactTile({ icon, tone, label, className, children }: { icon: LucideIcon; tone: Tone; label: string; className?: string; children: React.ReactNode }) {
   return (
-    <div className={cn("flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-background p-4", className)}>
+    <div className={cn("flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-background p-4", CARD_INNER, className)}>
       <div className="flex items-center gap-2.5">
         <IconTile icon={icon} tone={tone} className="size-8" />
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
@@ -388,7 +388,7 @@ function FactTile({ icon, tone, label, className, children }: { icon: LucideIcon
 
 function StatTile({ icon, tone, label, value, unit }: { icon: LucideIcon; tone: Tone; label: string; value: string; unit: string }) {
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-background p-4">
+    <div className={cn("flex min-w-0 items-center gap-3 rounded-lg border border-border bg-background p-4", CARD_INNER)}>
       <IconTile icon={icon} tone={tone} className="size-8" />
       <div className="min-w-0">
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
@@ -591,7 +591,7 @@ function LeadDialog({ lead, onClose, onEditNote }: { lead: Lead | null; onClose:
               <p className="text-sm text-foreground">{lead.reason}</p>
             </div>
 
-            <div className="rounded-lg border border-border bg-background p-3">
+            <div className={cn("rounded-lg border border-border bg-background p-3", CARD_INNER)}>
               <p className="mb-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{isOpen ? "Connection note" : "Saved note"}</p>
               <p className="text-sm whitespace-pre-line text-foreground">{lead.note}</p>
             </div>

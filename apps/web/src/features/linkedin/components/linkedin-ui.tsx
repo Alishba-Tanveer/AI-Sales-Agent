@@ -4,7 +4,7 @@ import { cn } from "cn";
 import { CheckCircle2, Info, Lightbulb, TriangleAlert, type LucideIcon } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { TONES, type Tone } from "@/features/settings/components/settings-ui";
+import { CARD_LIFT, ICON_POP, TAB_HOVER, TONES, type Tone } from "@/features/settings/components/settings-ui";
 
 /** Numbered steps cycle through the accent colors so each popup is colorful. */
 const STEP_TONES: Tone[] = ["info", "violet", "warning", "primary", "success"];
@@ -23,7 +23,7 @@ export function PageHeader({ title, description, actions }: { title: string; des
 
 export function IconTile({ icon: Icon, tone = "primary", className }: { icon: LucideIcon; tone?: Tone; className?: string }) {
   return (
-    <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-full", TONES[tone].soft, className)}>
+    <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-full", ICON_POP, TONES[tone].soft, className)}>
       <Icon className="size-4" />
     </span>
   );
@@ -36,14 +36,14 @@ export function StepStrip({ steps }: { steps: StepDef[] }) {
   return (
     <ol className={cn("grid gap-3", steps.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2 lg:grid-cols-5")}>
       {steps.map((s, i) => (
-        <li key={s.label} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
+        <li key={s.label} className={cn("flex items-center gap-3 rounded-xl border border-border bg-card p-3", CARD_LIFT)}>
           <IconTile icon={s.icon} tone={s.tone} />
           <div className="min-w-0">
             <p className="text-[11px] font-medium text-muted-foreground">
               Step {i + 1}
               {typeof s.count === "number" && <span className={cn("ml-2 font-semibold", TONES[s.tone].text)}>{s.count}</span>}
             </p>
-            <p className="truncate text-sm font-semibold text-foreground">{s.label}</p>
+            <p className="truncate text-sm font-semibold text-foreground transition-colors duration-200 group-hover:text-primary">{s.label}</p>
           </div>
         </li>
       ))}
@@ -74,8 +74,8 @@ export function TabBar<T extends string>({
             aria-selected={active}
             onClick={() => onChange(t.id)}
             className={cn(
-              "-mb-px flex shrink-0 cursor-pointer items-center gap-2 border-b-2 px-3 py-2.5 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              active ? "border-primary font-semibold text-primary" : "border-transparent font-medium text-muted-foreground hover:text-foreground",
+              "group -mb-px flex shrink-0 cursor-pointer items-center gap-2 border-b-2 px-3 py-2.5 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              active ? "border-primary font-semibold text-primary" : "border-transparent font-medium text-muted-foreground hover:text-foreground", !active && TAB_HOVER,
             )}
           >
             {t.label}

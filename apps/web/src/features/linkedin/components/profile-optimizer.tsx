@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Field, Pill, SectionCard, inputCls, type Tone } from "@/features/settings/components/settings-ui";
+import { CARD_INNER, HOVER_BUTTONS, Field, Pill, SectionCard, TONES, inputCls, type Tone } from "@/features/settings/components/settings-ui";
 import { ApiError } from "@/lib/api";
 import { analyzeProfile, fetchSavedAudit, setSuggestionDone } from "../api";
 import { copyText, editTarget, normalizeLinkedInProfileUrl } from "../links";
@@ -116,15 +116,15 @@ export function ProfileOptimizer() {
   const allOpen = total > 0 && openKeys.size === total;
 
   return (
-    <main className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 p-6 lg:p-8">
+    <main className={cn("mx-auto flex w-full max-w-[1280px] flex-col gap-6 p-6 lg:p-8", HOVER_BUTTONS)}>
       <PageHeader
         title="Profile Optimizer"
         description="Tell us your niche, share your LinkedIn link, and get a clear list of changes to make."
         actions={
           <>
-            <Button variant="outline" onClick={() => setHelpOpen(true)}><Lightbulb /> How it works</Button>
+            <Button variant="outline" className={TONES.warning.btn} onClick={() => setHelpOpen(true)}><Lightbulb /> How it works</Button>
             {analysis && (
-              <Button variant="outline" onClick={() => (done.size ? setRereadOpen(true) : read())} disabled={reading}>
+              <Button variant="outline" className={TONES.info.btn} onClick={() => (done.size ? setRereadOpen(true) : read())} disabled={reading}>
                 {reading ? <Loader2 className="animate-spin" /> : <RefreshCw />} Re-read profile
               </Button>
             )}
@@ -291,7 +291,7 @@ function SuggestionCard({
   };
 
   return (
-    <li className={cn("rounded-xl border bg-card transition-colors", done ? "border-success/40" : "border-border", open && "shadow-sm")}>
+    <li className={cn("rounded-xl border bg-card transition-all duration-200 hover:shadow-lg hover:shadow-primary/5", done ? "border-success/40 hover:border-success/60" : "border-border hover:border-primary/30", open && "shadow-sm")}>
       <div className="flex items-center gap-3 p-4 sm:px-5">
         <button
           type="button"
@@ -329,7 +329,7 @@ function SuggestionCard({
       {open && (
         <div id={`sg-${s.key}`} className="flex flex-col gap-4 border-t border-border p-4 sm:p-5 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1 motion-safe:duration-200">
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-lg border border-border bg-background p-3">
+            <div className={cn("rounded-lg border border-border bg-background p-3", CARD_INNER)}>
               <p className="mb-1.5 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Currently on LinkedIn</p>
               <p className="text-sm whitespace-pre-line text-muted-foreground">{s.current}</p>
             </div>

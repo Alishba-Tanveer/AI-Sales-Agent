@@ -7,7 +7,6 @@ import type {
   ApprovalRulesInput,
   UpdateNotificationsInput,
   UpdateAiLimitInput,
-  UpdateTestModeInput,
 } from "./settings.schema";
 
 export class SettingsService {
@@ -194,7 +193,6 @@ export class SettingsService {
       aiLimit: Number(s.aiLimit.toFixed(2)),
       requestsToday: s.requestsToday,
       requestsDailyLimit: s.requestsDailyLimit,
-      testMode: s.testMode,
     };
   }
 
@@ -209,26 +207,6 @@ export class SettingsService {
       aiLimit: Number(updated.aiLimit.toFixed(2)),
       requestsToday: updated.requestsToday,
       requestsDailyLimit: updated.requestsDailyLimit,
-      testMode: updated.testMode,
-    };
-  }
-
-  async getTestMode(organizationId: string) {
-    const s = await this.settingsRepository.getOrCreate(organizationId);
-    return {
-      testMode: s.testMode,
-      enabled: s.testMode,
-    };
-  }
-
-  async updateTestMode(organizationId: string, input: UpdateTestModeInput) {
-    const nextValue = Boolean(input.testMode ?? input.enabled);
-    const updated = await this.settingsRepository.update(organizationId, {
-      testMode: nextValue,
-    });
-    return {
-      testMode: updated.testMode,
-      enabled: updated.testMode,
     };
   }
 }

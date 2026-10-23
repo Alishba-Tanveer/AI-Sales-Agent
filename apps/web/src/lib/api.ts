@@ -1,7 +1,7 @@
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export class ApiError extends Error {
-  constructor(message: string, public status: number) {
+  constructor(message: string, public status: number, public data: Record<string, unknown> = {}) {
     super(message);
   }
 }
@@ -59,7 +59,7 @@ export async function api<T>(path: string, init: RequestInit & { keepSessionOn40
       sessionStorage.removeItem("user");
       window.location.replace("/login");
     }
-    throw new ApiError(body.message ?? "Something went wrong", res.status);
+    throw new ApiError(body.message ?? "Something went wrong", res.status, body);
   }
   return body as T;
 }

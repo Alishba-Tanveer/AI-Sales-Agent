@@ -1,11 +1,18 @@
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { Role } from "@ai-sales-agent/database";
 import { env } from "../../config/env";
 import { AppError } from "../../utils/app-error";
 import { blacklistToken } from "../../utils/token-blacklist";
 import { saveOtp, verifyOtpCode } from "../../utils/otp-store";
 import { sendOtpEmail } from "../../utils/mailer";
+import {
+  RECOVERY_WINDOW_DAYS,
+  RemovalReason,
+  reasonOf,
+  recoveryInfo,
+} from "../../utils/account-rules";
 import { AuthRepository } from "./auth.repository";
 import type {
   RegisterInput,
@@ -23,6 +30,12 @@ export class AuthService {
     // 1. Check if email already exists
     const existingUser = await this.authRepository.findUserByEmail(input.email);
     if (existingUser) {
+      if (existingUser.deletedAt && !recoveryInfo(existingUser.deletedAt).expired) {
+        throw new AppError(
+          "This email belongs to an account that was deleted recently. Sign in with your password to restore it.",
+          409
+        );
+      }
       throw new AppError("A user with this email already exists", 409);
     }
 
@@ -83,18 +96,13 @@ export class AuthService {
       throw new AppError("Invalid email or password", 401);
     }
 
-    // 2b. If account was soft-deleted within 30 days, automatically restore it on sign-in
+    // 2b. Removed / deleted accounts: see handleDeletedAccount for who may come back and how.
     let accountRestored = false;
+    let restoredScope: "account" | "workspace" | undefined;
     if (user.deletedAt) {
-      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-      const elapsedMs = Date.now() - user.deletedAt.getTime();
-      if (elapsedMs > thirtyDaysMs) {
-        throw new AppError(
-          "This account was permanently deleted after the 30-day recovery window.",
-          403
-        );
-      }
-      user = await this.authRepository.restoreUserAccount(user.id);
+      const outcome = await this.handleDeletedAccount(user, input.restore === true);
+      user = outcome.user;
+      restoredScope = outcome.scope;
       accountRestored = true;
     }
 
@@ -117,6 +125,7 @@ export class AuthService {
     return {
       token,
       accountRestored,
+      ...(restoredScope ? { restoredScope } : {}),
       user: {
         id: user.id,
         name: user.name,
@@ -125,10 +134,83 @@ export class AuthService {
         organization: {
           id: user.organization.id,
           name: user.organization.name,
+          onboardingCompleted: user.organization.onboardingCompleted ?? false,
         },
         createdAt: user.createdAt,
       },
     };
+  }
+
+  /**
+   * The password was right, but the account is soft-deleted. Outcomes:
+   *  - more than 30 days ago                    -> 403 ACCOUNT_EXPIRED (permanently gone)
+   *  - removed by an Owner/Admin                -> 403 REMOVED_BY_ADMIN (an admin has to restore them)
+   *  - workspace deleted, person is not Owner   -> 403 WORKSPACE_DELETED (only the Owner can bring it back)
+   *  - deleted by themselves / the Owner's workspace -> 409 ACCOUNT_RESTORABLE, i.e. the "Restore your account?" question.
+   *    The frontend asks, then repeats the login with restore: true (or calls POST /api/auth/restore-account).
+   */
+  private async handleDeletedAccount(
+    user: NonNullable<Awaited<ReturnType<AuthRepository["findUserByEmail"]>>>,
+    wantsRestore: boolean
+  ) {
+    const info = recoveryInfo(user.deletedAt as Date);
+    const reason = reasonOf(user);
+    const orgName = user.organization.name;
+
+    if (info.expired) {
+      throw new AppError(
+        `This account was permanently deleted after the ${RECOVERY_WINDOW_DAYS}-day recovery window.`,
+        403,
+        { code: "ACCOUNT_EXPIRED" }
+      );
+    }
+
+    if (reason === RemovalReason.ADMIN) {
+      throw new AppError(
+        `A workspace admin removed your access to ${orgName}. Ask an admin to restore your account.`,
+        403,
+        { code: "REMOVED_BY_ADMIN", organizationName: orgName }
+      );
+    }
+
+    const isWorkspace = reason === RemovalReason.WORKSPACE_DELETED;
+    if (isWorkspace && user.role !== Role.OWNER) {
+      throw new AppError(
+        `${orgName} was deleted by its Owner. Only the Owner can restore it (within ${info.daysLeft} more day${info.daysLeft === 1 ? "" : "s"}).`,
+        403,
+        { code: "WORKSPACE_DELETED", organizationName: orgName }
+      );
+    }
+
+    const scope = isWorkspace ? ("workspace" as const) : ("account" as const);
+
+    if (!wantsRestore) {
+      throw new AppError(
+        isWorkspace ? "Restore your workspace?" : "Restore your account?",
+        409,
+        {
+          code: "ACCOUNT_RESTORABLE",
+          scope,
+          organizationName: orgName,
+          restoreDeadline: info.restoreDeadline.toISOString(),
+          daysLeft: info.daysLeft,
+        }
+      );
+    }
+
+    if (isWorkspace) {
+      return { user: await this.authRepository.restoreWorkspace(user.organizationId, user.id), scope };
+    }
+
+    // A Member/Admin who deleted their own login can only come back to a workspace that still has an Owner.
+    if (user.role !== Role.OWNER && !(await this.authRepository.hasActiveOwner(user.organizationId))) {
+      throw new AppError(
+        `${orgName} is no longer active, so this account can't be restored.`,
+        403,
+        { code: "WORKSPACE_UNAVAILABLE", organizationName: orgName }
+      );
+    }
+    return { user: await this.authRepository.restoreUserAccount(user.id), scope };
   }
 
   async forgotPassword(input: ForgotPasswordInput) {

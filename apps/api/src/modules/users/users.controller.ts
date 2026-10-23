@@ -162,7 +162,7 @@ export class UsersController {
       if (!req.user?.userId) {
         throw new AppError("Authentication required", 401);
       }
-      const parseResult = deleteAccountSchema.safeParse(req.body);
+      const parseResult = deleteAccountSchema.safeParse(req.body ?? {});
       if (!parseResult.success) {
         const errorMessages = parseResult.error.issues.map((i) => i.message).join(", ");
         throw new AppError(errorMessages, 400);

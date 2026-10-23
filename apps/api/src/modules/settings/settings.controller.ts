@@ -5,7 +5,6 @@ import {
   approvalRulesSchema,
   updateNotificationsSchema,
   updateAiLimitSchema,
-  updateTestModeSchema,
 } from "./settings.schema";
 import { AppError } from "../../utils/app-error";
 
@@ -169,43 +168,6 @@ export class SettingsController {
       );
       res.status(200).json({
         message: "Monthly AI limit saved successfully",
-        data,
-      });
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  getTestMode = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      if (!req.user?.organizationId) {
-        throw new AppError("Authentication required", 401);
-      }
-      const data = await this.settingsService.getTestMode(req.user.organizationId);
-      res.status(200).json({ data });
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  updateTestMode = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      if (!req.user?.organizationId) {
-        throw new AppError("Authentication required", 401);
-      }
-      const parseResult = updateTestModeSchema.safeParse(req.body);
-      if (!parseResult.success) {
-        const errorMessages = parseResult.error.issues.map((i) => i.message).join(", ");
-        throw new AppError(errorMessages, 400);
-      }
-      const data = await this.settingsService.updateTestMode(
-        req.user.organizationId,
-        parseResult.data
-      );
-      res.status(200).json({
-        message: data.testMode
-          ? "Test mode enabled: dry run only"
-          : "Test mode disabled: live sending active",
         data,
       });
     } catch (err) {
