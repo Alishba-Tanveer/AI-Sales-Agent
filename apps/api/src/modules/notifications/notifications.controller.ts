@@ -24,6 +24,7 @@ export class NotificationsController {
 
       const result = await this.notificationsService.listNotifications(
         req.user.organizationId,
+        req.user.role,
         queryParse.data
       );
       res.status(200).json(result);
@@ -132,7 +133,8 @@ export class NotificationsController {
       }
 
       const result = await this.notificationsService.getUnreadCount(
-        req.user.organizationId
+        req.user.organizationId,
+        req.user.role
       );
       res.status(200).json(result);
     } catch (err) {

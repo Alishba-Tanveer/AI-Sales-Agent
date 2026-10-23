@@ -24,7 +24,7 @@ export const signupSchema = z
     password: passwordSchema,
     confirmPassword: z.string(),
     terms: z.literal(true, {
-      errorMap: () => ({ message: "You must agree to the Terms of Service and Privacy Policy to continue." }),
+      message: "You must agree to the Terms of Service and Privacy Policy to continue.",
     }),
   })
   .refine((v) => v.password === v.confirmPassword, {
@@ -46,7 +46,7 @@ export const acceptNewSchema = z
     password: passwordSchema,
     confirmPassword: z.string(),
     terms: z.literal(true, {
-      errorMap: () => ({ message: "You must agree to the Terms of Service and Privacy Policy to continue." }),
+      message: "You must agree to the Terms of Service and Privacy Policy to continue.",
     }),
   })
   .refine((v) => v.password === v.confirmPassword, {

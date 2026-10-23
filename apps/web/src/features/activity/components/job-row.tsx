@@ -40,7 +40,14 @@ export function JobRow({ job, now, busy, onRetry, onCancel, onView, onOpenLead }
 
       <TableCell className="overflow-hidden px-4 py-2 text-foreground" title={hasLead ? `${job.lead.name} · ${job.lead.context}` : job.lead.context}>
         <span className="block truncate">
-          {hasLead ? job.lead.name : <span className="text-muted-foreground">—</span>} <span className="text-muted-foreground">· {job.lead.context}</span>
+          {hasLead ? (
+            <>
+              <span>{job.lead.name}</span>
+              {job.lead.context ? <span className="text-muted-foreground"> ({job.lead.context})</span> : null}
+            </>
+          ) : (
+            <span className="text-muted-foreground">{job.lead.context || "—"}</span>
+          )}
         </span>
       </TableCell>
 
