@@ -3,19 +3,39 @@ import type { InAppNotification } from "@ai-sales-agent/database";
 import type { ListNotificationsQuery, CreateNotificationInput } from "./notifications.schema";
 import { AppError } from "../../utils/app-error";
 
+function isNotificationAllowedForRole(n: InAppNotification, role: string): boolean {
+  const normRole = (role || "").toUpperCase();
+  if (normRole === "OWNER") return true;
+
+  // Usage & billing is Owner only
+  if (n.href?.includes("tab=usage")) return false;
+
+  if (normRole === "ADMIN") {
+    // Admin can see team, integrations, settings, leads, replies, approvals, etc.
+    return true;
+  }
+
+  // MEMBER: cannot manage team, integrations, or workspace settings
+  if (n.type === "team") return false;
+  if (n.href?.includes("tab=team")) return false;
+  if (n.href?.includes("/integrations")) return false;
+  if (n.href === "/settings") return false;
+
+  return true;
+}
+
 export class NotificationsService {
   constructor(private readonly notificationsRepository: NotificationsRepository) {}
 
-  async listNotifications(organizationId: string, query?: ListNotificationsQuery) {
+  async listNotifications(organizationId: string, userRole: string = "MEMBER", query?: ListNotificationsQuery) {
     // Auto-seed realistic initial notifications if none exist
     await this.notificationsRepository.seedDefaultNotificationsIfEmpty(organizationId);
 
-    const [items, unreadCount] = await Promise.all([
-      this.notificationsRepository.list(organizationId, query),
-      this.notificationsRepository.countUnread(organizationId),
-    ]);
+    const items = await this.notificationsRepository.list(organizationId, query);
+    const visibleItems = items.filter((n) => isNotificationAllowedForRole(n, userRole));
+    const unreadCount = visibleItems.filter((n) => !n.read).length;
 
-    const formatted = items.map((n: InAppNotification) => ({
+    const formatted = visibleItems.map((n: InAppNotification) => ({
       id: n.id,
       type: n.type,
       title: n.title,
@@ -97,11 +117,11 @@ export class NotificationsService {
     };
   }
 
-  async getUnreadCount(organizationId: string) {
-    const unread = await this.notificationsRepository.countUnread(organizationId);
+  async getUnreadCount(organizationId: string, userRole: string = "MEMBER") {
+    const res = await this.listNotifications(organizationId, userRole);
     return {
       data: {
-        unread,
+        unread: res.unreadCount,
       },
     };
   }
