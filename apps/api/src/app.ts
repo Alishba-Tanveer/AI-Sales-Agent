@@ -9,6 +9,9 @@ import { usersRoutes } from "./modules/users/users.routes";
 import { teamRoutes } from "./modules/team/team.routes";
 import { settingsRoutes } from "./modules/settings/settings.routes";
 import { linkedinRoutes, heygenWebhookRoutes } from "./modules/linkedin/linkedin.routes";
+import { activityRoutes } from "./modules/activity/activity.routes";
+import { notificationsRoutes } from "./modules/notifications/notifications.routes";
+import { analyticsRoutes } from "./modules/analytics/analytics.routes";
 
 const app = express();
 
@@ -31,6 +34,9 @@ app.use("/api/team", teamRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/linkedin", linkedinRoutes);
 app.use("/api/webhooks", heygenWebhookRoutes);
+app.use("/api/activity", activityRoutes);
+app.use("/api/notifications", notificationsRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 app.use(errorHandler);
 
