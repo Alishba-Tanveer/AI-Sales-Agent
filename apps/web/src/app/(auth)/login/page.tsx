@@ -12,13 +12,15 @@ import { Label } from "@/components/ui/label";
 import { AuthCard, FieldError, ServerError, inputCls, primaryBtn } from "@/components/auth/auth-shell";
 import { loginSchema, type LoginValues } from "@/features/auth/schemas";
 import { loginUser } from "@/features/auth/api";
-import { hasValidSession } from "@/lib/api";
+import { ApiError, hasValidSession } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginValues>({
+  // Set when the server answers 409 ACCOUNT_RESTORABLE: the password was right, the account is soft-deleted.
+  const [restore, setRestore] = useState<{ message: string; daysLeft?: number; scope?: string } | null>(null);
+  const { register, getValues, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { remember: true },
   });
@@ -28,14 +30,26 @@ export default function LoginPage() {
     if (hasValidSession()) router.replace("/overview");
   }, [router]);
 
-  const onSubmit = async (v: LoginValues) => {
+  const signIn = async (v: LoginValues, restoreAccount = false) => {
     setError(null);
     try {
-      await loginUser(v.email, v.password, !!v.remember);
+      await loginUser(v.email, v.password, !!v.remember, restoreAccount);
       router.push("/overview");
     } catch (e) {
+      if (e instanceof ApiError && e.status === 409 && e.data.code === "ACCOUNT_RESTORABLE") {
+        setRestore({ message: e.message, daysLeft: e.data.daysLeft as number | undefined, scope: e.data.scope as string | undefined });
+        return;
+      }
+      setRestore(null);
       setError(e instanceof Error ? e.message : "Incorrect email or password.");
     }
+  };
+  const onSubmit = (v: LoginValues) => signIn(v);
+  const [restoring, setRestoring] = useState(false);
+  const confirmRestore = async () => {
+    setRestoring(true);
+    await signIn(getValues(), true);
+    setRestoring(false);
   };
 
   return (
@@ -46,6 +60,21 @@ export default function LoginPage() {
     >
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
         <ServerError message={error} />
+        {restore && (
+          <div className="rounded-xl border border-[#818CF8]/30 bg-[#818CF8]/10 p-4 text-sm text-[#E5E7EB]">
+            <p className="font-semibold">{restore.message}</p>
+            <p className="mt-1 text-xs text-[#94A3B8]">
+              {restore.scope === "workspace" ? "Your workspace and its team" : "Your account"} was deleted
+              {restore.daysLeft != null ? ` and can be restored for ${restore.daysLeft} more day${restore.daysLeft === 1 ? "" : "s"}` : ""}.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <Button type="button" disabled={restoring} onClick={confirmRestore} className="h-10 min-w-0 flex-1 gap-2 rounded-lg bg-[#818CF8] text-sm font-semibold text-[#0B0F19] hover:bg-[#6366F1] disabled:opacity-70">
+                {restoring ? "Restoring..." : "Yes, restore & sign in"}
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => setRestore(null)} className="h-10 shrink-0 rounded-lg px-4 text-sm text-[#94A3B8] hover:bg-[#1A2030] hover:text-[#E5E7EB]">Cancel</Button>
+            </div>
+          </div>
+        )}
         <div className="space-y-1.5">
           <Label htmlFor="email" className="text-xs font-medium text-[#E5E7EB]">Email address</Label>
           <Input id="email" type="email" autoComplete="email" placeholder="you@company.com" className={inputCls} {...register("email")} />

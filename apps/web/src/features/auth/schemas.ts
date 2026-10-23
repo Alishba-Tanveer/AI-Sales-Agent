@@ -33,6 +33,28 @@ export const signupSchema = z
   });
 export type SignupValues = z.infer<typeof signupSchema>;
 
+/** Invitation acceptance: existing account confirms its password. */
+export const acceptExistingSchema = z.object({
+  password: z.string().min(1, "Enter your password"),
+});
+export type AcceptExistingValues = z.infer<typeof acceptExistingSchema>;
+
+/** Invitation acceptance: new account supplies a name and password. */
+export const acceptNewSchema = z
+  .object({
+    name: z.string().trim().min(2, "Name must be at least 2 characters long"),
+    password: passwordSchema,
+    confirmPassword: z.string(),
+    terms: z.literal(true, {
+      errorMap: () => ({ message: "You must agree to the Terms of Service and Privacy Policy to continue." }),
+    }),
+  })
+  .refine((v) => v.password === v.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Passwords do not match.",
+  });
+export type AcceptNewValues = z.infer<typeof acceptNewSchema>;
+
 export const forgotSchema = z.object({
   email: z.string().trim().email("Enter a valid email address"),
 });

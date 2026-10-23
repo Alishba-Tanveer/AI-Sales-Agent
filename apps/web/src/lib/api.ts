@@ -1,10 +1,18 @@
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export class ApiError extends Error {
-  constructor(message: string, public status: number) {
+  constructor(message: string, public status: number, public data: Record<string, unknown> = {}) {
     super(message);
   }
 }
+
+export const TOKEN_STORE_EVENT = "token-store-change";
+
+const notifyTokenChange = () => {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(TOKEN_STORE_EVENT));
+  }
+};
 
 // remember=true -> localStorage (survives browser restart); false -> sessionStorage
 export const tokenStore = {
@@ -14,10 +22,12 @@ export const tokenStore = {
     localStorage.removeItem("token");
     sessionStorage.removeItem("token");
     (remember ? localStorage : sessionStorage).setItem("token", t);
+    notifyTokenChange();
   },
   clear: () => {
     localStorage.removeItem("token");
     sessionStorage.removeItem("token");
+    notifyTokenChange();
   },
 };
 
@@ -59,7 +69,7 @@ export async function api<T>(path: string, init: RequestInit & { keepSessionOn40
       sessionStorage.removeItem("user");
       window.location.replace("/login");
     }
-    throw new ApiError(body.message ?? "Something went wrong", res.status);
+    throw new ApiError(body.message ?? "Something went wrong", res.status, body);
   }
   return body as T;
 }

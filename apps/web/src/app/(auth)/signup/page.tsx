@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,10 +19,10 @@ export default function SignupPage() {
   const [showPw, setShowPw] = useState(false);
   const [showCpw, setShowCpw] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<SignupValues>({
+  const { register, handleSubmit, control, formState: { errors, isSubmitting } } = useForm<SignupValues>({
     resolver: zodResolver(signupSchema),
   });
-  const pw = watch("password") ?? "";
+  const pw = useWatch({ control, name: "password" }) ?? "";
 
   const onSubmit = async (v: SignupValues) => {
     setError(null);

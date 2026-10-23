@@ -53,6 +53,26 @@ export class AuthController {
     }
   };
 
+  /** POST /api/auth/restore-account: same body as login; signs in AND restores a deleted account / workspace. */
+  restoreAccount = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parseResult = loginSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        const errorMessages = parseResult.error.issues
+          .map((i) => i.message)
+          .join(", ");
+        throw new AppError(errorMessages, 400);
+      }
+      const result = await this.authService.login({ ...parseResult.data, restore: true });
+      res.status(200).json({
+        message: "Account restored",
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parseResult = forgotPasswordSchema.safeParse(req.body);

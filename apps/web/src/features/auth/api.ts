@@ -26,12 +26,43 @@ export async function registerUser(v: SignupValues) {
 }
 
 /** POST /api/auth/login */
-export async function loginUser(email: string, password: string, remember = true) {
-  const res = await post<AuthResponse>("/api/auth/login", { email, password });
+export async function loginUser(email: string, password: string, remember = true, restore = false) {
+  const res = await post<AuthResponse>("/api/auth/login", { email, password, remember, restore });
   // remember = true  -> localStorage: stays signed in after the browser is closed (until the token expires)
   // remember = false -> sessionStorage: signed out when the tab/browser is closed
   tokenStore.set(res.data.token, remember);
   userStore.set(res.data.user, remember);
+  resetSetupReminder();
+  return res.data.user;
+}
+
+/* ---- Team invitations (/accept-invite?token=...) ---- */
+
+export type InviteInfo = {
+  state: "valid" | "expired" | "cancelled" | "accepted" | "not_found";
+  message?: string | null;
+  email?: string;
+  name?: string;
+  role?: string;
+  organizationName?: string | null;
+  inviterName?: string | null;
+  accountExists?: boolean;
+  canJoin?: boolean;
+  blockedReason?: string | null;
+  expiresAt?: string | null;
+};
+
+/** GET /api/team/invitations/:token (public). Note the payload is wrapped as { data: { ... } }. */
+export async function lookupInvite(token: string) {
+  const res = await api<{ data: InviteInfo }>(`/api/team/invitations/${encodeURIComponent(token)}`);
+  return res.data;
+}
+
+/** POST /api/team/invitations/accept. New person: name + password. Existing account: its password. Signs them in. */
+export async function acceptInvite(token: string, password: string, name?: string) {
+  const res = await post<AuthResponse>("/api/team/invitations/accept", { token, password, ...(name ? { name } : {}) });
+  tokenStore.set(res.data.token, true);
+  userStore.set(res.data.user, true);
   resetSetupReminder();
   return res.data.user;
 }

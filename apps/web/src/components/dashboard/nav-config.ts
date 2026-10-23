@@ -21,6 +21,8 @@ export type NavItem = {
   label: string;
   href: string;
   icon: LucideIcon;
+  /** Hidden from Members (Owner and Admin only) */
+  adminOnly?: boolean;
   /** Shows a live count pill (value comes from useNavCounts) */
   badge?: { key: NavBadgeKey; tone: "warning" | "destructive" };
 };
@@ -54,7 +56,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "Workspace",
     items: [
       { label: "Analytics", href: "/analytics", icon: BarChart3 },
-      { label: "Integrations", href: "/integrations", icon: Puzzle },
+      { label: "Integrations", href: "/integrations", icon: Puzzle, adminOnly: true },
       { label: "Settings", href: "/settings", icon: Settings },
     ],
   },

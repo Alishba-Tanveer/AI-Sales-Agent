@@ -1,16 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, TriangleAlert } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { getUsage, saveAiLimit } from "../api";
-import { saveTestMode, useTestMode } from "../test-mode";
 import { useLoad } from "../use-load";
 import type { UsageInfo } from "../types";
 import { TabError, TabLoading } from "./load-states";
-import { Pill, Switch } from "./settings-ui";
+import { CARD_HOVER, Pill } from "./settings-ui";
 
 function Bar({ pct, danger, thin }: { pct: number; danger?: boolean; thin?: boolean }) {
   return (
@@ -37,27 +36,13 @@ export function UsageTab({ onOpenOutreach }: { onOpenOutreach: () => void }) {
 }
 
 function UsageView({ usage, onUsage, onOpenOutreach }: { usage: UsageInfo; onUsage: (u: UsageInfo) => void; onOpenOutreach: () => void }) {
-  const testMode = useTestMode();
   const [aiLimit, setAiLimit] = useState(usage.aiLimit.toFixed(2));
   const [savingLimit, setSavingLimit] = useState(false);
-  const [togglingTest, setTogglingTest] = useState(false);
 
   const limitHit = usage.dailyCap > 0 && usage.sentToday >= usage.dailyCap;
   const sentPct = pctOf(usage.sentToday, usage.dailyCap);
   const aiPct = pctOf(usage.aiSpendThisMonth, usage.aiLimit);
   const reqPct = pctOf(usage.requestsToday, usage.requestsDailyLimit);
-
-  const toggleTestMode = async (on: boolean) => {
-    setTogglingTest(true);
-    try {
-      const message = await saveTestMode(on);
-      toast(message ?? (on ? "Test mode enabled: dry run only" : "Test mode disabled: live sending active"));
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not change test mode.");
-    } finally {
-      setTogglingTest(false);
-    }
-  };
 
   const saveLimit = async () => {
     const n = Number(aiLimit);
@@ -79,31 +64,10 @@ function UsageView({ usage, onUsage, onOpenOutreach }: { usage: UsageInfo; onUsa
     <div className="flex w-full flex-col gap-6">
       <div>
         <h2 className="text-base font-semibold text-foreground">Usage and Limits</h2>
-        <p className="mt-0.5 text-xs text-muted-foreground">Manage operational boundaries, dry run simulations, and outbound allocations.</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">Manage your daily sending limit and monthly AI spend.</p>
       </div>
 
-      <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="space-y-1">
-            <h3 className="text-sm font-semibold text-foreground">Test mode (dry run)</h3>
-            <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
-              When on, nothing is actually sent. Emails go through the whole flow but are only saved as test sends.
-            </p>
-          </div>
-          <div className={cn("flex items-center gap-2", togglingTest && "pointer-events-none opacity-60")}>
-            {togglingTest && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
-            <Switch checked={testMode} label="Test mode" onChange={toggleTestMode} />
-          </div>
-        </div>
-        {testMode && (
-          <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning-soft p-3 text-xs font-medium text-warning">
-            <TriangleAlert className="size-4" />
-            Test mode is on. No emails will be sent.
-          </div>
-        )}
-      </section>
-
-      <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6">
+      <section className={cn("flex flex-col gap-4 rounded-xl border border-border bg-card p-6", CARD_HOVER)}>
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground">Today&apos;s sending</h3>
           {limitHit && <Pill tone="destructive">Limit Reached</Pill>}
@@ -124,7 +88,7 @@ function UsageView({ usage, onUsage, onOpenOutreach }: { usage: UsageInfo; onUsa
         </div>
       </section>
 
-      <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6">
+      <section className={cn("flex flex-col gap-4 rounded-xl border border-border bg-card p-6", CARD_HOVER)}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold text-foreground">AI usage</h3>

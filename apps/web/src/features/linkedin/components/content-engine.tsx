@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Field, Pill, inputCls } from "@/features/settings/components/settings-ui";
+import { CARD_HOVER, CARD_INNER, CARD_LIFT, HOVER_BUTTONS, Field, Pill, TONES, inputCls } from "@/features/settings/components/settings-ui";
 import { approveScript, checkPostStatus, createScript, fetchContent, markScriptPosted, regenerateScript, removeScript, saveContentSettings, updateScript } from "../api";
 import { ACTIVITY_URL, composeUrl, copyText, normalizeWebUrl, scriptCaption } from "../links";
 import type { ContentScript, ContentSettings } from "../types";
@@ -151,8 +151,8 @@ export function ContentEngine() {
   const selected = pending.find((s) => s.id === selectedId) ?? null;
 
   return (
-    <main className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 p-6 lg:p-8">
-      <div className="flex flex-col gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+    <main className={cn("mx-auto flex w-full max-w-[1280px] flex-col gap-6 p-6 lg:p-8", HOVER_BUTTONS)}>
+      <div className={cn("flex flex-col gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between", CARD_HOVER)}>
         <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
           <span className="flex items-center gap-1.5"><Clock className="size-4 text-sky-700 dark:text-sky-400" /> Post reminder daily at <b className="font-semibold text-foreground">{fmtTime(remindAt)}</b></span>
           <span className="flex items-center gap-1.5"><span className={cn("size-1.5 rounded-full", settings.heygenConnected ? "bg-success" : "bg-warning")} /> {settings.heygenConnected ? "Avatar: HeyGen connected" : "Avatar: HeyGen not connected"} {avatar && <span className="text-foreground">({avatar})</span>}</span>
@@ -165,7 +165,7 @@ export function ContentEngine() {
         description="We find news in your niche, write a short video script, and make the video after you approve. You post it on LinkedIn."
         actions={
           <>
-            <Button variant="outline" onClick={() => setHelpOpen(true)}><Lightbulb /> How it works</Button>
+            <Button variant="outline" className={TONES.warning.btn} onClick={() => setHelpOpen(true)}><Lightbulb /> How it works</Button>
             <Button onClick={() => setTopicOpen(true)}><Plus /> Add a topic</Button>
           </>
         }
@@ -206,7 +206,7 @@ export function ContentEngine() {
         ) : (
           /* Two equal columns, same height: queue on the left, review on the right */
           <div className="grid items-stretch gap-6 lg:grid-cols-2">
-            <section className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
+            <section className={cn("flex flex-col overflow-hidden rounded-xl border border-border bg-card", CARD_HOVER)}>
               <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
                 <h2 className="text-sm font-semibold text-foreground">Scripts waiting for you</h2>
                 <Pill tone="warning">{pending.length} to review</Pill>
@@ -257,7 +257,7 @@ export function ContentEngine() {
             {scheduled.map((s) => {
               const ready = s.status === "ready";
               return (
-                <li key={s.id} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5">
+                <li key={s.id} className={cn("flex flex-col gap-3 rounded-xl border border-border bg-card p-5", CARD_LIFT)}>
                   <div className="flex items-center justify-between gap-2">
                     {ready ? <Pill tone="success"><CheckCircle2 className="size-3" /> Ready to post</Pill> : <Pill tone="primary"><Loader2 className="size-3 animate-spin" /> Creating video</Pill>}
                     <span className="flex items-center gap-1 text-xs text-muted-foreground"><CalendarClock className="size-3.5" /> Remind me {fmtDate(s.scheduledFor, true)}</span>
@@ -398,7 +398,7 @@ function ReviewPanel({
   };
 
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+    <section className={cn("flex flex-col gap-4 rounded-xl border border-border bg-card p-5", CARD_HOVER)}>
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold tracking-wide text-primary uppercase">Review script · Draft #{s.draftNo}</p>
@@ -555,7 +555,7 @@ function PreviewDialog({ s, onClose, onPost }: { s: ContentScript | null; onClos
               <span className="flex size-12 items-center justify-center rounded-full border border-primary/30 bg-primary-soft text-primary"><Play className="size-5" /></span>
               <p className="px-6 text-xs text-muted-foreground">The video will play here once videos come from HeyGen.</p>
             </div>
-            <div className="rounded-lg border border-border bg-background p-3">
+            <div className={cn("rounded-lg border border-border bg-background p-3", CARD_INNER)}>
               <p className="mb-1.5 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Caption</p>
               <p className="text-sm whitespace-pre-line text-foreground">{scriptCaption(s)}</p>
             </div>
@@ -685,7 +685,7 @@ function PostedCard({ s, onFlagDeleted, onAddLink, onRemove }: { s: ContentScrip
   };
 
   return (
-    <li className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5">
+    <li className={cn("flex flex-col gap-3 rounded-xl border border-border bg-card p-5", CARD_LIFT)}>
       <div className="flex items-center justify-between gap-2">
         {s.postDeleted ? <Pill tone="destructive"><TriangleAlert className="size-3" /> Deleted on LinkedIn</Pill> : <Pill tone="success"><span className="size-1.5 rounded-full bg-success" /> Live</Pill>}
         <span className="text-xs text-muted-foreground">{fmtDate(s.postedAt, true)}</span>

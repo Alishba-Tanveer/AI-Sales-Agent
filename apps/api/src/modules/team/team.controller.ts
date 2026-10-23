@@ -4,133 +4,162 @@ import {
   createInvitationSchema,
   updateMemberRoleSchema,
   acceptInvitationSchema,
+  transferOwnershipSchema,
 } from "./team.schema";
 import { AppError } from "../../utils/app-error";
+
+type Handler = (req: Request, res: Response, next: NextFunction) => Promise<void>;
+
+const validationError = (issues: { message: string }[]) =>
+  new AppError(issues.map((i) => i.message).join(", "), 400);
 
 export class TeamController {
   constructor(private readonly teamService: TeamService) {}
 
-  listMembers = async (req: Request, res: Response, next: NextFunction) => {
+  private readonly auth = (req: Request) => {
+    if (!req.user?.organizationId || !req.user?.userId) {
+      throw new AppError("Authentication required", 401);
+    }
+    return {
+      organizationId: req.user.organizationId,
+      userId: req.user.userId,
+      role: req.user.role,
+    };
+  };
+
+  listMembers: Handler = async (req, res, next) => {
     try {
-      if (!req.user?.organizationId) {
-        throw new AppError("Authentication required", 401);
-      }
-      const result = await this.teamService.listMembersAndInvites(
-        req.user.organizationId
-      );
-      res.status(200).json(result);
+      const { organizationId } = this.auth(req);
+      res.status(200).json(await this.teamService.listMembersAndInvites(organizationId));
     } catch (err) {
       next(err);
     }
   };
 
-  createInvitation = async (req: Request, res: Response, next: NextFunction) => {
+  listRemovedMembers: Handler = async (req, res, next) => {
     try {
-      if (!req.user?.organizationId || !req.user?.userId) {
-        throw new AppError("Authentication required", 401);
-      }
-      const parseResult = createInvitationSchema.safeParse(req.body);
-      if (!parseResult.success) {
-        const errorMessages = parseResult.error.issues.map((i) => i.message).join(", ");
-        throw new AppError(errorMessages, 400);
-      }
-      const result = await this.teamService.inviteMember(
-        req.user.organizationId,
-        req.user.userId,
-        req.user.role,
-        parseResult.data
-      );
-      res.status(201).json(result);
+      const { organizationId, role } = this.auth(req);
+      res.status(200).json(await this.teamService.listRemovedMembers(organizationId, role));
     } catch (err) {
       next(err);
     }
   };
 
-  resendInvitation = async (req: Request, res: Response, next: NextFunction) => {
+  createInvitation: Handler = async (req, res, next) => {
     try {
-      if (!req.user?.organizationId) {
-        throw new AppError("Authentication required", 401);
-      }
-      const id = String(req.params.id);
-      const result = await this.teamService.resendInvitation(
-        req.user.organizationId,
-        req.user.role,
-        id
-      );
-      res.status(200).json(result);
+      const { organizationId, userId, role } = this.auth(req);
+      const parsed = createInvitationSchema.safeParse(req.body);
+      if (!parsed.success) throw validationError(parsed.error.issues);
+      const input = parsed.data;
+      res.status(201).json(await this.teamService.inviteMember(organizationId, userId, role, input));
     } catch (err) {
       next(err);
     }
   };
 
-  revokeInvitation = async (req: Request, res: Response, next: NextFunction) => {
+  resendInvitation: Handler = async (req, res, next) => {
     try {
-      if (!req.user?.organizationId) {
-        throw new AppError("Authentication required", 401);
-      }
-      const id = String(req.params.id);
-      const result = await this.teamService.revokeInvitation(
-        req.user.organizationId,
-        req.user.role,
-        id
-      );
-      res.status(200).json(result);
+      const { organizationId, userId, role } = this.auth(req);
+      res
+        .status(200)
+        .json(
+          await this.teamService.resendInvitation(organizationId, userId, role, String(req.params.id))
+        );
     } catch (err) {
       next(err);
     }
   };
 
-  updateMemberRole = async (req: Request, res: Response, next: NextFunction) => {
+  revokeInvitation: Handler = async (req, res, next) => {
     try {
-      if (!req.user?.organizationId || !req.user?.userId) {
-        throw new AppError("Authentication required", 401);
-      }
-      const parseResult = updateMemberRoleSchema.safeParse(req.body);
-      if (!parseResult.success) {
-        const errorMessages = parseResult.error.issues.map((i) => i.message).join(", ");
-        throw new AppError(errorMessages, 400);
-      }
-      const id = String(req.params.id);
-      const result = await this.teamService.updateMemberRole(
-        req.user.organizationId,
-        req.user.userId,
-        req.user.role,
-        id,
-        parseResult.data
-      );
-      res.status(200).json(result);
+      const { organizationId, role } = this.auth(req);
+      res
+        .status(200)
+        .json(await this.teamService.revokeInvitation(organizationId, role, String(req.params.id)));
     } catch (err) {
       next(err);
     }
   };
 
-  removeMember = async (req: Request, res: Response, next: NextFunction) => {
+  updateMemberRole: Handler = async (req, res, next) => {
     try {
-      if (!req.user?.organizationId || !req.user?.userId) {
-        throw new AppError("Authentication required", 401);
-      }
-      const id = String(req.params.id);
-      const result = await this.teamService.removeMember(
-        req.user.organizationId,
-        req.user.userId,
-        req.user.role,
-        id
-      );
-      res.status(200).json(result);
+      const { organizationId, userId, role } = this.auth(req);
+      const parsed = updateMemberRoleSchema.safeParse(req.body);
+      if (!parsed.success) throw validationError(parsed.error.issues);
+      const input = parsed.data;
+      res
+        .status(200)
+        .json(
+          await this.teamService.updateMemberRole(
+            organizationId,
+            userId,
+            role,
+            String(req.params.id),
+            input
+          )
+        );
     } catch (err) {
       next(err);
     }
   };
 
-  acceptInvitation = async (req: Request, res: Response, next: NextFunction) => {
+  removeMember: Handler = async (req, res, next) => {
     try {
-      const parseResult = acceptInvitationSchema.safeParse(req.body);
-      if (!parseResult.success) {
-        const errorMessages = parseResult.error.issues.map((i) => i.message).join(", ");
-        throw new AppError(errorMessages, 400);
-      }
-      const result = await this.teamService.acceptInvitation(parseResult.data);
-      res.status(200).json(result);
+      const { organizationId, userId, role } = this.auth(req);
+      res
+        .status(200)
+        .json(
+          await this.teamService.removeMember(organizationId, userId, role, String(req.params.id))
+        );
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  restoreMember: Handler = async (req, res, next) => {
+    try {
+      const { organizationId, role } = this.auth(req);
+      res
+        .status(200)
+        .json(await this.teamService.restoreMember(organizationId, role, String(req.params.id)));
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /** POST /transfer-ownership {memberId}  or  POST /members/:id/transfer-ownership  (Owner only; no password) */
+  transferOwnership: Handler = async (req, res, next) => {
+    try {
+      const { organizationId, userId, role } = this.auth(req);
+      const parsed = transferOwnershipSchema.safeParse(req.body);
+      if (!parsed.success) throw validationError(parsed.error.issues);
+      const input = parsed.data;
+      const fromUrl = req.params.id ? String(req.params.id) : undefined;
+      res
+        .status(200)
+        .json(await this.teamService.transferOwnership(organizationId, userId, role, input, fromUrl));
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /** GET /invitations/:token (or ?token=): public, used by the /accept-invite page before it shows a form. */
+  lookupInvitation: Handler = async (req, res, next) => {
+    try {
+      const token = String(req.params.token ?? req.query.token ?? "").trim();
+      if (!token) throw new AppError("Invitation token is required", 400);
+      res.status(200).json(await this.teamService.lookupInvitation(token));
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  acceptInvitation: Handler = async (req, res, next) => {
+    try {
+      const parsed = acceptInvitationSchema.safeParse(req.body);
+      if (!parsed.success) throw validationError(parsed.error.issues);
+      const input = parsed.data;
+      res.status(200).json(await this.teamService.acceptInvitation(input));
     } catch (err) {
       next(err);
     }

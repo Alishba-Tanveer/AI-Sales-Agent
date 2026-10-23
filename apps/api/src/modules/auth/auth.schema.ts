@@ -21,6 +21,8 @@ export const loginSchema = z.object({
   email: z.string().trim().email("Invalid email address"),
   password: z.string().min(1, "Password is required"),
   remember: z.boolean().optional(),
+  // Sent as true after the person answered "Restore your account?" with yes.
+  restore: z.boolean().optional(),
 });
 
 export const forgotPasswordSchema = z.object({

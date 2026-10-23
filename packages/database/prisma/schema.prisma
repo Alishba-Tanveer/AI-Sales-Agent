@@ -64,6 +64,8 @@ model User {
   organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
+  removedById      String?
+  removedReason    String?
 }
 
 model TeamInvitation {
@@ -78,6 +80,12 @@ model TeamInvitation {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  status           String    @default("PENDING")
+  emailError       String?
+  lastSentAt       DateTime?
+  acceptedAt       DateTime?
+  cancelledAt      DateTime?
 
   @@unique([organizationId, email])
 }

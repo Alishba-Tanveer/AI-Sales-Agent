@@ -15,7 +15,8 @@ import { useLoad } from "../use-load";
 import type { UserProfile } from "../types";
 import { DeleteAccountDialog } from "./delete-account-dialog";
 import { TabError, TabLoading } from "./load-states";
-import { Field, Pill, SectionCard, initials, inputCls, selectCls } from "./settings-ui";
+import { cn } from "cn";
+import { CARD_INNER, Field, Pill, SectionCard, initials, inputCls, selectCls } from "./settings-ui";
 
 const MAX_AVATAR = 2 * 1024 * 1024;
 
@@ -228,7 +229,7 @@ function ProfileForm({ initial }: { initial: UserProfile }) {
         }
       >
         {pwOpen && (
-          <div className="grid grid-cols-1 gap-4 rounded-lg border border-border bg-background p-4 md:grid-cols-3">
+          <div className={cn("grid grid-cols-1 gap-4 rounded-lg border border-border bg-background p-4 md:grid-cols-3", CARD_INNER)}>
             {(
               [
                 ["current", "Current Password", "••••••••••••", "current-password"],
@@ -255,7 +256,7 @@ function ProfileForm({ initial }: { initial: UserProfile }) {
           </div>
         )}
 
-        <div className="flex flex-col items-start justify-between gap-4 rounded-lg border border-border bg-background p-4 sm:flex-row sm:items-center">
+        <div className={cn("flex flex-col items-start justify-between gap-4 rounded-lg border border-border bg-background p-4 sm:flex-row sm:items-center", CARD_INNER)}>
           <div className="flex flex-col">
             <span className="text-sm font-semibold text-foreground">Active Session Clearance</span>
             <span className="text-xs text-muted-foreground">Currently signed in on this device</span>
@@ -280,14 +281,14 @@ function ProfileForm({ initial }: { initial: UserProfile }) {
         </div>
       </SectionCard>
 
-      <section className="flex flex-col items-start justify-between gap-4 rounded-xl border border-destructive/30 bg-destructive-soft/40 p-6 sm:flex-row sm:items-center">
+      <section className={cn("flex flex-col items-start justify-between gap-4 rounded-xl border border-destructive/30 bg-destructive-soft/40 p-6 transition-all duration-200 hover:border-destructive/50 hover:shadow-lg hover:shadow-destructive/10 sm:flex-row sm:items-center")}>
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-destructive">
             <TriangleAlert className="size-5" />
             <h2 className="text-base font-semibold">Delete account</h2>
           </div>
           <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            Your account is deactivated right away. You have 30 days to restore it by signing in. After 30 days, your account, workspace, leads and drafts are permanently deleted and cannot be recovered.
+            Your account is deactivated right away. You have 30 days to restore it by signing in. After 30 days it is permanently deleted and cannot be recovered. If you are the Owner, you can transfer the business to a team member first, or delete the whole business.
           </p>
         </div>
         <Button variant="destructive" className="h-9 shrink-0 gap-2 border border-destructive/40 px-4 text-sm font-semibold" onClick={() => setDeleteOpen(true)}>

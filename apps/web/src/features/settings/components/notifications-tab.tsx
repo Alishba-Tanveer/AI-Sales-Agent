@@ -7,7 +7,8 @@ import { getNotifications, saveNotifications } from "../api";
 import { useLoad } from "../use-load";
 import type { NotificationRule } from "../types";
 import { TabError, TabLoading } from "./load-states";
-import { Pill, SaveButton, SectionCard } from "./settings-ui";
+import { cn } from "cn";
+import { CARD_INNER, Pill, SaveButton, SectionCard } from "./settings-ui";
 
 export function NotificationsTab() {
   const { state, reload } = useLoad(getNotifications);
@@ -44,7 +45,7 @@ function NotificationsForm({ initial }: { initial: NotificationRule[] }) {
     >
       <div className="space-y-4">
         {rules.map((r) => (
-          <div key={r.id} className="flex flex-col justify-between gap-4 rounded-lg border border-border bg-background p-4 sm:flex-row sm:items-center">
+          <div key={r.id} className={cn("flex flex-col justify-between gap-4 rounded-lg border border-border bg-background p-4 sm:flex-row sm:items-center", CARD_INNER)}>
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-semibold text-foreground">{r.title}</span>

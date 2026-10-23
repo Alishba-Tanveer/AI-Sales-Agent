@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { logoutUser } from "@/features/auth/api";
 import { userStore } from "@/features/auth/user-store";
+import { can } from "@/lib/permissions";
+import { useRole } from "@/lib/use-role";
 import { useNavCounts } from "@/features/overview/hooks";
 import { NAV_SECTIONS, isNavActive, type NavItem } from "./nav-config";
 
@@ -78,6 +80,8 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   const router = useRouter();
   const counts = useNavCounts();
   const user = userStore.get();
+  // role is read after mount (localStorage) so the server render and the first client render match
+  const role = useRole();
 
   const signOut = async () => {
     await logoutUser();
@@ -127,7 +131,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                   </div>
                 )}
                 <div className="space-y-0.5">
-                  {section.items.map((item) => (
+                  {section.items.filter((item) => !item.adminOnly || (role !== null && can.connectIntegrations(role))).map((item) => (
                     <NavLink
                       key={item.href}
                       item={item}
