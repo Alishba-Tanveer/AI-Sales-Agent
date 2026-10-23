@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,17 +16,20 @@ type Flow = { email: string; otp: string };
 
 export default function ResetPasswordPage() {
   // email + code were verified on the previous screen and kept in sessionStorage
-  const [flow, setFlow] = useState<Flow | null | undefined>(undefined); // undefined = not read yet
+  const [flow, setFlow] = useState<Flow | null | undefined>(undefined);
   const [show, setShow] = useState(false);
   const [showC, setShowC] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<ResetValues>({
+  const { register, handleSubmit, control, formState: { errors, isSubmitting } } = useForm<ResetValues>({
     resolver: zodResolver(resetSchema),
   });
-  const pw = watch("newPassword") ?? "";
+  const pw = useWatch({ control, name: "newPassword" }) ?? "";
 
-  useEffect(() => setFlow(resetFlow.get()), []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setFlow(resetFlow.get()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   if (flow === undefined) return null;
 

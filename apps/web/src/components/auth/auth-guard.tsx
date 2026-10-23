@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
-import { tokenStore } from "@/lib/api";
+import { tokenStore, TOKEN_STORE_EVENT } from "@/lib/api";
 
 function isExpired(token: string) {
   try {
@@ -13,19 +13,31 @@ function isExpired(token: string) {
   }
 }
 
+const hasLiveToken = () => {
+  const token = tokenStore.get();
+  return !!token && !isExpired(token);
+};
+const subscribe = (cb: () => void) => {
+  window.addEventListener("storage", cb);
+  window.addEventListener(TOKEN_STORE_EVENT, cb);
+
+  return () => {
+    window.removeEventListener("storage", cb);
+    window.removeEventListener(TOKEN_STORE_EVENT, cb);
+  };
+};
+
 /** Wrap any page/layout that needs a logged-in user. Redirects to /login otherwise. */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [ok, setOk] = useState(false);
+  // false on the server and during hydration (nothing is rendered until the token has been checked in the browser)
+  const ok = useSyncExternalStore(subscribe, hasLiveToken, () => false);
 
   useEffect(() => {
-    const token = tokenStore.get();
-    if (!token || isExpired(token)) {
+    if (!hasLiveToken()) {
       tokenStore.clear();
       router.replace("/login");
-      return;
     }
-    setOk(true);
   }, [router]);
 
   return ok ? <>{children}</> : null;

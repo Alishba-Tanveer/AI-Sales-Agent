@@ -6,14 +6,12 @@ import { toast } from "sonner";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { listRemovedMembers, restoreMember } from "../api";
+import { listRemoved, restoreMember } from "../api";
 import { useLoad } from "../use-load";
 import type { RemovedMember } from "../types";
 import { TabError, TabLoading } from "./load-states";
 import { Pill, initials } from "./settings-ui";
 
-const DAY = 86_400_000;
-const daysLeft = (iso: string) => Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / DAY));
 const dateText = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
 /**
@@ -22,7 +20,7 @@ const dateText = (iso: string) => new Date(iso).toLocaleDateString(undefined, { 
  * The Owner never appears here: when the Owner deletes their account the whole workspace is deactivated.
  */
 export function RemovedMembers({ onRestored }: { onRestored: () => void }) {
-  const { state, reload, set } = useLoad(listRemovedMembers);
+  const { state, reload, set } = useLoad(listRemoved);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   if (state.status === "loading") return <TabLoading label="Loading removed accounts…" />;
@@ -75,7 +73,7 @@ export function RemovedMembers({ onRestored }: { onRestored: () => void }) {
             </TableHeader>
             <TableBody>
               {rows.map((m) => {
-                const left = daysLeft(m.restoreDeadline);
+                const left = Math.max(0, m.daysLeft);
                 const urgent = left <= 3;
                 return (
                   <TableRow key={m.id} className="h-14">
@@ -93,7 +91,7 @@ export function RemovedMembers({ onRestored }: { onRestored: () => void }) {
                     <TableCell className="px-4 py-2 text-xs text-foreground">{m.role}</TableCell>
                     <TableCell className="px-4 py-2">
                       <div className="flex flex-col text-xs">
-                        <span className="text-foreground">{m.reason === "self" ? "Deleted their own account" : `Removed by ${m.removedBy ?? "an admin"}`}</span>
+                        <span className="text-foreground">{m.reason === "SELF" ? "Deleted their own account" : `Removed by ${m.removedBy ?? "an admin"}`}</span>
                         <span className="text-muted-foreground">{dateText(m.removedAt)}</span>
                       </div>
                     </TableCell>
@@ -103,7 +101,7 @@ export function RemovedMembers({ onRestored }: { onRestored: () => void }) {
                       </span>
                     </TableCell>
                     <TableCell className="px-5 py-2 text-right">
-                      <Button variant="outline" className="h-8 gap-1.5 px-3 text-xs" disabled={busyId !== null} onClick={() => restore(m)}>
+                      <Button variant="outline" className="h-8 gap-1.5 px-3 text-xs" disabled={busyId !== null || !m.canRestore} title={m.canRestore ? undefined : "They deleted their own account; it can only be restored by signing in again."} onClick={() => restore(m)}>
                         {busyId === m.id ? <Loader2 className="size-3.5 animate-spin" /> : <ArchiveRestore className="size-3.5" />}
                         Restore
                       </Button>

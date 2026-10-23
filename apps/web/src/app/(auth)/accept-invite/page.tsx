@@ -12,11 +12,15 @@ import { PasswordInput, PasswordStrength } from "@/components/auth/password-fiel
 import { passwordSchema } from "@/features/auth/schemas";
 import { acceptInvite, lookupInvite, type InviteInfo } from "@/features/auth/api";
 
+const NO_TOKEN_INVITE: InviteInfo = { state: "not_found", message: "This invitation link isn't valid. Ask for a new one." };
+
 function AcceptInvite() {
   const router = useRouter();
   const token = useSearchParams().get("token") ?? "";
 
-  const [invite, setInvite] = useState<InviteInfo | null>(null);
+  const [fetched, setFetched] = useState<InviteInfo | null>(null);
+  // no token in the link: nothing to look up, the link is simply not valid
+  const invite = token ? fetched : NO_TOKEN_INVITE;
   const [loadError, setLoadError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -29,13 +33,10 @@ function AcceptInvite() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!token) {
-      setInvite({ state: "not_found", message: "This invitation link isn't valid. Ask for a new one." });
-      return;
-    }
+    if (!token) return;
     lookupInvite(token)
       .then((info) => {
-        setInvite(info);
+        setFetched(info);
         if (info.name) setName(info.name);
       })
       .catch((e) => setLoadError(e instanceof Error ? e.message : "Could not load this invitation."));

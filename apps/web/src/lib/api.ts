@@ -6,6 +6,14 @@ export class ApiError extends Error {
   }
 }
 
+export const TOKEN_STORE_EVENT = "token-store-change";
+
+const notifyTokenChange = () => {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(TOKEN_STORE_EVENT));
+  }
+};
+
 // remember=true -> localStorage (survives browser restart); false -> sessionStorage
 export const tokenStore = {
   get: () =>
@@ -14,10 +22,12 @@ export const tokenStore = {
     localStorage.removeItem("token");
     sessionStorage.removeItem("token");
     (remember ? localStorage : sessionStorage).setItem("token", t);
+    notifyTokenChange();
   },
   clear: () => {
     localStorage.removeItem("token");
     sessionStorage.removeItem("token");
+    notifyTokenChange();
   },
 };
 

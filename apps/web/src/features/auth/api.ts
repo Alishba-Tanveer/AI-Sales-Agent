@@ -49,6 +49,7 @@ export type InviteInfo = {
   accountExists?: boolean;
   canJoin?: boolean;
   blockedReason?: string | null;
+  expiresAt?: string | null;
 };
 
 /** GET /api/team/invitations/:token (public). Note the payload is wrapped as { data: { ... } }. */

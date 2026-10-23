@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { can, currentRole } from "@/lib/permissions";
+import { can } from "@/lib/permissions";
+import { useRole } from "@/lib/use-role";
 
 export default function Page() {
-  const [allowed, setAllowed] = useState<boolean | null>(null);
-  useEffect(() => setAllowed(can.connectIntegrations(currentRole())), []);
+  const role = useRole();
+  const allowed = role === null ? null : can.connectIntegrations(role);
 
   return (
     <main className="min-h-screen p-6 md:p-10">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, Menu, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,11 +23,10 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const items = useMemo(() => (open ? buildSuggestions(query, currentRole()) : []), [query, open]);
   const showList = open && items.length > 0;
 
-  useEffect(() => setActive(0), [query]);
-
   const go = (href: string) => {
     router.push(href);
     setQuery("");
+    setActive(0);
     setOpen(false);
   };
 
@@ -79,6 +78,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
+              setActive(0);
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}

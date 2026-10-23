@@ -594,7 +594,9 @@ export class TeamService {
 
     const state = this.inviteState(invite);
     const [inviter, existing] = await Promise.all([
-      this.teamRepository.findUserWithOrganization(invite.invitedById),
+      invite.invitedById
+        ? this.teamRepository.findUserWithOrganization(invite.invitedById)
+        : Promise.resolve(null),
       this.teamRepository.findAnyUserByEmail(invite.email),
     ]);
     const blockedReason = existing

@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Bell, Building2, Megaphone, ShieldCheck, SlidersHorizontal, User, Users, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { Reveal } from "@/features/overview/components/reveal";
-import { can, currentRole, type AppRole } from "@/lib/permissions";
+import { can, type AppRole } from "@/lib/permissions";
+import { useRole } from "@/lib/use-role";
 import { HOVER_BUTTONS, ICON_POP, TAB_HOVER, TONES, type Tone } from "./settings-ui";
 import type { SettingsTabId } from "../types";
 import { ApprovalRulesTab } from "./approval-rules-tab";
@@ -37,8 +37,7 @@ export function SettingsPage() {
   const params = useSearchParams();
   const raw = params.get("tab");
   // read after mount: the role comes from localStorage, which the server render can't see
-  const [role, setRole] = useState<AppRole | null>(null);
-  useEffect(() => setRole(currentRole()), []);
+  const role = useRole();
   const visibleTabs = TABS.filter((t) => !t.allow || (role !== null && t.allow(role)));
   const tab: SettingsTabId = isTab(raw, visibleTabs) ? raw : "profile";
 

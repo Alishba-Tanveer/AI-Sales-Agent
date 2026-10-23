@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, Clock, Loader2, MailX, MailWarning, ShieldCheck, TriangleAlert, UserCheck, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,11 +12,12 @@ import { Label } from "@/components/ui/label";
 import { AuthCard, FieldError, ServerError, inputCls, primaryBtn } from "@/components/auth/auth-shell";
 import { PasswordInput, PasswordStrength } from "@/components/auth/password-fields";
 import { acceptExistingSchema, acceptNewSchema, type AcceptExistingValues, type AcceptNewValues } from "@/features/auth/schemas";
-import { acceptInvite, getInvitePreview, type InvitePreview } from "@/features/auth/api";
+import { acceptInvite, lookupInvite, type InviteInfo } from "@/features/auth/api";
 import { userStore } from "@/features/auth/user-store";
 import { hasValidSession } from "@/lib/api";
+import { useMounted } from "@/lib/use-mounted";
 
-type Load = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; invite: InvitePreview };
+type Load = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; invite: InviteInfo };
 
 /**
  * The page an invitation email links to: /accept-invite?token=...
@@ -35,7 +36,7 @@ export function AcceptInvite() {
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
-    getInvitePreview(token)
+    lookupInvite(token)
       .then((invite) => !cancelled && setLoad({ status: "ready", invite }))
       .catch((e) => !cancelled && setLoad({ status: "error", message: e instanceof Error ? e.message : "Could not check this invitation." }));
     return () => {
@@ -73,7 +74,7 @@ export function AcceptInvite() {
   if (invite.state === "expired") {
     return <Notice icon={Clock} title="This invitation has expired" text={`Invitations are valid for 7 days. Ask an Owner or Admin of ${org} to resend it, and use the new link in your email.`} />;
   }
-  if (invite.state === "revoked") {
+  if (invite.state === "cancelled") {
     return <Notice icon={MailX} title="This invitation was cancelled" text={`An admin of ${org} withdrew this invitation. If you think that's a mistake, ask them to invite you again.`} />;
   }
   if (invite.state === "accepted") {
@@ -105,15 +106,15 @@ function Notice({ icon: Icon, title, text, action }: { icon: LucideIcon; title: 
   );
 }
 
-function InviteForm({ token, invite }: { token: string; invite: InvitePreview }) {
+function InviteForm({ token, invite }: { token: string; invite: InviteInfo }) {
   const exists = !!invite.accountExists;
   const org = invite.organizationName ?? "the workspace";
   // signed in on this device as somebody else: accepting switches the device to the invited account
-  const [otherAccount, setOtherAccount] = useState<string | null>(null);
-  useEffect(() => {
-    const me = userStore.get();
-    if (hasValidSession() && me?.email && me.email.toLowerCase() !== (invite.email ?? "").toLowerCase()) setOtherAccount(me.email);
-  }, [invite.email]);
+  // (read from localStorage, so only after mount: the server render and the first client render must match)
+  const mounted = useMounted();
+  const me = mounted ? userStore.get() : null;
+  const otherAccount =
+    mounted && hasValidSession() && me?.email && me.email.toLowerCase() !== (invite.email ?? "").toLowerCase() ? me.email : null;
 
   return (
     <AuthCard
@@ -121,7 +122,7 @@ function InviteForm({ token, invite }: { token: string; invite: InvitePreview })
       subtitle={
         exists
           ? "You already have an account. Enter your password to join this workspace."
-          : `${invite.invitedBy ?? "A teammate"} invited you. Create your login to get started.`
+          : `${invite.inviterName ?? "A teammate"} invited you. Create your login to get started.`
       }
       footer={<Link href="/login" className="hover:text-[#818CF8]">Already joined? Sign in</Link>}
     >
@@ -153,7 +154,7 @@ function useFinish() {
   const run = async (v: { token: string; password: string; name?: string }) => {
     setError(null);
     try {
-      await acceptInvite(v, true);
+      await acceptInvite(v.token, v.password, v.name);
       router.replace("/overview");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not accept the invitation.");
@@ -166,8 +167,8 @@ function NewForm({ token }: { token: string }) {
   const { error, run } = useFinish();
   const [showPw, setShowPw] = useState(false);
   const [showCpw, setShowCpw] = useState(false);
-  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<AcceptNewValues>({ resolver: zodResolver(acceptNewSchema) });
-  const pw = watch("password") ?? "";
+  const { register, handleSubmit, control, formState: { errors, isSubmitting } } = useForm<AcceptNewValues>({ resolver: zodResolver(acceptNewSchema) });
+  const pw = useWatch({ control, name: "password" }) ?? "";
 
   return (
     <form onSubmit={handleSubmit((v) => run({ token, name: v.name, password: v.password }))} className="flex flex-col gap-4" noValidate>

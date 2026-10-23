@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Crown, Loader2 } from "lucide-react";
 import { cn } from "cn";
@@ -35,15 +35,17 @@ export function TransferOwnershipDialog({
   const [error, setError] = useState<string | null>(null);
   const [doneName, setDoneName] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    setSelectedId(initialId && candidates.some((m) => m.id === initialId) ? initialId : null);
-    setError(null);
-    setBusy(false);
-    setDoneName(null);
-    // only when the dialog opens
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  // Reset the form each time the dialog opens (adjusting state while rendering, not in an effect).
+  const [wasOpen, setWasOpen] = useState(false);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setSelectedId(initialId && candidates.some((m) => m.id === initialId) ? initialId : null);
+      setError(null);
+      setBusy(false);
+      setDoneName(null);
+    }
+  }
 
   const selected = candidates.find((m) => m.id === selectedId) ?? null;
 
