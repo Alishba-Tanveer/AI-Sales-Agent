@@ -12,11 +12,12 @@ const STEP_TONES: Tone[] = ["info", "violet", "warning", "primary", "success"];
 export function PageHeader({ title, description, actions }: { title: string; description: string; actions?: React.ReactNode }) {
   return (
     <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-      <div className="min-w-0 space-y-1">
+      <div className="min-w-0 space-y-1 sm:min-w-72 sm:flex-1">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
         <p className="text-sm text-muted-foreground">{description}</p>
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+      {/* Buttons wrap onto a second line rather than squeezing the title */}
+      {actions && <div className="flex flex-wrap items-center gap-2 sm:justify-end">{actions}</div>}
     </header>
   );
 }

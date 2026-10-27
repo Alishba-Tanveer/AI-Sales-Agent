@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Check, Clock, ClipboardCopy, ExternalLink, Eye, Heart, Lightbulb, Loader2, MessageSquare, Pencil, Plus, Send, Target, TriangleAlert, UserPlus, Users, type LucideIcon } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, Clock, ClipboardCopy, ExternalLink, Eye, Heart, Lightbulb, Loader2, MessageSquare, Pencil, Plus, Search, Send, Target, TriangleAlert, Upload, UserPlus, Users, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { can, currentRole } from "@/lib/permissions";
@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CARD_HOVER, CARD_INNER, HOVER_BUTTONS, Field, Pill, SectionCard, TONES, initials, inputCls, type Tone } from "@/features/settings/components/settings-ui";
-import { bulkApproveLeads, createLead, fetchLeads, fetchStrategy, saveLeadNote, saveStrategy, sendLead, skipLead, markLeadSent } from "../api";
+import { bulkApproveLeads, createLead, discoverLeads, fetchLeads, fetchStrategy, importLeads, saveLeadNote, saveStrategy, sendLead, skipLead, markLeadSent, type ImportRow } from "../api";
 import { copyText, normalizeLinkedInProfileUrl, personSearchUrl } from "../links";
 import type { Lead, OutreachStrategy } from "../types";
 import { ConfirmDialog, HowItWorksDialog, IconTile, LinkButton, PageHeader, TabBar, fmtDate } from "./linkedin-ui";
@@ -49,6 +49,8 @@ export function Connections() {
   const [noteLead, setNoteLead] = useState<Lead | null>(null);
   const [strategyOpen, setStrategyOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [researching, setResearching] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [detail, setDetail] = useState<Lead | null>(null);
   const [confirm, setConfirm] = useState<{ kind: "skip" | "withdraw" | "bulk"; lead?: Lead } | null>(null);
@@ -153,6 +155,30 @@ export function Connections() {
     toast.success(`${l.name} added`);
   };
 
+  /** Throws on failure so the dialog stays open. */
+  const importPeople = async (rows: ImportRow[]) => {
+    const res = await importLeads(rows);
+    setLeads((cur) => [...res.leads, ...(cur ?? [])]);
+    changeTab(rows[0]?.source === "buyer" ? "buyers" : "engaged");
+    toast.success(`Imported ${res.importedCount} ${res.importedCount === 1 ? "person" : "people"}`);
+  };
+
+  /** Searches public sources for people matching the saved niche; only candidates with a cited LinkedIn link come back. */
+  const research = async () => {
+    setResearching(true);
+    try {
+      const res = await discoverLeads();
+      setLeads((cur) => [...res.leads, ...(cur ?? [])]);
+      changeTab("buyers");
+      if (res.discoveredCount > 0) toast.success(`Found ${res.discoveredCount} buyer candidate${res.discoveredCount === 1 ? "" : "s"} from ${res.researchSources.length} public sources.`);
+      else toast(`Checked ${res.researchSources.length} public sources but none named a person with a LinkedIn link. Try broadening your target audience.`);
+    } catch (e) {
+      toast.error(errMsg(e, "Could not research buyers right now."));
+    } finally {
+      setResearching(false);
+    }
+  };
+
   /** "Save note" on someone waiting for approval, or just save the message for someone already connected. */
   const submitNote = async (l: Lead, note: string) => {
     if (open(l)) {
@@ -181,6 +207,8 @@ export function Connections() {
         actions={
           <>
             <Button variant="outline" className={TONES.warning.btn} onClick={() => setHelpOpen(true)}><Lightbulb /> How it works</Button>
+            <Button variant="outline" className={TONES.violet.btn} onClick={research} disabled={researching}>{researching ? <Loader2 className="animate-spin" /> : <Search />} {researching ? "Researching…" : "Research buyers"}</Button>
+            <Button variant="outline" className={TONES.success.btn} onClick={() => setImportOpen(true)}><Upload /> Import</Button>
             <Button variant="outline" className={TONES.info.btn} onClick={() => setAddOpen(true)}><Plus /> Add person</Button>
             <Button onClick={() => setConfirm({ kind: "bulk" })} disabled={selected.size === 0}><Send /> Prepare notes ({selected.size})</Button>
           </>
@@ -325,6 +353,7 @@ export function Connections() {
       <NoteDialog lead={noteLead} onClose={() => setNoteLead(null)} onSend={submitNote} />
       {strategy && <StrategyDialog open={strategyOpen} onOpenChange={setStrategyOpen} value={strategy} onSave={submitStrategy} />}
       <AddPersonDialog open={addOpen} onOpenChange={setAddOpen} onAdd={addPerson} />
+      <ImportDialog open={importOpen} onOpenChange={setImportOpen} onImport={importPeople} />
       <LeadDialog lead={detail} onClose={() => setDetail(null)} onEditNote={(l) => { setDetail(null); setNoteLead(l); }} />
 
       <ConfirmDialog
@@ -555,6 +584,126 @@ function AddPersonDialog({ open, onOpenChange, onAdd }: { open: boolean; onOpenC
           <DialogFooter>
             <Button type="button" variant="ghost" disabled={busy} onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={busy}>{busy && <Loader2 className="animate-spin" />} Add person</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Splits CSV text into rows of cells; handles quoted cells with commas and "" escapes. */
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [], cell = "", quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (c === '"') quoted = false;
+      else cell += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") { row.push(cell.trim()); cell = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell.trim()); cell = "";
+      if (row.some(Boolean)) rows.push(row);
+      row = [];
+    } else cell += c;
+  }
+  row.push(cell.trim());
+  if (row.some(Boolean)) rows.push(row);
+  return rows;
+}
+
+type ParsedImport = { ready: Omit<ImportRow, "source">[]; problems: string[] };
+
+/** Columns are found by header name (name, role/title, company, url/profile), or read in that order when there is no header. */
+function readImport(text: string): ParsedImport {
+  const rows = parseCsv(text);
+  const head = (rows[0] ?? []).map((h) => h.toLowerCase());
+  const hasHeader = head.some((h) => /^(full ?)?name$/.test(h));
+  const col = (re: RegExp, fallback: number) => (hasHeader ? head.findIndex((h) => re.test(h)) : fallback);
+  const at = { name: col(/^(full ?)?name$/, 0), role: col(/role|title|position|headline/, 1), company: col(/company|organi[sz]ation|employer/, 2), url: col(/url|link|profile|linkedin/, 3) };
+  const ready: ParsedImport["ready"] = [];
+  const problems: string[] = [];
+  rows.slice(hasHeader ? 1 : 0).forEach((r, i) => {
+    const line = i + (hasHeader ? 2 : 1);
+    const get = (k: keyof typeof at) => (at[k] >= 0 ? r[at[k]]?.trim() ?? "" : "");
+    const name = get("name");
+    if (name.length < 2 || name.length > 120) return void problems.push(`Row ${line}: needs a name (2–120 characters).`);
+    const rawUrl = get("url");
+    const url = rawUrl ? normalizeLinkedInProfileUrl(rawUrl) : undefined;
+    if (rawUrl && !url) return void problems.push(`Row ${line} (${name}): “${rawUrl}” isn’t a LinkedIn profile link.`);
+    ready.push({ name, role: get("role") || undefined, company: get("company") || undefined, url: url || undefined });
+  });
+  return { ready, problems };
+}
+
+function ImportDialog({ open, onOpenChange, onImport }: { open: boolean; onOpenChange: (o: boolean) => void; onImport: (rows: ImportRow[]) => Promise<void> }) {
+  const [text, setText] = useState("");
+  const [source, setSource] = useState<ImportRow["source"]>("engaged");
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const parsed = useMemo(() => (text.trim() ? readImport(text) : null), [text]);
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    if (f.size > 1024 * 1024) return void toast.error("That file is larger than 1MB. Split it into smaller files.");
+    setText(await f.text());
+  };
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!parsed?.ready.length) return void toast.error("Add at least one person with a name.");
+    setBusy(true);
+    try {
+      const reason = source === "engaged" ? "Imported: engaged with your LinkedIn posts" : "Imported: target buyer from your list";
+      await onImport(parsed.ready.map((r) => ({ ...r, source, reason })));
+      setText("");
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(errMsg(err, "Could not import these people."));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <form onSubmit={submit} className="grid gap-4">
+          <DialogHeader>
+            <DialogTitle>Import people</DialogTitle>
+            <DialogDescription>Upload or paste a CSV with columns: name, role, company, LinkedIn link. A header row is optional.</DialogDescription>
+          </DialogHeader>
+          <Field label="Add them to" htmlFor="imp-src">
+            <div id="imp-src" role="radiogroup" className="grid grid-cols-2 gap-2">
+              {([["engaged", "People who engaged", Heart], ["buyer", "Target buyers", Target]] as const).map(([id, label, Icon]) => (
+                <button key={id} type="button" role="radio" aria-checked={source === id} onClick={() => setSource(id)}
+                  className={cn("flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring", source === id ? "border-primary bg-primary-soft text-primary" : "border-input text-foreground hover:bg-secondary/60")}>
+                  <Icon className="size-4" /> {label}
+                </button>
+              ))}
+            </div>
+          </Field>
+          <Field label="CSV" htmlFor="imp-csv" aside={<Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}><Upload /> Choose file</Button>}>
+            <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFile} className="sr-only" aria-label="Upload a CSV file" />
+            <Textarea id="imp-csv" rows={6} value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} className="font-mono text-xs"
+              placeholder={"name,role,company,url\nJane Doe,Head of Sales,Acme,linkedin.com/in/jane-doe"} />
+          </Field>
+          {parsed && (
+            <div className="grid gap-1.5 text-xs" aria-live="polite">
+              <p className="text-foreground"><b className="font-semibold">{parsed.ready.length}</b> ready to import{parsed.problems.length ? `, ${parsed.problems.length} skipped` : ""}.</p>
+              {parsed.problems.length > 0 && (
+                <ul className="max-h-24 list-disc overflow-y-auto pl-4 text-destructive">
+                  {parsed.problems.slice(0, 20).map((p) => <li key={p}>{p}</li>)}
+                </ul>
+              )}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">LinkedIn doesn’t let apps read who liked or commented, so export or copy those people yourself and import them here.</p>
+          <DialogFooter>
+            <Button type="button" variant="ghost" disabled={busy} onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" disabled={busy || !parsed?.ready.length}>{busy && <Loader2 className="animate-spin" />} Import {parsed?.ready.length || ""}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

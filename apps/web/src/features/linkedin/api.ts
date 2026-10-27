@@ -166,6 +166,17 @@ export const fetchLeads = async (): Promise<Lead[]> => (await api<{ leads: Lead[
 export const createLead = (v: { name: string; role?: string; company?: string; url: string }) =>
   unwrap(api<Res<Lead>>("/api/linkedin/leads", { method: "POST", body: json({ ...v, source: "buyer", status: "suggested" }) }));
 
+export type ImportRow = { name: string; role?: string; company?: string; url?: string; source: Lead["source"]; reason?: string };
+
+/** POST /api/linkedin/leads/import  { leads }  (people from a CSV the user exported; each lands in its chosen list as "Suggested") */
+export const importLeads = (leads: ImportRow[]) =>
+  unwrap(api<Res<{ importedCount: number; leads: Lead[] }>>("/api/linkedin/leads/import", { method: "POST", body: json({ leads }) }));
+
+/** POST /api/linkedin/leads/discover  ->  buyer candidates found in public sources (Tavily search + Gemini, can take up to a minute) */
+export type DiscoverResult = { discoveredCount: number; leads: Lead[]; researchSources: Array<{ title: string; url: string }> };
+export const discoverLeads = () =>
+  unwrap(api<Res<DiscoverResult>>("/api/linkedin/leads/discover", { method: "POST", body: json({}) }));
+
 /** Save a connection note for manual sending; does not send a LinkedIn invitation. */
 export const sendLead = (id: string, note?: string) =>
   unwrap(api<Res<Lead>>(`/api/linkedin/leads/${id}/send`, { method: "POST", body: json(note ? { note } : {}) }));
