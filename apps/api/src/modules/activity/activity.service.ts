@@ -7,9 +7,6 @@ export class ActivityService {
   constructor(private readonly activityRepository: ActivityRepository) {}
 
   async listActivity(organizationId: string, query?: ListActivityQuery) {
-    // Auto-seed realistic initial jobs if none exist yet
-    await this.activityRepository.seedDefaultJobsIfEmpty(organizationId);
-
     const logs = await this.activityRepository.list(organizationId, query);
 
     const formatted = logs.map((log: ActivityLog) => ({

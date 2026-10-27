@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { api, tokenStore } from "@/lib/api";
 import type { SignupValues } from "./schemas";
 import { userStore } from "./user-store";
@@ -22,6 +23,7 @@ export async function registerUser(v: SignupValues) {
   tokenStore.set(res.data.token, true);
   userStore.set(res.data.user, true);
   resetSetupReminder();
+  toast.dismiss();
   return res.data.user;
 }
 
@@ -33,6 +35,7 @@ export async function loginUser(email: string, password: string, remember = true
   tokenStore.set(res.data.token, remember);
   userStore.set(res.data.user, remember);
   resetSetupReminder();
+  toast.dismiss();
   return res.data.user;
 }
 
@@ -64,6 +67,7 @@ export async function acceptInvite(token: string, password: string, name?: strin
   tokenStore.set(res.data.token, true);
   userStore.set(res.data.user, true);
   resetSetupReminder();
+  toast.dismiss();
   return res.data.user;
 }
 
@@ -81,6 +85,7 @@ export async function logoutUser() {
     tokenStore.clear();
     userStore.clear();
     resetSetupReminder();
+  toast.dismiss();
   }
 }
 

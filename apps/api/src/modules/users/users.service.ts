@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { prisma } from "@ai-sales-agent/database";
 import { UsersRepository } from "./users.repository";
 import type { UpdateProfileInput, DeleteAccountInput } from "./users.schema";
 import { AppError } from "../../utils/app-error";
@@ -126,6 +127,16 @@ export class UsersService {
       }
     } else {
       await this.usersRepository.softDeleteUser(userId);
+      await prisma.inAppNotification.create({
+        data: {
+          organizationId: user.organizationId,
+          type: "team",
+          title: `${user.name} deactivated their account`,
+          body: `${user.name} (${user.email}) deactivated their account. It can be restored within 30 days.`,
+          read: false,
+          href: "/settings?tab=team",
+        },
+      });
     }
 
     if (token) {
