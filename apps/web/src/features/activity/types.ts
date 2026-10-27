@@ -9,7 +9,7 @@ export type ActivityTab = "all" | "running" | "failed" | "completed";
 
 /**
  * One background job the AI agent ran (or will run).
- * Proposed backend contract:  GET /api/activity  ->  { data: ActivityJob[] }  (newest first)
+ * GET /api/activity returns persisted activity records, newest first.
  */
 export type ActivityJob = {
   id: string;

@@ -124,8 +124,8 @@ export function TransferOwnershipDialog({
                     >
                       <PersonAvatar name={m.name} id={m.id} />
                       <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate text-sm font-medium text-foreground">{m.name}</span>
-                        <span className="truncate text-xs text-muted-foreground">{m.email} · {m.role}</span>
+                        <span className="[overflow-wrap:anywhere] text-sm font-medium text-foreground">{m.name}</span>
+                        <span className="[overflow-wrap:anywhere] text-xs text-muted-foreground">{m.email} · {m.role}</span>
                       </span>
                       <span className={cn("flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors", on ? "border-primary bg-primary text-primary-foreground" : "border-border text-transparent")}>
                         <Check className="size-3" />

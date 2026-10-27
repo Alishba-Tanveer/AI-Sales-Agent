@@ -35,9 +35,13 @@ export const analyzeProfileSchema = z.object({
     .optional(),
   headline: z.string().trim().max(500).optional(),
   about: z.string().trim().max(3000).optional(),
-  experience: z.string().trim().max(3000).optional(),
-  skills: z.string().trim().max(1000).optional(),
-  featured: z.string().trim().max(1000).optional(),
+  experience: z.string().trim().max(12000).optional(),
+  skills: z.string().trim().max(3000).optional(),
+  featured: z.string().trim().max(2000).optional(),
+});
+
+export const importProfilePdfSchema = z.object({
+  pdfBase64: z.string().min(20, "Choose your LinkedIn PDF first.").max(4_200_000, "That PDF is too large."),
 });
 
 export const updateSuggestionSchema = z.object({
@@ -122,8 +126,6 @@ export const updateContentSettingsSchema = z.object({
     .trim()
     .regex(/^\d{2}:\d{2}$/, "Pick a valid reminder time (HH:MM).")
     .optional(),
-  avatar: z.string().trim().min(1, "Enter an avatar name.").max(120).optional(),
-  heygenConnected: z.boolean().optional(),
 });
 
 export const updateContentSourcesSchema = z.object({
@@ -217,6 +219,5 @@ export const importLeadsSchema = z.object({
 export const connectAccountSchema = z.object({
   profileUrl: z.string().trim().optional(),
   accountName: z.string().trim().max(120).optional(),
-  avatar: z.string().trim().max(120).optional(),
   remindAt: z.string().trim().optional(),
 });

@@ -83,8 +83,8 @@ export function RemovedMembers({ onRestored }: { onRestored: () => void }) {
                           {initials(m.name)}
                         </div>
                         <div className="flex min-w-0 flex-col">
-                          <span className="truncate text-sm font-medium text-foreground">{m.name}</span>
-                          <span className="truncate text-xs text-muted-foreground">{m.email}</span>
+                          <span className="[overflow-wrap:anywhere] text-sm font-medium text-foreground">{m.name}</span>
+                          <span className="[overflow-wrap:anywhere] text-xs text-muted-foreground">{m.email}</span>
                         </div>
                       </div>
                     </TableCell>

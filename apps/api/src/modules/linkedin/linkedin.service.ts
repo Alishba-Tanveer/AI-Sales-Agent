@@ -1,18 +1,26 @@
-import { Prisma, prisma } from "@ai-sales-agent/database";
+import { Prisma, Role, prisma } from "@ai-sales-agent/database";
 import { AppError } from "../../utils/app-error";
 import {
   AuditHistoryEntry,
   buildSuggestionsForNiche,
   ContentSourceItem,
-  DEFAULT_SOURCES,
   linkedinRepository,
   ProfileContext,
   ProfileSuggestionItem,
+  SuggestionKey,
 } from "./linkedin.repository";
+import { notify } from "../../utils/notify";
+import { extractPdfText, parseLinkedInPdfText } from "./linkedin.pdf";
 import {
   normalizeLinkedInProfileUrl,
   normalizeWebUrl,
 } from "./linkedin.schema";
+import { generateGeminiJson } from "../../integrations/ai";
+import { createHash, randomBytes } from "node:crypto";
+import { env } from "../../config/env";
+import { linkedinAuthorizationUrl, exchangeLinkedinCode, linkedinUserInfo } from "../../integrations/linkedin";
+import { sealSecret } from "../../utils/secret-box";
+import { tavilySearch } from "../../integrations/tavily";
 
 /** Helper to extract a human name from a LinkedIn profile URL slug, e.g. "alishba-tanveer" -> "Alishba Tanveer" */
 function extractNameFromLinkedInUrl(url: string): string | null {
@@ -24,66 +32,13 @@ function extractNameFromLinkedInUrl(url: string): string | null {
   return cleaned.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-/** Fetches real-time live tech/business stories from TechCrunch RSS */
-async function fetchLiveTechNews(): Promise<
-  Array<{ title: string; link: string; date: string }>
-> {
-  try {
-    const res = await fetch("https://techcrunch.com/feed/", {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      },
-      signal: AbortSignal.timeout(3500),
-    });
-    if (!res.ok) return [];
-    const xml = await res.text();
-    const itemMatches = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 5);
-    const results = [];
-    const today = new Date().toISOString().slice(0, 10);
-
-    for (const m of itemMatches) {
-      const item = m[1];
-      const titleMatch =
-        item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) || item.match(/<title>(.*?)<\/title>/);
-      const linkMatch = item.match(/<link>(.*?)<\/link>/);
-      const pubDateMatch = item.match(/<pubDate>(.*?)<\/pubDate>/);
-
-      if (titleMatch && linkMatch) {
-        const cleanTitle = titleMatch[1]
-          .replace(/&#\d+;/g, "")
-          .replace(/&amp;/g, "&")
-          .trim();
-        results.push({
-          title: cleanTitle,
-          link: linkMatch[1].trim(),
-          date: pubDateMatch
-            ? new Date(pubDateMatch[1]).toISOString().slice(0, 10)
-            : today,
-        });
-      }
-    }
-    return results;
-  } catch {
-    return [];
-  }
-}
-
 export class LinkedinService {
   /* ========================================================================
    * 1. PROFILE OPTIMIZER
    * ======================================================================== */
 
-  private parseSuggestions(
-    raw: Prisma.JsonValue | null,
-    offer: string,
-    audience: string,
-    ctx?: ProfileContext,
-  ): ProfileSuggestionItem[] {
-    if (Array.isArray(raw) && raw.length > 0) {
-      return raw as unknown as ProfileSuggestionItem[];
-    }
-    return buildSuggestionsForNiche(offer, audience, ctx);
+  private parseSuggestions(raw: Prisma.JsonValue | null): ProfileSuggestionItem[] {
+    return Array.isArray(raw) ? (raw as unknown as ProfileSuggestionItem[]) : [];
   }
 
   private parseHistory(raw: Prisma.JsonValue | null): AuditHistoryEntry[] {
@@ -93,33 +48,53 @@ export class LinkedinService {
     return [];
   }
 
-  private formatProfileAnalysis(
-    config: {
-      id: string;
-      profileUrl: string | null;
-      offer: string;
-      audience: string;
-      latestScore: number;
-      latestReadAt: string | null;
-      suggestions: Prisma.JsonValue | null;
-    },
-    ctx?: ProfileContext,
-  ) {
-    const suggestions = this.parseSuggestions(config.suggestions, config.offer, config.audience, ctx);
+  private factsOf(config: { groundingFacts: Prisma.JsonValue | null }): Record<string, unknown> {
+    const g = config.groundingFacts;
+    return g && typeof g === "object" && !Array.isArray(g) ? (g as Record<string, unknown>) : {};
+  }
+
+  /** The profile text the person gave us (pasted or taken from their LinkedIn PDF). Never fetched from LinkedIn. */
+  private sectionsOf(config: { groundingFacts: Prisma.JsonValue | null }): Partial<Record<SuggestionKey, string>> {
+    const raw = this.factsOf(config).currentSections;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+    const out: Partial<Record<SuggestionKey, string>> = {};
+    for (const k of ["headline", "about", "experience", "skills", "featured"] as SuggestionKey[]) {
+      const v = (raw as Record<string, unknown>)[k];
+      if (typeof v === "string" && v.trim()) out[k] = v.trim();
+    }
+    return out;
+  }
+
+  /** Share of the changes the person marked as applied. 0 until they have read their profile. */
+  private scoreOf(suggestions: ProfileSuggestionItem[]): number {
+    if (!suggestions.length) return 0;
+    return Math.round((suggestions.filter((s) => s.done).length / suggestions.length) * 100);
+  }
+
+  private formatProfileAnalysis(config: {
+    id: string;
+    profileUrl: string | null;
+    offer: string;
+    audience: string;
+    latestScore: number;
+    latestReadAt: string | null;
+    suggestions: Prisma.JsonValue | null;
+    groundingFacts: Prisma.JsonValue | null;
+  }) {
+    const suggestions = this.parseSuggestions(config.suggestions);
     const doneKeys = suggestions.filter((s) => s.done).map((s) => s.key);
-    const readAt = config.latestReadAt || new Date().toISOString().slice(0, 10);
 
     return {
       id: config.id,
-      readAt,
+      /** false until the person has given us their profile text once */
+      hasAudit: suggestions.length > 0,
+      readAt: config.latestReadAt ?? "",
       profileUrl: config.profileUrl ?? "",
       offer: config.offer,
       audience: config.audience,
-      niche: {
-        offer: config.offer,
-        audience: config.audience,
-      },
-      score: config.latestScore,
+      niche: { offer: config.offer, audience: config.audience },
+      currentSections: this.sectionsOf(config),
+      score: this.scoreOf(suggestions),
       doneKeys,
       suggestions,
       recommendations: suggestions,
@@ -127,22 +102,29 @@ export class LinkedinService {
   }
 
   async getProfileAudit(organizationId: string) {
-    const [config, org, user] = await Promise.all([
-      linkedinRepository.getOrCreateConfig(organizationId),
-      prisma.organization.findUnique({ where: { id: organizationId } }),
-      prisma.user.findFirst({ where: { organizationId, deletedAt: null } }),
-    ]);
+    const config = await linkedinRepository.getOrCreateConfig(organizationId);
+    return this.formatProfileAnalysis(config);
+  }
 
-    const ctx: ProfileContext = {
-      personName: user?.name,
-      roleTitle: user?.roleTitle || undefined,
-      orgName: org?.name,
-      services: org?.services,
-      targetTitles: org?.targetTitles,
-      targetIndustries: org?.targetIndustries,
-    };
-
-    return this.formatProfileAnalysis(config, ctx);
+  /**
+   * Turns the pages of a LinkedIn "Save to PDF" file into the same text boxes the person would otherwise paste into.
+   * Nothing is analysed or saved here; the person checks the text first.
+   */
+  async importProfilePdf(base64: string) {
+    const clean = base64.replace(/^data:application\/pdf;base64,/, "").trim();
+    const buffer = Buffer.from(clean, "base64");
+    if (buffer.byteLength > 3 * 1024 * 1024) {
+      throw new AppError("That PDF is larger than 3MB. A LinkedIn profile PDF is normally far smaller.", 400);
+    }
+    const text = await extractPdfText(buffer);
+    const sections = parseLinkedInPdfText(text);
+    if (!sections.headline && !sections.about && !sections.experience && !sections.skills) {
+      throw new AppError(
+        "We couldn't find profile sections in that PDF. Make sure it is the PDF from LinkedIn’s “Save to PDF”, or paste the text instead.",
+        400,
+      );
+    }
+    return { sections };
   }
 
   async analyzeProfile(
@@ -162,20 +144,34 @@ export class LinkedinService {
     const [config, org, user] = await Promise.all([
       linkedinRepository.getOrCreateConfig(organizationId),
       prisma.organization.findUnique({ where: { id: organizationId } }),
-      prisma.user.findFirst({ where: { organizationId, deletedAt: null } }),
+      prisma.user.findFirst({ where: { organizationId, deletedAt: null, role: Role.OWNER } }),
     ]);
 
-    const fallbackOffer = org?.services?.length
-      ? org.services.join(", ")
-      : config.offer;
-    const fallbackAudience = org?.targetTitles?.length
-      ? `${org.targetTitles.join(", ")} at ${org?.targetIndustries?.join(", ") || "SaaS"} companies`
-      : config.audience;
+    // Text from this request wins; a section left empty keeps what the person gave us last time.
+    const saved = this.sectionsOf(config);
+    const given: Partial<Record<SuggestionKey, string>> = {
+      headline: input.headline?.trim() || saved.headline,
+      about: input.about?.trim() || saved.about,
+      experience: input.experience?.trim() || saved.experience,
+      skills: input.skills?.trim() || saved.skills,
+      featured: input.featured?.trim() || saved.featured,
+    };
+    if (!given.headline && !given.about && !given.experience && !given.skills) {
+      throw new AppError(
+        "Paste at least one part of your current LinkedIn profile (headline, About, experience or skills), or upload your LinkedIn PDF.",
+        400,
+      );
+    }
 
+    const fallbackOffer = org?.services?.length ? org.services.join(", ") : config.offer;
+    const fallbackAudience = org?.targetTitles?.length
+      ? `${org.targetTitles.join(", ")}${org.targetIndustries?.length ? ` at ${org.targetIndustries.join(", ")}` : ""}`
+      : config.audience;
     const offer = (input.offer ?? input.niche?.offer ?? fallbackOffer).trim();
     const audience = (input.audience ?? input.niche?.audience ?? fallbackAudience).trim();
 
-    let cleanUrl = config.profileUrl ?? "https://www.linkedin.com/in/me";
+    // The link is optional now (it only builds the "Open LinkedIn" shortcuts); nothing is read from it.
+    let cleanUrl = config.profileUrl ?? "";
     if (input.profileUrl !== undefined && input.profileUrl.trim() !== "") {
       const normalized = normalizeLinkedInProfileUrl(input.profileUrl);
       if (!normalized) {
@@ -187,30 +183,18 @@ export class LinkedinService {
       cleanUrl = normalized;
     }
 
-    const extractedName = extractNameFromLinkedInUrl(cleanUrl);
-    const personName = extractedName || user?.name || "Growth Leader";
-    const roleTitle = user?.roleTitle || "Full Stack Engineer & Tech Lead";
-    const orgName = org?.name || "AI Sales Agent";
-
     const ctx: ProfileContext = {
-      personName,
-      roleTitle,
-      orgName,
+      personName: user?.name,
+      roleTitle: user?.roleTitle && user.roleTitle !== "Chief Growth Officer & Co-Founder" ? user.roleTitle : undefined,
+      orgName: org?.name,
       services: org?.services,
       targetTitles: org?.targetTitles,
       targetIndustries: org?.targetIndustries,
-      currentSections: {
-        headline: input.headline,
-        about: input.about,
-        experience: input.experience,
-        skills: input.skills,
-        featured: input.featured,
-      },
+      currentSections: given,
     };
 
     const suggestions = buildSuggestionsForNiche(offer, audience, ctx);
     const readAt = new Date().toISOString().slice(0, 10);
-    const score = 78;
 
     const history = this.parseHistory(config.auditHistory);
     const newEntry: AuditHistoryEntry = {
@@ -218,34 +202,30 @@ export class LinkedinService {
       profileUrl: cleanUrl,
       offer,
       audience,
-      score,
+      score: 0,
       readAt,
       doneCount: 0,
       totalCount: suggestions.length,
       createdAt: new Date().toISOString(),
     };
 
-    const existingFacts =
-      config.groundingFacts && typeof config.groundingFacts === "object" && !Array.isArray(config.groundingFacts)
-        ? (config.groundingFacts as Record<string, unknown>)
-        : {};
-
     const updated = await linkedinRepository.updateConfig(organizationId, {
-      profileUrl: cleanUrl,
+      profileUrl: cleanUrl || null,
       offer,
       audience,
-      latestScore: score,
+      latestScore: 0,
       latestReadAt: readAt,
       suggestions: suggestions as unknown as Prisma.InputJsonValue,
       auditHistory: [newEntry, ...history.slice(0, 19)] as unknown as Prisma.InputJsonValue,
       groundingFacts: {
-        ...existingFacts,
+        ...this.factsOf(config),
         offer,
         audience,
+        currentSections: given,
       } as unknown as Prisma.InputJsonValue,
     });
 
-    return this.formatProfileAnalysis(updated, ctx);
+    return this.formatProfileAnalysis(updated);
   }
 
   async updateRecommendation(
@@ -260,7 +240,7 @@ export class LinkedinService {
     },
   ) {
     const config = await linkedinRepository.getOrCreateConfig(organizationId);
-    const suggestions = this.parseSuggestions(config.suggestions, config.offer, config.audience);
+    const suggestions = this.parseSuggestions(config.suggestions);
 
     const idx = suggestions.findIndex((s) => s.key === keyOrId || s.id === keyOrId || s.section === keyOrId);
     if (idx === -1) {
@@ -276,13 +256,7 @@ export class LinkedinService {
           : patch.status === "pending" || patch.status === "dismissed"
             ? false
             : current.done;
-
-    const nextStatus =
-      patch.status !== undefined
-        ? patch.status
-        : nextDone
-          ? "applied"
-          : "pending";
+    const nextStatus = patch.status !== undefined ? patch.status : nextDone ? "applied" : "pending";
 
     suggestions[idx] = {
       ...current,
@@ -291,14 +265,21 @@ export class LinkedinService {
       ...(patch.why !== undefined ? { why: patch.why } : {}),
       done: nextDone,
       status: nextStatus,
+      appliedAt: nextDone ? (current.appliedAt ?? new Date().toISOString()) : undefined,
     };
 
-    const doneCount = suggestions.filter((s) => s.done).length;
-    const latestScore = Math.min(100, 78 + doneCount * 4);
+    // When a change is applied, the new text IS the person's current profile text from now on, so they never
+    // have to paste it back in. Un-ticking puts back what they originally gave us.
+    const facts = this.factsOf(config);
+    const sections = { ...this.sectionsOf(config) };
+    if (nextDone && !current.done) {
+      sections[suggestions[idx].key] = suggestions[idx].suggested;
+    }
 
     const updated = await linkedinRepository.updateConfig(organizationId, {
       suggestions: suggestions as unknown as Prisma.InputJsonValue,
-      latestScore,
+      latestScore: this.scoreOf(suggestions),
+      groundingFacts: { ...facts, currentSections: sections } as unknown as Prisma.InputJsonValue,
     });
 
     return {
@@ -307,34 +288,27 @@ export class LinkedinService {
     };
   }
 
+  /** Marks the listed changes as applied. `keys` is required: an empty request must never mark everything done. */
   async markRecommendationsApplied(organizationId: string, input: { keys?: string[]; key?: string }) {
+    const wanted = input.keys?.length ? input.keys : input.key ? [input.key] : [];
+    if (!wanted.length) {
+      throw new AppError("Say which change you applied.", 400);
+    }
     const config = await linkedinRepository.getOrCreateConfig(organizationId);
-    const suggestions = this.parseSuggestions(config.suggestions, config.offer, config.audience);
+    const targetKeys = new Set(wanted);
+    const now = new Date().toISOString();
+    const sections = { ...this.sectionsOf(config) };
 
-    const targetKeys = input.keys?.length
-      ? new Set(input.keys)
-      : input.key
-        ? new Set([input.key])
-        : null;
-
-    const updatedSuggestions = suggestions.map((s) => {
-      const shouldMark = targetKeys
-        ? targetKeys.has(s.key) || targetKeys.has(s.id)
-        : s.status === "accepted" || s.done || targetKeys === null;
-      if (!shouldMark) return s;
-      return {
-        ...s,
-        done: true,
-        status: "applied" as const,
-      };
+    const updatedSuggestions = this.parseSuggestions(config.suggestions).map((s) => {
+      if (!(targetKeys.has(s.key) || targetKeys.has(s.id))) return s;
+      if (!s.done) sections[s.key] = s.suggested;
+      return { ...s, done: true, status: "applied" as const, appliedAt: s.appliedAt ?? now };
     });
-
-    const doneCount = updatedSuggestions.filter((s) => s.done).length;
-    const latestScore = Math.min(100, 78 + doneCount * 4);
 
     const updated = await linkedinRepository.updateConfig(organizationId, {
       suggestions: updatedSuggestions as unknown as Prisma.InputJsonValue,
-      latestScore,
+      latestScore: this.scoreOf(updatedSuggestions),
+      groundingFacts: { ...this.factsOf(config), currentSections: sections } as unknown as Prisma.InputJsonValue,
     });
 
     return this.formatProfileAnalysis(updated);
@@ -442,43 +416,7 @@ export class LinkedinService {
     let rows = await linkedinRepository.findScripts(organizationId);
     const config = await linkedinRepository.getOrCreateConfig(organizationId);
 
-    // If there are fewer than 2 needs_approval scripts, try fetching live RSS stories from TechCrunch
-    const pendingCount = rows.filter((r) => r.status === "needs_approval").length;
-    if (pendingCount <= 1) {
-      try {
-        const liveArticles = await fetchLiveTechNews();
-        for (const item of liveArticles.slice(0, 3)) {
-          const alreadyExists = rows.some(
-            (r) => r.title.toLowerCase() === item.title.toLowerCase() || r.sourceUrl === item.link,
-          );
-          if (!alreadyExists) {
-            const hook = `Here is what founders need to know about ${item.title.toLowerCase().slice(0, 70)}.`;
-            const points = [
-              "Enterprise automation and AI compute continue to accelerate across industries.",
-              "Teams adopting automated outbound workflows are closing deals faster with smaller teams.",
-              "Focusing on personalized messages beats high-volume spray-and-pray every time.",
-            ];
-            const cta = "Follow me for daily breakdowns on AI, automation, and outbound growth.";
-            const created = await linkedinRepository.createScript(organizationId, {
-              status: "needs_approval",
-              draftNo: 1,
-              source: "TechCrunch",
-              sourceUrl: item.link,
-              date: item.date,
-              title: item.title,
-              hook,
-              points,
-              cta,
-              seconds: 40,
-              words: 100,
-            });
-            rows.unshift(created);
-          }
-        }
-      } catch {
-        // Fallback: continue with existing scripts
-      }
-    }
+    // News and scripts are created explicitly by refreshNews/createScript, never seeded on page load.
 
     // Sort custom added topics ("Your topic") newest-first at the top
     const sorted = [...rows].sort((a, b) => {
@@ -524,12 +462,23 @@ export class LinkedinService {
     return {
       scripts: filtered,
       counts,
-      settings: {
-        remindAt: config.remindAt,
-        avatar: config.avatar,
-        heygenConnected: config.heygenConnected,
-      },
+      settings: { remindAt: config.remindAt },
     };
+  }
+
+  async refreshNews(organizationId: string) {
+    const config = await linkedinRepository.getOrCreateConfig(organizationId);
+    if (!config.offer.trim() || !config.audience.trim()) throw new AppError("Add both your niche and target audience in Profile Optimizer before searching for news.", 400);
+    const query = `latest news for ${config.audience} about ${config.offer}`;
+    const results = await tavilySearch({ query, topic: "news", maxResults: 5, timeRange: "week" });
+    const rows = await linkedinRepository.findScripts(organizationId);
+    const created = [];
+    for (const item of results) {
+      if (rows.some((row) => row.sourceUrl === item.url)) continue;
+      const draft = await this.createScript(organizationId, { topic: item.title, source: new URL(item.url).hostname.replace(/^www\./, ""), sourceUrl: item.url, sourceContent: item.content });
+      created.push(draft);
+    }
+    return { count: created.length, scripts: created, sources: results.map(({title,url,publishedDate}) => ({title,url,publishedDate})) };
   }
 
   async getScriptById(organizationId: string, id: string) {
@@ -550,35 +499,44 @@ export class LinkedinService {
       cta?: string;
       source?: string;
       sourceUrl?: string;
+      sourceContent?: string;
     },
   ) {
-    const title = (input.topic ?? input.title ?? "").trim();
-    const hook =
-      input.hook?.trim() || `Here is what most people get wrong about ${title.toLowerCase()}.`;
-    const points =
-      input.points && input.points.length > 0
-        ? input.points
-        : [
-            "The key fact your audience should know.",
-            "One example from your own work.",
-            "What to do about it this week.",
-          ];
-    const cta = input.cta?.trim() || "Follow me for a new tip every day.";
+    let title = (input.topic ?? input.title ?? "").trim();
+    const config = await linkedinRepository.getOrCreateConfig(organizationId);
+    if (!config.offer.trim() || !config.audience.trim()) throw new AppError("Set both your niche and target audience in Profile Optimizer before writing account-specific content.", 400);
+    let source = input.source?.trim() || "Your topic";
+    let sourceUrl = input.sourceUrl?.trim() ?? "";
+    let grounding = "";
+    if (sourceUrl) {
+      grounding = `Use only these verified source notes: ${title} (${sourceUrl}). ${input.sourceContent ?? ""}`;
+    } else if (source !== "Your topic") {
+      throw new AppError("A source URL is required for a news-based script.", 400);
+    }
+    const result = await generateGeminiJson<{title:string;hook:string;points:string[];cta:string}>( {
+      system: "Write a concise LinkedIn vertical-video script. Return JSON with title, hook, points (2-4 strings), cta. Do not invent statistics, quotations, events, or user credentials. For news, use only the provided source notes and make claims traceable to them. For a user topic, frame advice as general guidance, not a reported fact.",
+      prompt: JSON.stringify({ niche: { offer: config.offer, audience: config.audience }, topic: title, sourceNotes: grounding || undefined, instruction: "Keep it in the user's account voice, useful to their stated audience, under 120 words." }),
+    });
+    title = result.title?.trim() || title;
+    const hook = result.hook?.trim();
+    const points = Array.isArray(result.points) ? result.points.map((p) => String(p).trim()).filter(Boolean).slice(0,4) : [];
+    const cta = result.cta?.trim();
+    if (!title || !hook || points.length < 2 || !cta) throw new AppError("The script provider returned an incomplete draft. Please try again.", 502);
     const words = [hook, ...points, cta].join(" ").split(/\s+/).filter(Boolean).length;
     const seconds = Math.max(10, Math.round(words / 2.5));
 
     const created = await linkedinRepository.createScript(organizationId, {
       status: "needs_approval",
       draftNo: 1,
-      source: input.source?.trim() || "Your topic",
-      sourceUrl: input.sourceUrl?.trim() ?? "",
+      source,
+      sourceUrl,
       date: new Date().toISOString().slice(0, 10),
       title,
       hook,
       points,
       cta,
-      seconds: input.points ? seconds : 40,
-      words: input.points ? words : 100,
+      seconds,
+      words,
     });
 
     return this.formatScript(created);
@@ -676,7 +634,7 @@ export class LinkedinService {
       input?.scheduledFor || input?.scheduledAt || `${tomorrow}T${remindAt}:00`;
 
     const updated = await linkedinRepository.updateScript(organizationId, id, {
-      status: input?.readyImmediately ? "ready" : "creating_video",
+      status: "ready",
       scheduledFor,
     });
 
@@ -706,20 +664,16 @@ export class LinkedinService {
       throw new AppError("Content script not found", 404);
     }
 
-    const cleanHook = existing.hook.replace(/^(Here is a fresh angle:\s*)+/i, "");
-    const nextHook = `Here is a fresh angle: ${cleanHook}`;
-    const words = [nextHook, ...existing.points, existing.cta]
-      .join(" ")
-      .split(/\s+/)
-      .filter(Boolean).length;
-
-    const updated = await linkedinRepository.updateScript(organizationId, id, {
-      draftNo: existing.draftNo + 1,
-      hook: nextHook,
-      words,
-      seconds: Math.max(10, Math.round(words / 2.5)),
+    const revised = await generateGeminiJson<{hook:string;points:string[];cta:string}>({
+      system: "Rewrite a LinkedIn video script with a fresh angle. Return JSON hook, points (2-4 strings), cta. Keep news claims strictly within source text; do not invent facts, stats, or quotes.",
+      prompt: JSON.stringify({ title: existing.title, source: existing.source, sourceUrl: existing.sourceUrl, current: { hook: existing.hook, points: existing.points, cta: existing.cta }, niche: ((cfg) => ({ offer: cfg.offer, audience: cfg.audience }))(await linkedinRepository.getOrCreateConfig(organizationId)), direction: "Keep it concise and relevant to this account's audience." }),
     });
-
+    if (!revised.hook || !revised.cta || !Array.isArray(revised.points) || revised.points.length < 2) throw new AppError("The script provider returned an incomplete rewrite.", 502);
+    const words = [revised.hook, ...revised.points, revised.cta].join(" ").split(/\s+/).filter(Boolean).length;
+    const updated = await linkedinRepository.updateScript(organizationId, id, {
+      draftNo: existing.draftNo + 1, hook: revised.hook, points: revised.points.slice(0,4), cta: revised.cta,
+      words, seconds: Math.max(10, Math.round(words / 2.5)),
+    });
     return this.formatScript(updated);
   }
 
@@ -776,7 +730,19 @@ export class LinkedinService {
       const scripts = await linkedinRepository.findScripts(organizationId);
       for (const s of scripts) {
         if (s.postUrl === urlToMatch || (input.scriptId && s.id === input.scriptId)) {
+          const firstTime = !s.postDeleted;
           await linkedinRepository.updateScript(organizationId, s.id, { postDeleted: true });
+          if (firstTime) {
+            // Content is worked on by everyone, so everyone hears that a published post is gone (once per post).
+            await notify({
+              organizationId,
+              type: "failure",
+              title: "A LinkedIn post was removed",
+              body: `The post "${s.title}" is no longer on LinkedIn. Check it in the Content Engine.`,
+              href: "/linkedin?tab=content",
+              audience: "ALL",
+            });
+          }
         }
       }
     };
@@ -802,43 +768,35 @@ export class LinkedinService {
         return { status: "deleted" };
       }
     } catch {
-      // Network/CORS/login wall fallback: treat non-deleted URLs as live
+      return { status: "unknown" };
     }
 
-    return { status: "live" };
+    return { status: "unknown" };
   }
 
   async getContentSettings(organizationId: string) {
     const config = await linkedinRepository.getOrCreateConfig(organizationId);
     return {
       remindAt: config.remindAt,
-      avatar: config.avatar,
-      heygenConnected: config.heygenConnected,
     };
   }
 
   async updateContentSettings(
     organizationId: string,
-    input: { remindAt?: string; avatar?: string; heygenConnected?: boolean },
+    input: { remindAt?: string },
   ) {
     const updated = await linkedinRepository.updateConfig(organizationId, {
       ...(input.remindAt !== undefined ? { remindAt: input.remindAt } : {}),
-      ...(input.avatar !== undefined ? { avatar: input.avatar } : {}),
-      ...(input.heygenConnected !== undefined ? { heygenConnected: input.heygenConnected } : {}),
+
     });
     return {
       remindAt: updated.remindAt,
-      avatar: updated.avatar,
-      heygenConnected: updated.heygenConnected,
     };
   }
 
   async getContentSources(organizationId: string): Promise<ContentSourceItem[]> {
     const config = await linkedinRepository.getOrCreateConfig(organizationId);
-    if (Array.isArray(config.contentSources) && config.contentSources.length > 0) {
-      return config.contentSources as unknown as ContentSourceItem[];
-    }
-    return DEFAULT_SOURCES;
+    return Array.isArray(config.contentSources) ? config.contentSources as unknown as ContentSourceItem[] : [];
   }
 
   async updateContentSources(organizationId: string, sources: ContentSourceItem[]) {
@@ -853,49 +811,29 @@ export class LinkedinService {
     return normalized;
   }
 
-  async handleHeygenWebhook(payload: { scriptId?: string; videoId?: string; status?: string; videoUrl?: string }) {
-    if (!payload.scriptId) {
-      return { processed: false };
-    }
-    const script = await prisma.linkedinScript.findUnique({
-      where: { id: payload.scriptId },
-    });
-    if (!script) {
-      return { processed: false };
-    }
-    const updated = await prisma.linkedinScript.update({
-      where: { id: script.id },
-      data: {
-        status: payload.status === "failed" ? "needs_approval" : "ready",
-      },
-    });
-    return { processed: true, script: this.formatScript(updated) };
-  }
 
   /* ========================================================================
    * 3. ENGAGEMENT & CONNECTIONS + OUTREACH STRATEGY
    * ======================================================================== */
 
   async getStrategy(organizationId: string) {
-    const [config, org, settings] = await Promise.all([
+    const [config, org, workspaceSettings] = await Promise.all([
       linkedinRepository.getOrCreateConfig(organizationId),
       prisma.organization.findUnique({ where: { id: organizationId } }),
       prisma.workspaceSettings.findUnique({ where: { organizationId } }),
     ]);
 
-    const dynamicWho = org?.targetTitles?.length
-      ? `${org.targetTitles.join(", ")} at ${org?.targetIndustries?.join(", ") || "B2B SaaS"} companies, 50-500 employees`
-      : config.strategyWho;
+    const dynamicWho = config.strategyAgreedOn ? config.strategyWho : org?.targetTitles?.length
+      ? `${org.targetTitles.join(", ")}${org.targetIndustries?.length ? ` at ${org.targetIndustries.join(", ")}` : ""}`
+      : config.strategyWho || "Decision-makers in your target market";
 
-    const dynamicMsg = org?.services?.length
-      ? `Hi {first_name}, I saw your post on {topic}. At ${org.name || "our company"}, we help ${org.targetIndustries?.[0] || "B2B"} teams with ${org.services[0]}. Would love to connect!`
-      : config.strategyMessage;
+    const dynamicMsg = config.strategyMessage || "Hi {first_name}, I noticed your work at {company}. I help {audience} with {offer} and would value connecting to exchange ideas.";
 
-    const perDay = settings?.dailyCap || config.strategyPerDay || 15;
-    const followUpDays = settings?.intervalDays || config.strategyFollowUpDays || 3;
+    const perDay = config.strategyPerDay || workspaceSettings?.dailyCap || 5;
+    const followUpDays = config.strategyFollowUpDays || workspaceSettings?.intervalDays || 3;
 
     return {
-      agreedOn: config.strategyAgreedOn || new Date().toISOString().slice(0, 10),
+      agreedOn: config.strategyAgreedOn,
       who: dynamicWho,
       perDay,
       message: dynamicMsg,
@@ -1053,6 +991,8 @@ export class LinkedinService {
       note?: string;
     },
   ) {
+    const config = await linkedinRepository.getOrCreateConfig(organizationId);
+    const org = await prisma.organization.findUnique({ where: { id: organizationId } });
     let cleanUrl: string | undefined;
     if (input.url && input.url.trim() !== "") {
       const normalized = normalizeLinkedInProfileUrl(input.url);
@@ -1063,6 +1003,16 @@ export class LinkedinService {
     }
 
     const firstName = input.name.trim().split(/\s+/)[0] || input.name.trim();
+    const audience = config.audience.trim() || org?.targetTitles?.join(", ") || "people in your industry";
+    const offer = config.offer.trim() || org?.services?.join(", ") || "my work";
+    const personalizedNote = (config.strategyMessage || "Hi {first_name}, I noticed your work at {company}. I help {audience} with {offer} and would value connecting to exchange ideas.")
+      .replace(/\{first_name\}/gi, firstName)
+      .replace(/\{name\}/gi, input.name.trim())
+      .replace(/\{company\}/gi, input.company?.trim() || "your company")
+      .replace(/\{role\}/gi, input.role?.trim() || "your work")
+      .replace(/\{audience\}/gi, audience)
+      .replace(/\{offer\}/gi, offer)
+      .replace(/\{industry\}/gi, org?.targetIndustries?.join(", ") || "your industry");
     const created = await linkedinRepository.createLead(organizationId, {
       name: input.name.trim(),
       role: input.role?.trim() || "—",
@@ -1071,7 +1021,7 @@ export class LinkedinService {
       status: input.status || "suggested",
       reasonKind: input.reasonKind || "fit",
       reason: input.reason?.trim() || "Added by you",
-      note: input.note?.trim() || `Hi ${firstName}, I'd love to connect.`,
+      note: input.note?.trim() || personalizedNote,
       url: cleanUrl ?? null,
     });
 
@@ -1136,22 +1086,20 @@ export class LinkedinService {
       throw new AppError("Connection lead not found", 404);
     }
 
-    const today = new Date().toISOString().slice(0, 10);
-    const sentToday = allRows.filter(
-      (l) => l.status === "pending" && l.sentAt === today && l.id !== id,
-    ).length;
-
-    if (sentToday >= config.strategyPerDay) {
-      throw new AppError(`Daily limit of ${config.strategyPerDay} requests reached.`, 429);
-    }
-
     const updated = await linkedinRepository.updateLead(id, {
-      status: "pending",
-      sentAt: today,
+      status: "approved",
+      sentAt: null,
       ...(note !== undefined ? { note: note.trim() } : {}),
     });
 
     return this.formatLead(updated);
+  }
+
+  async markLeadSent(organizationId: string, id: string) {
+    const existing=await linkedinRepository.findLeadById(organizationId,id);
+    if(!existing) throw new AppError("Connection lead not found",404);
+    if(existing.status!=="approved") throw new AppError("Prepare and review the note before marking an invitation sent.",409);
+    return this.updateLead(organizationId,id,{status:"pending",sentAt:new Date().toISOString().slice(0,10)});
   }
 
   async bulkApproveLeads(organizationId: string, ids: string[]) {
@@ -1160,21 +1108,12 @@ export class LinkedinService {
       linkedinRepository.findLeads(organizationId),
     ]);
 
-    const today = new Date().toISOString().slice(0, 10);
-    const todaysCount = allRows.filter((l) => l.status === "pending" && l.sentAt === today).length;
-    const limit = config.strategyPerDay;
-    const room = Math.max(0, limit - todaysCount);
-
     const validIds = allRows.filter((l) => ids.includes(l.id)).map((l) => l.id);
-    const goIds = validIds.slice(0, room);
-
-    if (goIds.length === 0) {
-      throw new AppError(`Daily limit of ${limit} requests reached.`, 429);
-    }
+    const goIds = validIds;
 
     await linkedinRepository.updateManyLeads(organizationId, goIds, {
-      status: "pending",
-      sentAt: today,
+      status: "approved",
+      sentAt: null,
     });
 
     const { leads } = await this.listLeads(organizationId);
@@ -1182,8 +1121,8 @@ export class LinkedinService {
       approvedIds: goIds,
       sentCount: goIds.length,
       requestedCount: ids.length,
-      dailyLimit: limit,
-      limitReached: goIds.length < ids.length,
+      dailyLimit: config.strategyPerDay,
+      limitReached: false,
       leads,
     };
   }
@@ -1210,38 +1149,25 @@ export class LinkedinService {
       prisma.organization.findUnique({ where: { id: organizationId } }),
     ]);
 
-    const targetTitle = org?.targetTitles?.[0] || "VP of Sales";
-    const targetIndustry = org?.targetIndustries?.[0] || "B2B SaaS";
-
-    const discovered = [
-      {
-        name: "Liam O'Connor",
-        role: targetTitle,
-        company: "ScaleOps AI",
-        source: "buyer" as const,
-        status: "suggested" as const,
-        reasonKind: "fit" as const,
-        reason: `Matches your target: ${targetTitle}, ${targetIndustry}, 120 employees`,
-        note: `Hi Liam, I saw your work at ScaleOps AI. At ${org?.name || "our company"}, we help ${targetIndustry} teams with ${org?.services?.[0] || "outbound automation"}. Would love to connect.`,
-      },
-      {
-        name: "Sophia Martinez",
-        role: org?.targetTitles?.[1] || "Head of Revenue",
-        company: "DataPulse",
-        source: "buyer" as const,
-        status: "suggested" as const,
-        reasonKind: "fit" as const,
-        reason: `Matches your target: ${org?.targetTitles?.[1] || "Head of Revenue"}, ${targetIndustry}, 85 employees`,
-        note: `Hi Sophia, saw your team's expansion at DataPulse. Would love to share insights on ${org?.services?.[0] || "sales growth"}.`,
-      },
-    ];
-
+    const targetTitle = org?.targetTitles?.join(" OR ") || config.audience;
+    const industry = org?.targetIndustries?.join(" OR ") || config.offer;
+    if (!targetTitle && !industry) throw new AppError("Set your buyer titles or niche before researching prospects.", 400);
+    const hits = await tavilySearch({ query: `publicly identified ${targetTitle} ${industry} buyer leaders company`, topic: "general", maxResults: 8 });
+    const sourceNotes = hits.map((h, i) => ({ id: i, title: h.title, url: h.url, excerpt: h.content }));
+    const candidates = await generateGeminiJson<Array<{name:string;role:string;company:string;profileUrl:string;sourceIndex:number;reason:string}>>({
+      system: "Extract only real named people and companies explicitly present in the provided search excerpts. Never guess or fill missing names, titles, employers, LinkedIn URLs or fit. Return [] when evidence is insufficient. Each result must cite a sourceIndex and a profileUrl that appears verbatim in that source excerpt.",
+      prompt: JSON.stringify({ target: { titles: targetTitle, industries: industry }, sources: sourceNotes }),
+    });
     const created = [];
-    for (const d of discovered) {
-      const lead = await this.createLead(organizationId, d);
+    for (const candidate of Array.isArray(candidates) ? candidates : []) {
+      const hit = hits[candidate.sourceIndex];
+      if (!hit || !candidate.name || !candidate.role || !candidate.company || !candidate.profileUrl || !hit.content.includes(candidate.profileUrl)) continue;
+      const profileUrl = normalizeLinkedInProfileUrl(candidate.profileUrl);
+      if (!profileUrl) continue;
+      const lead = await this.createLead(organizationId, { name: candidate.name, role: candidate.role, company: candidate.company, url: profileUrl, source: "buyer", status: "suggested", reason: `${candidate.reason} Source: ${hit.url}` });
       created.push(lead);
     }
-    return { discoveredCount: created.length, leads: created };
+    return { discoveredCount: created.length, leads: created, researchSources: hits.map(({title,url}) => ({title,url})) };
   }
 
   async importLeads(
@@ -1314,61 +1240,43 @@ export class LinkedinService {
 
   async getAccount(organizationId: string) {
     const config = await linkedinRepository.getOrCreateConfig(organizationId);
-    return {
-      connected: config.accountConnected,
-      profileUrl: config.profileUrl ?? "https://www.linkedin.com/in/me",
-      accountName: config.accountName ?? "Connected LinkedIn Profile",
-      heygenConnected: config.heygenConnected,
-      avatar: config.avatar,
-      remindAt: config.remindAt,
-    };
+    return { connected: config.accountConnected, profileUrl: config.profileUrl ?? "", accountName: config.accountName ?? "", canPublish: config.linkedinScopes.includes("w_member_social") };
   }
 
-  async connectAccount(
-    organizationId: string,
-    input: {
-      profileUrl?: string;
-      accountName?: string;
-      avatar?: string;
-      remindAt?: string;
-    },
-  ) {
-    let cleanUrl: string | undefined;
-    if (input.profileUrl && input.profileUrl.trim() !== "") {
-      const normalized = normalizeLinkedInProfileUrl(input.profileUrl);
-      if (!normalized) {
-        throw new AppError("That doesn’t look like a LinkedIn profile link.", 400);
-      }
-      cleanUrl = normalized;
-    }
-
-    const updated = await linkedinRepository.updateConfig(organizationId, {
-      accountConnected: true,
-      ...(cleanUrl ? { profileUrl: cleanUrl } : {}),
-      ...(input.accountName ? { accountName: input.accountName.trim() } : {}),
-      ...(input.avatar ? { avatar: input.avatar.trim(), heygenConnected: true } : {}),
-      ...(input.remindAt ? { remindAt: input.remindAt.trim() } : {}),
-    });
-
-    return {
-      connected: updated.accountConnected,
-      profileUrl: updated.profileUrl ?? "https://www.linkedin.com/in/me",
-      accountName: updated.accountName ?? "Connected LinkedIn Profile",
-      heygenConnected: updated.heygenConnected,
-      avatar: updated.avatar,
-      remindAt: updated.remindAt,
-    };
+  async beginLinkedinOAuth(organizationId: string, actorId: string) {
+    if (!env.ENCRYPTION_KEY || !/^[0-9a-f]{64}$/i.test(env.ENCRYPTION_KEY)) throw new AppError("Configure a 32-byte hexadecimal ENCRYPTION_KEY before connecting LinkedIn.", 503);
+    const state = randomBytes(32).toString("base64url");
+    await linkedinRepository.updateConfig(organizationId, { oauthStateHash: createHash("sha256").update(state).digest("hex"), oauthStateExpiresAt: new Date(Date.now()+10*60*1000), oauthStateUserId: actorId });
+    try { return { authorizationUrl: linkedinAuthorizationUrl(state) }; }
+    catch (error) { await linkedinRepository.updateConfig(organizationId, { oauthStateHash: null, oauthStateExpiresAt: null, oauthStateUserId: null }); throw new AppError((error as Error).message,503); }
   }
 
-  async disconnectAccount(organizationId: string) {
-    const updated = await linkedinRepository.updateConfig(organizationId, {
-      accountConnected: false,
-    });
-    return {
-      connected: updated.accountConnected,
-      profileUrl: updated.profileUrl,
-    };
+  async completeLinkedinOAuth(state: string, code: string) {
+    if (!state || !code) throw new AppError("LinkedIn authorization was cancelled or incomplete.",400);
+    const digest=createHash("sha256").update(state).digest("hex");
+    const config=await prisma.linkedinConfig.findFirst({ where:{ oauthStateHash:digest } });
+    if (!config || !config.oauthStateExpiresAt || config.oauthStateExpiresAt < new Date()) throw new AppError("LinkedIn authorization expired. Start the connection again.",400);
+    await linkedinRepository.updateConfig(config.organizationId,{ oauthStateHash:null,oauthStateExpiresAt:null,oauthStateUserId:null });
+    try {
+      const token=await exchangeLinkedinCode(code);
+      const member=await linkedinUserInfo(token.access_token);
+      const updated=await linkedinRepository.updateConfig(config.organizationId,{
+        accountConnected:true, accountName:member.name ?? member.given_name ?? "LinkedIn member",
+        linkedinMemberUrn:`urn:li:person:${member.sub}`, linkedinAccessToken:sealSecret(token.access_token),
+        linkedinRefreshToken:token.refresh_token?sealSecret(token.refresh_token):null,
+        linkedinTokenExpiresAt:new Date(Date.now()+token.expires_in*1000), linkedinScopes:["openid","profile","email","w_member_social"],
+        ...(member.picture ? {} : {}),
+      });
+      return { connected:updated.accountConnected, accountName:updated.accountName };
+    } catch(error) { throw new AppError((error as Error).message,502); }
   }
+
+  async disconnectAccount(organizationId: string, actorId?: string) {
+    const updated = await linkedinRepository.updateConfig(organizationId, { accountConnected:false, linkedinMemberUrn:null, linkedinAccessToken:null, linkedinRefreshToken:null, linkedinTokenExpiresAt:null, linkedinScopes:[], oauthStateHash:null, oauthStateExpiresAt:null, oauthStateUserId:null });
+    await notify({ organizationId,type:"failure",title:"LinkedIn account disconnected",body:"LinkedIn is disconnected. Posting and account-linked actions are unavailable until you reconnect.",href:"/linkedin",audience:"OWNER_ADMIN",exceptUserId:actorId });
+    return { connected:updated.accountConnected, profileUrl:updated.profileUrl ?? "" };
+  }
+
 }
 
 export const linkedinService = new LinkedinService();

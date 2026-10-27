@@ -168,8 +168,8 @@ export function DeleteAccountDialog({ open, onOpenChange }: { open: boolean; onO
                   >
                     <PersonAvatar name={m.name} id={m.id} />
                     <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-sm font-medium text-foreground">{m.name}</span>
-                      <span className="truncate text-xs text-muted-foreground">{m.email}</span>
+                      <span className="[overflow-wrap:anywhere] text-sm font-medium text-foreground">{m.name}</span>
+                      <span className="[overflow-wrap:anywhere] text-xs text-muted-foreground">{m.email}</span>
                     </span>
                     <Pill tone="muted">{m.role}</Pill>
                     <span className={cn("flex size-4 shrink-0 items-center justify-center rounded-full border-2", on ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/60")}>

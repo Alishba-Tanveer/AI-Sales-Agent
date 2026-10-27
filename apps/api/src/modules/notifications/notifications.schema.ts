@@ -19,14 +19,5 @@ export const updateNotificationSchema = z.object({
   read: z.boolean(),
 });
 
-export const createNotificationSchema = z.object({
-  type: notificationTypeSchema.default("system"),
-  title: z.string().min(1),
-  body: z.string().min(1),
-  read: z.boolean().default(false),
-  href: z.string().nullable().optional(),
-});
-
 export type ListNotificationsQuery = z.infer<typeof listNotificationsQuerySchema>;
 export type UpdateNotificationInput = z.infer<typeof updateNotificationSchema>;
-export type CreateNotificationInput = z.infer<typeof createNotificationSchema>;

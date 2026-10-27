@@ -35,7 +35,8 @@ export class SettingsController {
       }
       const data = await this.settingsService.saveOutreach(
         req.user.organizationId,
-        parseResult.data
+        parseResult.data,
+        req.user.userId
       );
       res.status(200).json({
         message: "Outreach strategy saved",
@@ -58,7 +59,8 @@ export class SettingsController {
       }
       const data = await this.settingsService.approveOutreach(
         req.user.organizationId,
-        parseResult.data
+        parseResult.data,
+        req.user.userId
       );
       res.status(200).json({
         message: "Outreach strategy saved and approved",
@@ -93,7 +95,8 @@ export class SettingsController {
       }
       const data = await this.settingsService.saveApprovalRules(
         req.user.organizationId,
-        parseResult.data
+        parseResult.data,
+        req.user.userId
       );
       res.status(200).json({
         message: "Approval rules saved",

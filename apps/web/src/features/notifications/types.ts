@@ -1,7 +1,7 @@
 export type NotificationType = "reply" | "approval" | "failure" | "lead" | "team" | "system";
 
 /**
- * Proposed backend contract:  GET /api/notifications  ->  { data: AppNotification[] }  (newest first)
+ * Backend contract:  GET /api/notifications  ->  { data: AppNotification[] }  (newest first, only what THIS person may see)
  *                             PATCH /api/notifications/:id { read }   POST /api/notifications/read-all
  *                             DELETE /api/notifications/:id           DELETE /api/notifications
  */

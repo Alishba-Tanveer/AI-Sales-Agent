@@ -165,10 +165,10 @@ function Item({ n, now, onOpen }: { n: AppNotification; now: number; onOpen: (n:
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex items-center gap-2">
-            <span className={cn("truncate text-sm text-foreground", n.read ? "font-medium" : "font-semibold")}>{n.title}</span>
+            <span className={cn("[overflow-wrap:anywhere] text-sm text-foreground", n.read ? "font-medium" : "font-semibold")}>{n.title}</span>
             {!n.read && <span className="size-2 shrink-0 rounded-full bg-primary" aria-label="Unread" />}
           </span>
-          <span className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">{n.body}</span>
+          <span className="[overflow-wrap:anywhere] text-xs leading-relaxed text-muted-foreground">{n.body}</span>
           <span className="mt-0.5 text-[11px] text-muted-foreground/80">{relativeTime(n.at, now)}</span>
         </span>
       </button>

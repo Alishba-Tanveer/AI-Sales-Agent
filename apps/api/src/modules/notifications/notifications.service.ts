@@ -1,125 +1,81 @@
-import { NotificationsRepository } from "./notifications.repository";
 import type { InAppNotification } from "@ai-sales-agent/database";
-import type { ListNotificationsQuery, CreateNotificationInput } from "./notifications.schema";
+import { NotificationsRepository } from "./notifications.repository";
+import type { ListNotificationsQuery } from "./notifications.schema";
 import { AppError } from "../../utils/app-error";
+import { decodeType } from "../../utils/notification-audience";
 
-function isNotificationAllowedForRole(n: InAppNotification, role: string): boolean {
-  const normRole = (role || "").toUpperCase();
-  if (normRole === "OWNER") return true;
-
-  // Usage & billing is Owner only
-  if (n.href?.includes("tab=usage")) return false;
-
-  if (normRole === "ADMIN") {
-    // Admin can see team, integrations, settings, leads, replies, approvals, etc.
-    return true;
-  }
-
-  // MEMBER: cannot manage team, integrations, or workspace settings
-  if (n.type === "team") return false;
+/**
+ * New notifications are written once per recipient by utils/notify.ts, so the right people are already chosen when
+ * the row is created. This filter only covers older shared rows (no "@" in the type), using the same role rules as before.
+ */
+function legacyRowAllowedForRole(n: InAppNotification, role: string): boolean {
+  const r = (role || "").toUpperCase();
+  if (r === "OWNER") return true;
+  if (n.href?.includes("tab=usage")) return false; // usage and billing: Owner only
+  if (r === "ADMIN") return true;
+  if (n.type === "team") return false; // Members never see team changes
   if (n.href?.includes("tab=team")) return false;
   if (n.href?.includes("/integrations")) return false;
   if (n.href === "/settings") return false;
-
   return true;
+}
+
+function toDto(n: InAppNotification, read = n.read) {
+  return {
+    id: n.id,
+    type: decodeType(n.type).type,
+    title: n.title,
+    body: n.body,
+    at: n.createdAt.toISOString(),
+    read,
+    href: n.href ?? null,
+  };
+}
+
+export interface Viewer {
+  organizationId: string;
+  userId: string;
+  role: string;
 }
 
 export class NotificationsService {
   constructor(private readonly notificationsRepository: NotificationsRepository) {}
 
-  async listNotifications(organizationId: string, userRole: string = "MEMBER", query?: ListNotificationsQuery) {
-    const items = await this.notificationsRepository.list(organizationId, query);
-    const visibleItems = items.filter((n) => isNotificationAllowedForRole(n, userRole));
-    const unreadCount = visibleItems.filter((n) => !n.read).length;
-
-    const formatted = visibleItems.map((n: InAppNotification) => ({
-      id: n.id,
-      type: n.type,
-      title: n.title,
-      body: n.body,
-      at: n.createdAt.toISOString(),
-      read: n.read,
-      href: n.href ?? null,
-    }));
-
+  async listNotifications(viewer: Viewer, query?: ListNotificationsQuery) {
+    const items = await this.notificationsRepository.list(viewer.organizationId, viewer.userId, query);
+    const visible = items.filter((n) => decodeType(n.type).userId !== null || legacyRowAllowedForRole(n, viewer.role));
     return {
-      data: formatted,
-      unreadCount,
+      data: visible.map((n) => toDto(n)),
+      unreadCount: visible.filter((n) => !n.read).length,
     };
   }
 
-  async updateNotification(organizationId: string, id: string, read: boolean) {
-    const existing = await this.notificationsRepository.findById(id, organizationId);
-    if (!existing) {
-      throw new AppError("Notification not found", 404);
-    }
-
-    await this.notificationsRepository.updateRead(id, organizationId, read);
-
-    return {
-      data: {
-        id: existing.id,
-        type: existing.type,
-        title: existing.title,
-        body: existing.body,
-        at: existing.createdAt.toISOString(),
-        read,
-        href: existing.href ?? null,
-      },
-    };
+  async updateNotification(viewer: Viewer, id: string, read: boolean) {
+    const existing = await this.notificationsRepository.findById(id, viewer.organizationId, viewer.userId);
+    if (!existing) throw new AppError("Notification not found", 404);
+    await this.notificationsRepository.updateRead(id, viewer.organizationId, viewer.userId, read);
+    return { data: toDto(existing, read) };
   }
 
-  async markAllRead(organizationId: string) {
-    const res = await this.notificationsRepository.markAllRead(organizationId);
-    return {
-      success: true,
-      updatedCount: res.count,
-    };
+  async markAllRead(viewer: Viewer) {
+    const res = await this.notificationsRepository.markAllRead(viewer.organizationId, viewer.userId);
+    return { success: true, updatedCount: res.count };
   }
 
-  async dismissNotification(organizationId: string, id: string) {
-    const existing = await this.notificationsRepository.findById(id, organizationId);
-    if (!existing) {
-      throw new AppError("Notification not found", 404);
-    }
-
-    await this.notificationsRepository.delete(id, organizationId);
-
-    return {
-      success: true,
-      id,
-    };
+  async dismissNotification(viewer: Viewer, id: string) {
+    const existing = await this.notificationsRepository.findById(id, viewer.organizationId, viewer.userId);
+    if (!existing) throw new AppError("Notification not found", 404);
+    await this.notificationsRepository.delete(id, viewer.organizationId, viewer.userId);
+    return { success: true, id };
   }
 
-  async clearAll(organizationId: string) {
-    const res = await this.notificationsRepository.clearAll(organizationId);
-    return {
-      success: true,
-      deletedCount: res.count,
-    };
+  async clearAll(viewer: Viewer) {
+    const res = await this.notificationsRepository.clearAll(viewer.organizationId, viewer.userId);
+    return { success: true, deletedCount: res.count };
   }
 
-  async createNotification(organizationId: string, input: CreateNotificationInput) {
-    const created = await this.notificationsRepository.create(organizationId, input);
-    return {
-      data: {
-        id: created.id,
-        type: created.type,
-        title: created.title,
-        body: created.body,
-        at: created.createdAt.toISOString(),
-        read: created.read,
-        href: created.href ?? null,
-      },
-    };
-  }
-
-  async getUnreadCount(organizationId: string, userRole: string = "MEMBER") {
-    const res = await this.listNotifications(organizationId, userRole);
-    return {
-      data: {
-        unread: res.unreadCount,
-      },
-    };
+  async getUnreadCount(viewer: Viewer) {
+    const res = await this.listNotifications(viewer);
+    return { data: { unread: res.unreadCount } };
   }
 }

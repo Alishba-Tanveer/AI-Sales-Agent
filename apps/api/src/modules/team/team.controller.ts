@@ -72,10 +72,10 @@ export class TeamController {
 
   revokeInvitation: Handler = async (req, res, next) => {
     try {
-      const { organizationId, role } = this.auth(req);
+      const { organizationId, userId, role } = this.auth(req);
       res
         .status(200)
-        .json(await this.teamService.revokeInvitation(organizationId, role, String(req.params.id)));
+        .json(await this.teamService.revokeInvitation(organizationId, role, String(req.params.id), userId));
     } catch (err) {
       next(err);
     }
@@ -118,10 +118,10 @@ export class TeamController {
 
   restoreMember: Handler = async (req, res, next) => {
     try {
-      const { organizationId, role } = this.auth(req);
+      const { organizationId, userId, role } = this.auth(req);
       res
         .status(200)
-        .json(await this.teamService.restoreMember(organizationId, role, String(req.params.id)));
+        .json(await this.teamService.restoreMember(organizationId, role, String(req.params.id), userId));
     } catch (err) {
       next(err);
     }

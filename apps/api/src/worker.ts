@@ -1,8 +1,10 @@
-import { Worker } from "bullmq";
+import { Queue, Worker } from "bullmq";
+import { linkedinService } from "./modules/linkedin/linkedin.service";
 import IORedis from "ioredis";
 import { prisma } from "@ai-sales-agent/database";
 import { env } from "./config/env";
 import { RECOVERY_WINDOW_MS } from "./utils/account-rules";
+import { trackLinkedinActivity } from "./modules/activity/activity-logger";
 
 const connection = new IORedis(env.REDIS_URL, {
   maxRetriesPerRequest: null,
@@ -12,9 +14,21 @@ const worker = new Worker(
   "sales-agent-jobs",
   async (job) => {
     console.log(`Processing job ${job.id}: ${job.name}`);
-
-    // Sales research, email generation, and follow-up
-    // jobs will be implemented in later project steps.
+    if (job.name === "linkedin:daily-news") {
+      const configs = await prisma.linkedinConfig.findMany({ where: { offer: { not: "" }, audience: { not: "" } }, select: { organizationId: true } });
+      for (const config of configs) {
+        try {
+          await trackLinkedinActivity({
+            organizationId: config.organizationId,
+            kind: "research",
+            title: "Daily niche news research",
+            run: () => linkedinService.refreshNews(config.organizationId),
+            output: (value) => `Found ${value.sources.length} current sources and created ${value.count} new script drafts.`,
+          });
+        }
+        catch (error) { console.error(`[linkedin-news] ${config.organizationId}:`, (error as Error).message); }
+      }
+    }
   },
   { connection },
 );
@@ -72,5 +86,9 @@ const runPurge = () =>
   purgeExpiredAccounts().catch((err) => console.error("[purge] failed:", err));
 void runPurge();
 setInterval(runPurge, SIX_HOURS);
+
+const linkedinQueue = new Queue("sales-agent-jobs", { connection: new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null }) });
+void linkedinQueue.upsertJobScheduler("linkedin-daily-news", { pattern: "0 3 * * *" }, { name: "linkedin:daily-news" })
+  .catch((error) => console.error("[linkedin-news] scheduler setup failed:", (error as Error).message));
 
 console.log("Sales agent background worker started.");

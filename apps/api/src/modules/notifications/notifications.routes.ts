@@ -14,7 +14,7 @@ router.use(requireAuth);
 
 router.get("/", notificationsController.listNotifications);
 router.get("/unread-count", notificationsController.getUnreadCount);
-router.post("/", notificationsController.createNotification);
+// No public "create" route: only the server creates notifications (utils/notify.ts), so nobody can forge one.
 router.patch("/:id", notificationsController.updateNotification);
 router.patch("/:id/read", notificationsController.updateNotification);
 router.post("/read-all", notificationsController.markAllRead);

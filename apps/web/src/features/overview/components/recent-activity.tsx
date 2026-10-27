@@ -38,7 +38,7 @@ export function RecentActivity({ items }: { items: ActivityItem[] }) {
                     cls,
                   )}
                 />
-                <span className="truncate text-sm text-foreground">{item.text}</span>
+                <span className="[overflow-wrap:anywhere] text-sm text-foreground">{item.text}</span>
               </div>
               <span className="shrink-0 text-xs whitespace-nowrap text-muted-foreground transition-colors group-hover:text-foreground">
                 {timeAgo(item.at)}

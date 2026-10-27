@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { Role, prisma } from "@ai-sales-agent/database";
+import { Role } from "@ai-sales-agent/database";
 import { TeamRepository } from "./team.repository";
 import type {
   CreateInvitationInput,
@@ -12,7 +12,8 @@ import type {
 import { strongPasswordSchema } from "../auth/auth.schema";
 import { AppError } from "../../utils/app-error";
 import { env } from "../../config/env";
-import { sendTeamInviteEmail } from "../../utils/mailer";
+import { sendNoticeEmail, sendTeamInviteEmail } from "../../utils/mailer";
+import { notify } from "../../utils/notify";
 import {
   INVITE_TTL_MS,
   InviteStatus,
@@ -279,16 +280,16 @@ export class TeamService {
     const emailError = await this.deliverInvitation(invitation, invitedById, organizationId);
     const saved = { ...invitation, emailError };
 
-    await prisma.inAppNotification.create({
-      data: {
-        organizationId,
-        type: "team",
-        title: `Invitation sent to ${invitation.email}`,
-        body: `An invitation was sent to ${invitation.name} (${invitation.email}) to join as ${formatRoleLabel(invitation.role)}.`,
-        read: false,
-        href: "/settings?tab=team",
-      },
-    }).catch(() => {});
+    // Team changes are for Owner and Admins only (Members never see them). The person who invited already saw the result.
+    await notify({
+      organizationId,
+      type: "team",
+      title: `Invitation sent to ${invitation.email}`,
+      body: `${invitation.name} (${invitation.email}) was invited to join as ${formatRoleLabel(invitation.role)}.`,
+      href: "/settings?tab=team",
+      audience: "OWNER_ADMIN",
+      exceptUserId: invitedById,
+    });
 
     return {
       message: emailError
@@ -341,7 +342,8 @@ export class TeamService {
   async revokeInvitation(
     organizationId: string,
     currentUserRole: string,
-    invitationId: string
+    invitationId: string,
+    actorId?: string
   ) {
     this.assertCanManageTeam(currentUserRole);
 
@@ -357,6 +359,15 @@ export class TeamService {
     await this.teamRepository.updateInvitation(invite.id, {
       status: InviteStatus.CANCELLED,
       cancelledAt: new Date(),
+    });
+    await notify({
+      organizationId,
+      type: "team",
+      title: `Invitation to ${invite.email} was cancelled`,
+      body: `The invitation for ${invite.name} (${invite.email}) was cancelled, so the link no longer works.`,
+      href: "/settings?tab=team",
+      audience: "OWNER_ADMIN",
+      exceptUserId: actorId,
     });
     return { message: "Invitation revoked" };
   }
@@ -389,7 +400,28 @@ export class TeamService {
           403
         );
       }
+      const oldRole = member.role;
       const updated = await this.teamRepository.updateMemberRole(member.id, input.role);
+      if (oldRole !== updated.role) {
+        // The person whose role changed is told directly; Owner and Admins get a team note (nobody twice, not the actor).
+        await notify({
+          organizationId,
+          type: "team",
+          title: `Your role changed to ${formatRoleLabel(updated.role)}`,
+          body: `You were changed from ${formatRoleLabel(oldRole)} to ${formatRoleLabel(updated.role)}. What you can see and do in the workspace has changed with it.`,
+          href: "/overview",
+          audience: { userId: updated.id },
+        });
+        await notify({
+          organizationId,
+          type: "team",
+          title: `${updated.name} is now ${formatRoleLabel(updated.role)}`,
+          body: `${updated.name} (${updated.email}) was changed from ${formatRoleLabel(oldRole)} to ${formatRoleLabel(updated.role)}.`,
+          href: "/settings?tab=team",
+          audience: "OWNER_ADMIN",
+          exceptUserId: [currentUserId, updated.id],
+        });
+      }
       return {
         message: "Role updated",
         data: {
@@ -436,16 +468,24 @@ export class TeamService {
         );
       }
       await this.teamRepository.softDeleteMember(member.id, currentUserId);
-      await prisma.inAppNotification.create({
-        data: {
-          organizationId,
-          type: "team",
-          title: `${member.name} was removed from the team`,
-          body: `${member.name} (${member.email}) was removed from the team. They can be restored from Recently removed.`,
-          read: false,
-          href: "/settings?tab=team",
-        },
-      }).catch(() => {});
+      await notify({
+        organizationId,
+        type: "team",
+        title: `${member.name} was removed from the team`,
+        body: `${member.name} (${member.email}) was removed. They can be restored from Recently removed for the next 30 days.`,
+        href: "/settings?tab=team",
+        audience: "OWNER_ADMIN",
+        exceptUserId: currentUserId,
+      });
+      // A removed person can no longer sign in to see an in-app notification, so they are told by email.
+      void sendNoticeEmail({
+        toEmail: member.email,
+        subject: "You were removed from your workspace",
+        lines: [
+          `Hi ${member.name}, an admin removed your access to the workspace on AI Sales Agent.`,
+          "An Owner or Admin can restore your account for the next 30 days. If you think this was a mistake, ask them to restore you.",
+        ],
+      });
       const info = recoveryInfo(new Date());
       return {
         message: `${member.name} was removed. You can restore them for the next 30 days.`,
@@ -466,7 +506,7 @@ export class TeamService {
     throw new AppError("Team member not found", 404);
   }
 
-  async restoreMember(organizationId: string, currentUserRole: string, targetId: string) {
+  async restoreMember(organizationId: string, currentUserRole: string, targetId: string, actorId?: string) {
     this.assertCanManageTeam(currentUserRole);
 
     const user = await this.teamRepository.findRemovedById(targetId, organizationId);
@@ -485,16 +525,28 @@ export class TeamService {
     }
 
     const restored = await this.teamRepository.restoreMember(user.id);
-    await prisma.inAppNotification.create({
-      data: {
-        organizationId,
-        type: "team",
-        title: `${restored.name}'s account was restored`,
-        body: `${restored.name} (${restored.email}) was restored to the team as ${formatRoleLabel(restored.role)}.`,
-        read: false,
-        href: "/settings?tab=team",
-      },
-    }).catch(() => {});
+    await notify({
+      organizationId,
+      type: "team",
+      title: `${restored.name}'s account was restored`,
+      body: `${restored.name} (${restored.email}) was restored to the team as ${formatRoleLabel(restored.role)}.`,
+      href: "/settings?tab=team",
+      audience: "OWNER_ADMIN",
+      exceptUserId: [actorId ?? "", restored.id].filter(Boolean),
+    });
+    await notify({
+      organizationId,
+      type: "team",
+      title: "Your access was restored",
+      body: `An admin restored your account. You are back in the workspace as ${formatRoleLabel(restored.role)}.`,
+      href: "/overview",
+      audience: { userId: restored.id },
+    });
+    void sendNoticeEmail({
+      toEmail: restored.email,
+      subject: "Your workspace access was restored",
+      lines: [`Hi ${restored.name}, an admin restored your account. You can sign in again as ${formatRoleLabel(restored.role)}.`],
+    });
     return {
       message: `${restored.name} was restored to the team`,
       data: {
@@ -545,6 +597,44 @@ export class TeamService {
       owner.id,
       target.id
     );
+
+    // Ownership is the most sensitive change in the app, so the two people involved are told directly and
+    // every Admin is told too. Members are not told (it does not change what they can do).
+    await notify({
+      organizationId,
+      type: "team",
+      title: "You are now the workspace Owner",
+      body: `${previousOwner.name} transferred ownership to you. You now manage usage, billing and ownership.`,
+      href: "/settings?tab=team",
+      audience: { userId: newOwner.id },
+    });
+    await notify({
+      organizationId,
+      type: "team",
+      title: "You are now an Admin",
+      body: `You transferred ownership to ${newOwner.name}. You were signed out for safety. Sign in again as an Admin.`,
+      href: "/settings?tab=team",
+      audience: { userId: previousOwner.id },
+    });
+    await notify({
+      organizationId,
+      type: "team",
+      title: `${newOwner.name} is now the Owner`,
+      body: `${previousOwner.name} transferred ownership of the workspace to ${newOwner.name}.`,
+      href: "/settings?tab=team",
+      audience: "OWNER_ADMIN",
+      exceptUserId: [previousOwner.id, newOwner.id],
+    });
+    void sendNoticeEmail({
+      toEmail: newOwner.email,
+      subject: "You are now the workspace Owner",
+      lines: [`Hi ${newOwner.name}, ${previousOwner.name} transferred ownership of the workspace to you.`],
+    });
+    void sendNoticeEmail({
+      toEmail: previousOwner.email,
+      subject: "Ownership transferred",
+      lines: [`Hi ${previousOwner.name}, you transferred ownership to ${newOwner.name}. You are now an Admin. Sign in again to continue.`],
+    });
 
     return {
       message: `${newOwner.name} is now the Owner. You are now an Admin and have been signed out. Sign in again to continue.`,
@@ -735,16 +825,23 @@ export class TeamService {
       });
     }
 
-    await prisma.inAppNotification.create({
-      data: {
-        organizationId: invite.organizationId,
-        type: "team",
-        title: `${user.name} joined your workspace`,
-        body: `${user.name} (${user.email}) accepted the invitation and joined as ${formatRoleLabel(user.role)}.`,
-        read: false,
-        href: "/settings?tab=team",
-      },
-    }).catch(() => {});
+    await notify({
+      organizationId: invite.organizationId,
+      type: "team",
+      title: `${user.name} joined your workspace`,
+      body: `${user.name} (${user.email}) accepted the invitation and joined as ${formatRoleLabel(user.role)}.`,
+      href: "/settings?tab=team",
+      audience: "OWNER_ADMIN",
+      exceptUserId: user.id,
+    });
+    await notify({
+      organizationId: invite.organizationId,
+      type: "system",
+      title: `Welcome to ${user.organization.name}`,
+      body: `You joined as ${formatRoleLabel(user.role)}. Start with your overview, leads and approvals.`,
+      href: "/overview",
+      audience: { userId: user.id },
+    });
 
     const token = jwt.sign(
       {

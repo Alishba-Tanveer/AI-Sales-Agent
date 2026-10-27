@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, Clock, ClipboardCopy, ExternalLink, Eye, Heart, Lightbulb, Loader2, MessageSquare, Pencil, Plus, Send, Target, TriangleAlert, UserPlus, Users, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "cn";
+import { can, currentRole } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CARD_HOVER, CARD_INNER, HOVER_BUTTONS, Field, Pill, SectionCard, TONES, initials, inputCls, type Tone } from "@/features/settings/components/settings-ui";
-import { bulkApproveLeads, createLead, fetchLeads, fetchStrategy, saveLeadNote, saveStrategy, sendLead, skipLead } from "../api";
+import { bulkApproveLeads, createLead, fetchLeads, fetchStrategy, saveLeadNote, saveStrategy, sendLead, skipLead, markLeadSent } from "../api";
 import { copyText, normalizeLinkedInProfileUrl, personSearchUrl } from "../links";
 import type { Lead, OutreachStrategy } from "../types";
 import { ConfirmDialog, HowItWorksDialog, IconTile, LinkButton, PageHeader, TabBar, fmtDate } from "./linkedin-ui";
@@ -37,6 +38,7 @@ const avatarTone = (id: string, prevId?: string): Tone => {
 const REASON_TONE = { like: "text-destructive", comment: "text-sky-700 dark:text-sky-400", view: "text-violet-700 dark:text-violet-400", fit: "text-success" } as const;
 
 export function Connections() {
+  const canEditWorkspace = can.editWorkspaceSettings(currentRole());
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [strategy, setStrategy] = useState<OutreachStrategy | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -97,7 +99,7 @@ export function Connections() {
     try {
       replaceLead(await sendLead(l.id, note));
       unselect(l.id);
-      toast.success(`Request sent to ${l.name}`);
+      toast.success(`Connection note saved for ${l.name}. Send it manually on LinkedIn.`);
     } catch (e) {
       // e.g. "Daily limit of 15 requests reached."
       toast.error(errMsg(e, `Could not send the request to ${l.name}.`));
@@ -112,6 +114,7 @@ export function Connections() {
       toast.error(errMsg(e, `Could not skip ${l.name}.`));
     }
   };
+  const markSent = async (l:Lead) => { try { replaceLead(await markLeadSent(l.id)); toast.success(`Marked ${l.name} invitation as sent.`); } catch(e) { toast.error(errMsg(e,"Could not update this invitation.")); } };
   const withdraw = async (l: Lead) => {
     try {
       replaceLead(await skipLead(l.id, "withdraw"));
@@ -126,7 +129,7 @@ export function Connections() {
       const res = await bulkApproveLeads([...selected]);
       setLeads(res.leads);
       setSelected(new Set());
-      toast.success(`${res.sentCount} request${res.sentCount > 1 ? "s" : ""} sent${res.limitReached ? ` (daily limit of ${res.dailyLimit} reached)` : ""}`);
+      toast.success(`${res.sentCount} connection note${res.sentCount === 1 ? "" : "s"} saved for manual sending.`);
     } catch (e) {
       toast.error(errMsg(e, "Could not send the requests."));
     }
@@ -150,12 +153,12 @@ export function Connections() {
     toast.success(`${l.name} added`);
   };
 
-  /** "Save & send" on someone waiting for approval, or just save the message for someone already connected. */
+  /** "Save note" on someone waiting for approval, or just save the message for someone already connected. */
   const submitNote = async (l: Lead, note: string) => {
     if (open(l)) {
       replaceLead(await sendLead(l.id, note));
       unselect(l.id);
-      toast.success(`Request sent to ${l.name}`);
+      toast.success(`Connection note saved for ${l.name}. Send it manually on LinkedIn.`);
     } else {
       replaceLead(await saveLeadNote(l.id, note));
       toast.success(`Message saved for ${l.name}`);
@@ -174,12 +177,12 @@ export function Connections() {
     <main className={cn("mx-auto flex w-full max-w-[1280px] flex-col gap-6 p-6 lg:p-8", HOVER_BUTTONS)}>
       <PageHeader
         title="Engagement & Connections"
-        description="See who engages with your posts, find buyers in your niche, and approve who gets a connection request."
+        description="Research likely buyers from public sources, track contacts you import, and prepare connection notes for manual sending."
         actions={
           <>
             <Button variant="outline" className={TONES.warning.btn} onClick={() => setHelpOpen(true)}><Lightbulb /> How it works</Button>
             <Button variant="outline" className={TONES.info.btn} onClick={() => setAddOpen(true)}><Plus /> Add person</Button>
-            <Button onClick={() => setConfirm({ kind: "bulk" })} disabled={selected.size === 0}><Send /> Approve selected ({selected.size})</Button>
+            <Button onClick={() => setConfirm({ kind: "bulk" })} disabled={selected.size === 0}><Send /> Prepare notes ({selected.size})</Button>
           </>
         }
       />
@@ -187,12 +190,12 @@ export function Connections() {
       <SectionCard
         icon={Target}
         title="Outreach strategy"
-        description={strategy ? `Agreed on ${fmtDate(strategy.agreedOn)}. The agent follows this exactly.` : "Loading…"}
+        description={strategy ? `${strategy.agreedOn ? `Saved ${fmtDate(strategy.agreedOn)}.` : "Not agreed yet. Set your target and cadence before outreach."} Requests are manual.` : "Loading…"}
         tone="success"
         aside={
           <div className="flex items-center gap-2">
-            <Pill tone="success">Active</Pill>
-            <Button variant="outline" size="sm" className={TONES.violet.btn} onClick={() => setStrategyOpen(true)} disabled={!strategy}><Pencil /> Edit strategy</Button>
+            <Pill tone={strategy?.agreedOn ? "success" : "warning"}>{strategy?.agreedOn ? "Saved" : "Needs your agreement"}</Pill>
+            {canEditWorkspace && <Button variant="outline" size="sm" className={TONES.violet.btn} onClick={() => setStrategyOpen(true)} disabled={!strategy}><Pencil /> Edit strategy</Button>}
           </div>
         }
       >
@@ -210,8 +213,8 @@ export function Connections() {
               </p>
             </FactTile>
             <div className="grid gap-3 sm:grid-cols-2 lg:col-span-3 lg:grid-cols-1">
-              <StatTile icon={Send} tone="warning" label="How often" value={String(strategy.perDay)} unit="requests / day" />
-              <StatTile icon={Clock} tone="violet" label="Follow up after" value={String(strategy.followUpDays)} unit="days" />
+              <StatTile icon={Send} tone="warning" label="How often" value={strategy.perDay ? String(strategy.perDay) : "—"} unit="notes / day" />
+              <StatTile icon={Clock} tone="violet" label="Follow up after" value={strategy.followUpDays ? String(strategy.followUpDays) : "—"} unit="days" />
             </div>
           </div>
         ) : (
@@ -242,7 +245,7 @@ export function Connections() {
       ) : rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-card/50 p-10 text-center">
           <p className="text-sm font-medium text-foreground">No one here yet</p>
-          <p className="mt-1 text-sm text-muted-foreground">New people appear as they engage or match your target.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Import people who engaged with your posts, or search public sources for buyer candidates in your niche.</p>
         </div>
       ) : (
         <div className={cn("overflow-hidden rounded-xl border border-border bg-card", CARD_HOVER)}>
@@ -273,8 +276,8 @@ export function Connections() {
                         <div className="flex items-center gap-3">
                           <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-full border text-xs font-semibold", TONES[avatarTone(l.id, visible[i - 1]?.id)].tile)}>{initials(l.name)}</span>
                           <button type="button" onClick={() => setDetail(l)} className="min-w-0 cursor-pointer rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                            <p className="truncate font-medium text-foreground hover:text-primary">{l.name}</p>
-                            <p className="truncate text-xs text-muted-foreground">{l.role} · {l.company}</p>
+                            <p className="[overflow-wrap:anywhere] font-medium text-foreground hover:text-primary">{l.name}</p>
+                            <p className="[overflow-wrap:anywhere] text-xs text-muted-foreground">{l.role} · {l.company}</p>
                           </button>
                         </div>
                       </td>
@@ -293,12 +296,13 @@ export function Connections() {
                         <div className="flex justify-end gap-1.5">
                           {open(l) && (
                             <>
-                              <Button size="sm" onClick={() => send(l)}><UserPlus /> Approve &amp; send</Button>
+                              <Button size="sm" onClick={() => send(l)}><UserPlus /> Prepare connection notes</Button>
                               <Button size="sm" variant="outline" onClick={() => setNoteLead(l)}>Edit note</Button>
                               <Button size="sm" variant="ghost" onClick={() => setConfirm({ kind: "skip", lead: l })}>Skip</Button>
                             </>
                           )}
-                          {l.status === "pending" && <Button size="sm" variant="ghost" onClick={() => setConfirm({ kind: "withdraw", lead: l })}>Withdraw</Button>}
+                          {l.status === "approved" && <><Button size="sm" variant="outline" onClick={() => markSent(l)}>I sent it</Button><Button size="sm" variant="ghost" onClick={() => setNoteLead(l)}>Copy note</Button></>}
+                          {l.status === "pending" && <Button size="sm" variant="ghost" onClick={() => setConfirm({ kind: "withdraw", lead: l })}>Track withdrawal</Button>}
                           {l.status === "connected" && <Button size="sm" variant="outline" onClick={() => setNoteLead(l)}>Message</Button>}
                         </div>
                       </td>
@@ -350,9 +354,9 @@ export function Connections() {
         onOpenChange={(o) => !o && setConfirm(null)}
         tone="success"
         icon={Send}
-        title={`Send ${selected.size} connection request${selected.size === 1 ? "" : "s"}?`}
-        description={`Each person gets the note saved on their row. Your daily limit is ${strategy?.perDay ?? "—"} requests, and anything over that waits for tomorrow.`}
-        confirmLabel="Approve & send"
+        title={`Prepare ${selected.size} connection note${selected.size === 1 ? "" : "s"}?`}
+        description={`This saves personalized notes for your review. No request is sent automatically; open each profile and send it yourself on LinkedIn.`}
+        confirmLabel="Prepare notes"
         onConfirm={approveSelected}
       />
 
@@ -361,14 +365,14 @@ export function Connections() {
         onOpenChange={setHelpOpen}
         tone="info"
         title="How Connections works"
-        description="The agent finds people. You decide who gets a request."
+        description="Research and track contacts. You decide manually who to contact."
         steps={[
-          { title: "We find the right people", text: "People who liked, commented or viewed your profile, plus buyers that match your outreach strategy." },
-          { title: "You review the list", text: "Click a name to see why they are here. Edit the note, skip them, or approve." },
-          { title: "Approved requests go out", text: "We keep to your daily limit and follow up after the number of days in your strategy." },
-          { title: "Pending turns into Connected", text: "Once someone accepts, they move to the Connected tab, ready for a message." },
+          { title: "Find and import the right people", text: "Import contacts who engaged with you. Research buyers from public sources using your saved niche and target audience." },
+          { title: "You review the list", text: "Click a name to see why they are here. Edit the note, skip them, or prepare it for manual sending." },
+          { title: "Prepare notes for your review", text: "Copy a personalized note and send invitations yourself in LinkedIn. No automatic messages or campaigns." },
+          { title: "Track replies manually", text: "After the invitation is accepted, mark the person Connected here. The app does not read invitation events." },
         ]}
-        note="LinkedIn does not let apps send messages for you. Use Copy note on a person's popup and paste it into LinkedIn."
+        note="Standard LinkedIn self-serve permissions do not provide engagement-list access or general invitation sending. Import engagement contacts and handle invitations manually."
       />
     </main>
   );
@@ -394,7 +398,7 @@ function StatTile({ icon, tone, label, value, unit }: { icon: LucideIcon; tone: 
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
         <p className="mt-0.5 flex items-baseline gap-1.5">
           <span className="text-xl font-semibold tabular-nums text-foreground">{value}</span>
-          <span className="truncate text-xs text-muted-foreground">{unit}</span>
+          <span className="[overflow-wrap:anywhere] text-xs text-muted-foreground">{unit}</span>
         </p>
       </div>
     </div>
@@ -446,10 +450,10 @@ function NoteForm({ lead, onClose, onSend }: { lead: Lead; onClose: () => void; 
       <Field label="Note" htmlFor="note" aside={<span className={cn("text-xs", over ? "text-destructive" : "text-muted-foreground")}>{note.length}/300</span>}>
         <Textarea id="note" rows={5} value={note} onChange={(e) => setNote(e.target.value)} />
       </Field>
-      <p className="text-xs text-muted-foreground">LinkedIn does not let apps send from here. Copy your note into LinkedIn if you want to send it yourself.</p>
+      <p className="text-xs text-muted-foreground">Save your note here, then open the profile and send the invitation manually in LinkedIn.</p>
       <DialogFooter>
         <Button variant="ghost" disabled={busy} onClick={onClose}>Cancel</Button>
-        <Button disabled={over || !note.trim() || busy} onClick={submit}>{busy && <Loader2 className="animate-spin" />} {isOpen ? "Save & send" : "Save message"}</Button>
+        <Button disabled={over || !note.trim() || busy} onClick={submit}>{busy && <Loader2 className="animate-spin" />} {isOpen ? "Save note" : "Save message"}</Button>
       </DialogFooter>
     </div>
   );
@@ -475,7 +479,7 @@ function StrategyForm({ value, onCancel, onSave }: { value: OutreachStrategy; on
     e.preventDefault();
     const p = Number(perDay), d = Number(days);
     if (!who.trim() || !message.trim()) return void toast.error("Fill in who to target and what to say.");
-    if (!Number.isInteger(p) || p < 1 || p > 40) return void toast.error("Requests per day must be between 1 and 40.");
+    if (!Number.isInteger(p) || p < 1 || p > 40) return void toast.error("Daily target must be between 1 and 40.");
     if (!Number.isInteger(d) || d < 1 || d > 30) return void toast.error("Follow-up must be between 1 and 30 days.");
     setBusy(true);
     try {
@@ -489,14 +493,17 @@ function StrategyForm({ value, onCancel, onSave }: { value: OutreachStrategy; on
     <form onSubmit={submit} className="grid gap-4">
       <DialogHeader>
         <DialogTitle>Edit outreach strategy</DialogTitle>
-        <DialogDescription>The agent will follow this once you save it.</DialogDescription>
+        <DialogDescription>Set a target and cadence you agree with. The app prepares notes but does not send invitations.</DialogDescription>
       </DialogHeader>
       <Field label="Who to target" htmlFor="who"><Textarea id="who" rows={2} value={who} onChange={(e) => setWho(e.target.value)} /></Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Requests per day" htmlFor="perDay"><Input id="perDay" type="number" min={1} max={40} value={perDay} onChange={(e) => setPerDay(e.target.value)} className={inputCls} /></Field>
+        <Field label="Daily target" htmlFor="perDay"><Input id="perDay" type="number" min={1} max={40} value={perDay} onChange={(e) => setPerDay(e.target.value)} className={inputCls} /></Field>
         <Field label="Follow up after (days)" htmlFor="days"><Input id="days" type="number" min={1} max={30} value={days} onChange={(e) => setDays(e.target.value)} className={inputCls} /></Field>
       </div>
-      <Field label="What to say" htmlFor="msg"><Textarea id="msg" rows={3} value={message} onChange={(e) => setMessage(e.target.value)} /></Field>
+      <Field label="What to say" htmlFor="msg">
+        <Textarea id="msg" rows={3} value={message} onChange={(e) => setMessage(e.target.value)} />
+        <p className="text-xs text-muted-foreground">Personalization fields: {"{first_name}"}, {"{company}"}, {"{role}"}, {"{offer}"}, {"{audience}"}, {"{industry}"}. Review each note before sending it yourself.</p>
+      </Field>
       <DialogFooter>
         <Button type="button" variant="ghost" disabled={busy} onClick={onCancel}>Cancel</Button>
         <Button type="submit" disabled={busy}>{busy && <Loader2 className="animate-spin" />} Save strategy</Button>

@@ -3,8 +3,11 @@ export type SuggestionKey = "headline" | "about" | "experience" | "skills" | "fe
 
 export type ProfileSuggestion = {
   key: SuggestionKey;
-  /** set by the backend once the person marked this change as done */
+  /** set by the backend once the person marked this change as applied */
   done?: boolean;
+  /** false when the person did not give us this part of their profile, so there is nothing to compare against */
+  provided?: boolean;
+  appliedAt?: string;
   title: string;
   current: string;
   suggested: string;
@@ -20,11 +23,17 @@ export type ProfileAnalysis = {
   doneKeys: string[];
 };
 
-/** What the backend remembers from the last time the profile was read. */
+/** The parts of a LinkedIn profile the person gives us (pasted, or taken from their LinkedIn PDF). */
+export type ProfileSections = { headline: string; about: string; experience: string; skills: string };
+
+/** What the backend remembers from the last time the person gave us their profile. */
 export type SavedAudit = {
+  /** false until the person has given us their profile text once */
+  hasAudit: boolean;
   profileUrl: string;
   offer: string;
   audience: string;
+  sections: ProfileSections;
   analysis: ProfileAnalysis;
 };
 
@@ -57,7 +66,7 @@ export type ContentScript = {
 export type NewTopic = { topic: string };
 
 /** Posting settings shown at the top of the Content Engine. */
-export type ContentSettings = { remindAt: string; avatar: string; heygenConnected: boolean };
+export type ContentSettings = { remindAt: string };
 
 /* ---------- Engagement & Connections ---------- */
 export type LeadSource = "engaged" | "buyer";

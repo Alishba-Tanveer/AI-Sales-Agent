@@ -6,7 +6,7 @@
  *   Connections         /api/linkedin/strategy, /api/linkedin/leads/*
  */
 import { api as baseApi } from "@/lib/api";
-import type { ContentScript, ContentSettings, Lead, OutreachStrategy, NicheInput, ProfileAnalysis, SavedAudit } from "./types";
+import type { ContentScript, ContentSettings, Lead, OutreachStrategy, NicheInput, ProfileAnalysis, ProfileSections, SavedAudit } from "./types";
 
 // Link checking lives in ./links (accepts links with or without https://)
 export { isLinkedInProfileUrl, normalizeLinkedInProfileUrl } from "./links";
@@ -24,41 +24,74 @@ const unwrap = async <T,>(p: Promise<Res<T>>) => (await p).data;
 /* ======================= Profile Optimizer ======================= */
 
 type AuditDto = {
+  hasAudit: boolean;
   readAt: string;
   profileUrl: string;
   offer: string;
   audience: string;
+  currentSections?: Partial<ProfileSections>;
   doneKeys: string[];
   suggestions: ProfileAnalysis["suggestions"];
 };
 const toAudit = (d: AuditDto): SavedAudit => ({
+  hasAudit: d.hasAudit ?? d.suggestions?.length > 0,
   profileUrl: d.profileUrl ?? "",
   offer: d.offer ?? "",
   audience: d.audience ?? "",
-  analysis: { readAt: d.readAt, suggestions: d.suggestions, doneKeys: d.doneKeys ?? [] },
+  sections: {
+    headline: d.currentSections?.headline ?? "",
+    about: d.currentSections?.about ?? "",
+    experience: d.currentSections?.experience ?? "",
+    skills: d.currentSections?.skills ?? "",
+  },
+  analysis: { readAt: d.readAt, suggestions: d.suggestions ?? [], doneKeys: d.doneKeys ?? [] },
 });
 
 /**
  * GET /api/linkedin/profile
- * `profileUrl` is empty until the first profile read, so the page can tell "never read" from "read before".
+ * `hasAudit` is false until the person has given us their profile once, so the page can tell "first time" from "again".
  */
 export async function fetchSavedAudit(): Promise<SavedAudit> {
   return toAudit(await unwrap(api<Res<AuditDto>>("/api/linkedin/profile")));
 }
 
-/** POST /api/linkedin/profile/analyze  { profileUrl, offer, audience } */
-export async function analyzeProfile(profileUrl: string, niche: NicheInput): Promise<ProfileAnalysis> {
+/**
+ * POST /api/linkedin/profile/analyze  { profileUrl?, offer, audience, headline, about, experience, skills }
+ * LinkedIn does not let any app read a profile, so the text comes from the person (pasted, or from their PDF).
+ * The profile link is optional: it is only used to build the "Open LinkedIn" shortcuts.
+ */
+export async function analyzeProfile(profileUrl: string, niche: NicheInput, sections: ProfileSections): Promise<ProfileAnalysis> {
   const res = await unwrap(
     api<Res<AuditDto>>("/api/linkedin/profile/analyze", {
       method: "POST",
-      body: json({ profileUrl, offer: niche.offer, audience: niche.audience }),
+      body: json({ ...(profileUrl ? { profileUrl } : {}), offer: niche.offer, audience: niche.audience, ...sections }),
     }),
   );
   return toAudit(res).analysis;
 }
 
-/** PATCH /api/linkedin/profile/suggestions/:key  { done }  (remembers the tick between visits) */
+/** POST /api/linkedin/profile/import-pdf  { pdfBase64 }  ->  the text found in LinkedIn's "Save to PDF" file */
+export async function importProfilePdf(file: File): Promise<ProfileSections> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  const res = await unwrap(
+    api<Res<{ sections: ProfileSections }>>("/api/linkedin/profile/import-pdf", { method: "POST", body: json({ pdfBase64: btoa(binary) }) }),
+  );
+  return res.sections;
+}
+
+/**
+ * POST /api/linkedin/profile/recommendations/mark-applied  { keys }
+ * The applied text becomes the person's current text on the server, so they never paste it back in.
+ */
+export async function markApplied(keys: string[]) {
+  await api<Res<unknown>>("/api/linkedin/profile/recommendations/mark-applied", { method: "POST", body: json({ keys }) });
+}
+
+/** PATCH /api/linkedin/profile/suggestions/:key  { done: false }  (undo "Mark as applied") */
 export async function setSuggestionDone(key: string, done: boolean) {
+  if (done) return markApplied([key]);
   await api<Res<unknown>>(`/api/linkedin/profile/suggestions/${key}`, { method: "PATCH", body: json({ done }) });
 }
 
@@ -77,11 +110,15 @@ export async function checkPostStatus(postUrl?: string, scriptId?: string): Prom
 
 /* ======================= Content Engine ======================= */
 
-/** GET /api/linkedin/content/scripts  ->  scripts + the posting settings (reminder time, avatar) */
+/** GET /api/linkedin/content/scripts  ->  scripts + the posting settings (posting reminder) */
 export async function fetchContent(): Promise<{ scripts: ContentScript[]; settings: ContentSettings }> {
   const res = await api<{ scripts: ContentScript[]; settings: ContentSettings }>("/api/linkedin/content/scripts");
   return { scripts: res.scripts, settings: res.settings };
 }
+
+export const refreshNicheNews = async () => (await api<{ count:number; scripts:ContentScript[] }>("/api/linkedin/content/news/refresh", { method:"POST", body:json({}) }));
+export const fetchLinkedinAccount = async () => api<{ connected:boolean; accountName:string; profileUrl:string }>("/api/linkedin/account");
+export const beginLinkedinConnect = async () => api<{ authorizationUrl:string }>("/api/linkedin/account/connect", { method:"POST", body:json({}) });
 
 /** POST /api/linkedin/content/scripts  { topic }  ->  a new draft at the top of "Needs approval" */
 export const createScript = (topic: string) =>
@@ -109,8 +146,8 @@ export const removeScript = (id: string, how: "dismiss" | "cancel" | "delete") =
 export const markScriptPosted = (id: string, postUrl?: string) =>
   unwrap(api<Res<ContentScript>>(`/api/linkedin/content/scripts/${id}/mark-posted`, { method: "POST", body: json(postUrl ? { postUrl } : {}) }));
 
-/** PATCH /api/linkedin/content/settings  { remindAt, avatar } */
-export const saveContentSettings = (v: { remindAt: string; avatar: string }) =>
+/** PATCH /api/linkedin/content/settings  { remindAt } */
+export const saveContentSettings = (v: { remindAt: string }) =>
   unwrap(api<Res<ContentSettings>>("/api/linkedin/content/settings", { method: "PATCH", body: json(v) }));
 
 /* ======================= Connections ======================= */
@@ -129,12 +166,13 @@ export const fetchLeads = async (): Promise<Lead[]> => (await api<{ leads: Lead[
 export const createLead = (v: { name: string; role?: string; company?: string; url: string }) =>
   unwrap(api<Res<Lead>>("/api/linkedin/leads", { method: "POST", body: json({ ...v, source: "buyer", status: "suggested" }) }));
 
-/** POST /api/linkedin/leads/:id/send  { note? }  ->  status becomes "pending" (429 when the daily limit is used up) */
+/** Save a connection note for manual sending; does not send a LinkedIn invitation. */
 export const sendLead = (id: string, note?: string) =>
   unwrap(api<Res<Lead>>(`/api/linkedin/leads/${id}/send`, { method: "POST", body: json(note ? { note } : {}) }));
 
-/** POST /api/linkedin/leads/bulk-approve  { ids }  ->  how many went out + the refreshed list */
+/** Prepare selected connection notes for manual sending and return the refreshed list. */
 export type BulkResult = { sentCount: number; requestedCount: number; dailyLimit: number; limitReached: boolean; leads: Lead[] };
+export const markLeadSent = (id:string) => unwrap(api<Res<Lead>>(`/api/linkedin/leads/${id}/mark-sent`, { method:"POST", body:json({}) }));
 export const bulkApproveLeads = (ids: string[]) =>
   unwrap(api<Res<BulkResult>>("/api/linkedin/leads/bulk-approve", { method: "POST", body: json({ ids }) }));
 
