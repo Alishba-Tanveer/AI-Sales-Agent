@@ -6,12 +6,10 @@ import {
   dismissNotification,
   clearAllNotifications,
 } from "./api";
-import { buildMockNotifications } from "./mock-data";
+import { USER_STORE_EVENT, userStore } from "@/features/auth/user-store";
 import type { AppNotification } from "./types";
 
-const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK_NOTIFICATIONS !== "false";
-
-let items: AppNotification[] = USE_MOCK ? buildMockNotifications() : [];
+let items: AppNotification[] = [];
 let requested = false;
 const listeners = new Set<() => void>();
 
@@ -29,9 +27,22 @@ const subscribe = (cb: () => void) => {
 
 const getSnapshot = () => items;
 
+// Notifications belong to one person. When somebody else signs in (or the person signs out or their role changes),
+// the previous person's list must never stay on screen, so it is emptied and fetched again for the new session.
+let lastWho = typeof window === "undefined" ? "" : `${userStore.get()?.id ?? ""}:${userStore.get()?.role ?? ""}`;
+if (typeof window !== "undefined") {
+  window.addEventListener(USER_STORE_EVENT, () => {
+    const now = `${userStore.get()?.id ?? ""}:${userStore.get()?.role ?? ""}`;
+    if (now === lastWho) return;
+    lastWho = now;
+    requested = false;
+    set([]);
+    if (userStore.get()) notificationStore.load(true);
+  });
+}
+
 export const notificationStore = {
   load(force = false) {
-    if (USE_MOCK) return;
     if (requested && !force) return;
     requested = true;
     fetchNotifications()
@@ -70,6 +81,14 @@ export function useNotifications() {
 
   useEffect(() => {
     notificationStore.load();
+    // Keep the list fresh: other people's actions (a removal, an ownership transfer) arrive while this tab is open.
+    const refresh = () => document.visibilityState === "visible" && notificationStore.load(true);
+    const timer = window.setInterval(refresh, 60_000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, []);
 
   return { items: list, unread: list.filter((n) => !n.read).length };

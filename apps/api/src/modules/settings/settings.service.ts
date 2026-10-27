@@ -2,6 +2,7 @@ import {
   SettingsRepository,
   DEFAULT_NOTIFICATION_RULES,
 } from "./settings.repository";
+import { notify } from "../../utils/notify";
 import type {
   OutreachSettingsInput,
   ApprovalRulesInput,
@@ -69,7 +70,7 @@ export class SettingsService {
     return this.formatOutreach(s);
   }
 
-  async saveOutreach(organizationId: string, input: OutreachSettingsInput) {
+  async saveOutreach(organizationId: string, input: OutreachSettingsInput, actorId?: string) {
     const maxFollowUps = input.maxFollowUps ?? input.followUps;
     const intervalDays = input.intervalDays ?? input.gapDays;
 
@@ -86,10 +87,21 @@ export class SettingsService {
         : {}),
     });
 
+    // Workspace settings are managed by Owner and Admins, so only they hear about changes (not the person who saved).
+    await notify({
+      organizationId,
+      type: "system",
+      title: "Outreach strategy was updated",
+      body: "Tone, follow-up timing or sending limits changed. New emails will follow the updated strategy.",
+      href: "/settings?tab=outreach",
+      audience: "OWNER_ADMIN",
+      exceptUserId: actorId,
+    });
+
     return this.formatOutreach(updated);
   }
 
-  async approveOutreach(organizationId: string, input: OutreachSettingsInput) {
+  async approveOutreach(organizationId: string, input: OutreachSettingsInput, actorId?: string) {
     const maxFollowUps = input.maxFollowUps ?? input.followUps;
     const intervalDays = input.intervalDays ?? input.gapDays;
 
@@ -108,6 +120,17 @@ export class SettingsService {
       outreachApprovedAt: new Date(),
     });
 
+    // Everyone who reviews drafts should know the strategy is approved and sending can start.
+    await notify({
+      organizationId,
+      type: "system",
+      title: "Outreach strategy was approved",
+      body: "The AI can now write and queue emails using this strategy. New drafts will appear in Approvals.",
+      href: "/approvals",
+      audience: "ALL",
+      exceptUserId: actorId,
+    });
+
     return this.formatOutreach(updated);
   }
 
@@ -116,7 +139,7 @@ export class SettingsService {
     return this.formatApprovalRules(s);
   }
 
-  async saveApprovalRules(organizationId: string, input: ApprovalRulesInput) {
+  async saveApprovalRules(organizationId: string, input: ApprovalRulesInput, actorId?: string) {
     const replies = input.replies ?? input.toggles?.replies;
     const followups = input.followups ?? input.toggles?.followups;
     const linkedin = input.linkedin ?? input.toggles?.linkedin;
@@ -130,6 +153,17 @@ export class SettingsService {
       ...(linkedin !== undefined ? { requireApprovalLinkedin: linkedin } : {}),
       requireApprovalNewEmails: true,
       requireApprovalVideoScripts: true,
+    });
+
+    // Members review drafts, so a change to what needs approval concerns them too.
+    await notify({
+      organizationId,
+      type: "approval",
+      title: "Approval rules were changed",
+      body: "What needs a human review before sending was updated. Check Approvals for how this affects your queue.",
+      href: "/approvals",
+      audience: "ALL",
+      exceptUserId: actorId,
     });
 
     return this.formatApprovalRules(updated);

@@ -116,7 +116,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
                         )}
                       >
                         <Icon className="size-4 shrink-0" />
-                        <span className="min-w-0 flex-1 truncate font-medium">{it.label}</span>
+                        <span className="min-w-0 flex-1 [overflow-wrap:anywhere] font-medium">{it.label}</span>
                         <span className={cn("shrink-0 text-[11px]", i === active ? "text-primary/80" : "text-muted-foreground")}>{it.kind}</span>
                       </button>
                     </li>

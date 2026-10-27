@@ -4,6 +4,8 @@ import { UsersRepository } from "./users.repository";
 import type { UpdateProfileInput, DeleteAccountInput } from "./users.schema";
 import { AppError } from "../../utils/app-error";
 import { blacklistToken } from "../../utils/token-blacklist";
+import { sendNoticeEmail } from "../../utils/mailer";
+import { notify } from "../../utils/notify";
 import { RECOVERY_WINDOW_DAYS, RECOVERY_WINDOW_MS } from "../../utils/account-rules";
 
 const ALLOWED_AVATAR_MIMES = ["image/jpeg", "image/png", "image/webp"];
@@ -113,6 +115,28 @@ export class UsersService {
         await this.usersRepository.transferOwnershipAndSoftDelete(userId, target.id);
         scope = "transfer";
         newOwnerName = target.name;
+        await notify({
+          organizationId: user.organizationId,
+          type: "team",
+          title: "You are now the workspace Owner",
+          body: `${user.name} transferred ownership to you and deleted their own account. You now manage usage, billing and ownership.`,
+          href: "/settings?tab=team",
+          audience: { userId: target.id },
+        });
+        await notify({
+          organizationId: user.organizationId,
+          type: "team",
+          title: `${target.name} is now the Owner`,
+          body: `${user.name} transferred ownership to ${target.name} and deleted their own account.`,
+          href: "/settings?tab=team",
+          audience: "OWNER_ADMIN",
+          exceptUserId: target.id,
+        });
+        void sendNoticeEmail({
+          toEmail: target.email,
+          subject: "You are now the workspace Owner",
+          lines: [`Hi ${target.name}, ${user.name} transferred ownership of the workspace to you.`],
+        });
       } else {
         const others = await this.usersRepository.countOtherActiveMembers(user.organizationId, userId);
         if (others > 0 && input.deleteWorkspace !== true) {
@@ -122,20 +146,38 @@ export class UsersService {
             { code: "OWNER_MUST_CHOOSE" }
           );
         }
+        // Everyone is locked out the moment the workspace is deleted, so they can't see in-app notifications. Collect
+        // them first and tell them by email. Only the Owner can bring the workspace back, within 30 days.
+        const everyone = await prisma.user.findMany({
+          where: { organizationId: user.organizationId, deletedAt: null },
+          select: { id: true, name: true, email: true },
+        });
         await this.usersRepository.softDeleteWorkspace(user.organizationId, userId);
         scope = "workspace";
+        for (const person of everyone) {
+          void sendNoticeEmail({
+            toEmail: person.email,
+            subject: person.id === userId ? "Your workspace was deleted" : "Your workspace was deleted by its Owner",
+            lines:
+              person.id === userId
+                ? [`Hi ${person.name}, you deleted the workspace for everyone. You can restore it for ${RECOVERY_WINDOW_DAYS} days by signing in.`]
+                : [
+                    `Hi ${person.name}, ${user.name} (the Owner) deleted the workspace, so your access is paused.`,
+                    `Only the Owner can restore it, within ${RECOVERY_WINDOW_DAYS} days. Contact them if you need it back.`,
+                  ],
+          });
+        }
       }
     } else {
       await this.usersRepository.softDeleteUser(userId);
-      await prisma.inAppNotification.create({
-        data: {
-          organizationId: user.organizationId,
-          type: "team",
-          title: `${user.name} deactivated their account`,
-          body: `${user.name} (${user.email}) deactivated their account. It can be restored within 30 days.`,
-          read: false,
-          href: "/settings?tab=team",
-        },
+      await notify({
+        organizationId: user.organizationId,
+        type: "team",
+        title: `${user.name} deactivated their account`,
+        body: `${user.name} (${user.email}) deleted their own account. They can restore it themselves by signing in within ${RECOVERY_WINDOW_DAYS} days.`,
+        href: "/settings?tab=team",
+        audience: "OWNER_ADMIN",
+        exceptUserId: userId,
       });
     }
 

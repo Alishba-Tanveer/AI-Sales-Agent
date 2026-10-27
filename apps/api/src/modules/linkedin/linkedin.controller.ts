@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { trackLinkedinActivity } from "../activity/activity-logger";
 import { linkedinService } from "./linkedin.service";
 import {
   analyzeProfileSchema,
@@ -10,6 +11,7 @@ import {
   createLeadSchema,
   createScriptSchema,
   importLeadsSchema,
+  importProfilePdfSchema,
   markAppliedSchema,
   markPostedSchema,
   updateContentSettingsSchema,
@@ -43,13 +45,30 @@ export class LinkedinController {
   async analyzeProfile(req: Request, res: Response, next: NextFunction) {
     try {
       const validated = analyzeProfileSchema.parse(req.body ?? {});
-      const result = await linkedinService.analyzeProfile(req.user!.organizationId, validated);
+      const organizationId = req.user!.organizationId;
+      const result = await trackLinkedinActivity({
+        organizationId,
+        kind: "analyze",
+        title: "Review LinkedIn profile",
+        run: () => linkedinService.analyzeProfile(organizationId, validated),
+        output: (value) => `Profile review completed with ${value.suggestions.length} suggestions.`,
+      });
       res.status(200).json({
         success: true,
         message: "Profile read. Your changes are ready.",
         data: result,
         ...result,
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async importProfilePdf(req: Request, res: Response, next: NextFunction) {
+    try {
+      const validated = importProfilePdfSchema.parse(req.body ?? {});
+      const result = await linkedinService.importProfilePdf(validated.pdfBase64);
+      res.status(200).json({ success: true, message: "PDF read. Check the text below.", data: result, ...result });
     } catch (error) {
       next(error);
     }
@@ -162,6 +181,21 @@ export class LinkedinController {
     }
   }
 
+  async refreshNews(req: Request, res: Response, next: NextFunction) {
+    try {
+      const organizationId = req.user!.organizationId;
+      const result = await trackLinkedinActivity({
+        organizationId,
+        kind: "research",
+        title: "Research niche news",
+        run: () => linkedinService.refreshNews(organizationId),
+        output: (value) => `Found ${value.sources.length} current sources and created ${value.count} new script drafts.`,
+      });
+      res.status(201).json({ success: true, data: result, ...result });
+    }
+    catch(error){next(error);}
+  }
+
   async getScriptById(req: Request, res: Response, next: NextFunction) {
     try {
       const script = await linkedinService.getScriptById(
@@ -181,7 +215,15 @@ export class LinkedinController {
   async createScript(req: Request, res: Response, next: NextFunction) {
     try {
       const validated = createScriptSchema.parse(req.body ?? {});
-      const script = await linkedinService.createScript(req.user!.organizationId, validated);
+      const organizationId = req.user!.organizationId;
+      const script = await trackLinkedinActivity({
+        organizationId,
+        kind: "draft",
+        title: "Write LinkedIn video script",
+        context: validated.topic ?? validated.title ?? "User-provided topic",
+        run: () => linkedinService.createScript(organizationId, validated),
+        output: (value) => `Draft created for review: ${value.title}`,
+      });
       res.status(201).json({
         success: true,
         message: "Topic added. A script draft is ready for you to review.",
@@ -222,7 +264,7 @@ export class LinkedinController {
       );
       res.status(200).json({
         success: true,
-        message: "Approved. Your avatar video is being made.",
+        message: "Approved. The script is ready for you to record.",
         data: script,
         ...script,
       });
@@ -248,10 +290,14 @@ export class LinkedinController {
 
   async regenerateScript(req: Request, res: Response, next: NextFunction) {
     try {
-      const script = await linkedinService.regenerateScript(
-        req.user!.organizationId,
-        String(req.params.id),
-      );
+      const organizationId = req.user!.organizationId;
+      const script = await trackLinkedinActivity({
+        organizationId,
+        kind: "draft",
+        title: "Rewrite LinkedIn video script",
+        run: () => linkedinService.regenerateScript(organizationId, String(req.params.id)),
+        output: (value) => `Rewritten draft ready for review: ${value.title}`,
+      });
       res.status(200).json({
         success: true,
         message: "New draft written",
@@ -389,10 +435,7 @@ export class LinkedinController {
         seconds: script.seconds,
         words: script.words,
         caption,
-        videoUrl:
-          script.status === "ready" || script.status === "posted"
-            ? `https://cdn.heygen.com/videos/${script.id}.mp4`
-            : null,
+        videoUrl: null,
       };
       res.status(200).json({
         success: true,
@@ -404,21 +447,6 @@ export class LinkedinController {
     }
   }
 
-  async handleHeygenWebhook(req: Request, res: Response, next: NextFunction) {
-    try {
-      const result = await linkedinService.handleHeygenWebhook(req.body ?? {});
-      res.status(200).json({
-        success: true,
-        data: result,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /* ========================================================================
-   * 3. ENGAGEMENT & CONNECTIONS + OUTREACH STRATEGY
-   * ======================================================================== */
 
   async getStrategy(req: Request, res: Response, next: NextFunction) {
     try {
@@ -554,13 +582,18 @@ export class LinkedinController {
       );
       res.status(200).json({
         success: true,
-        message: `Request sent to ${lead.name}`,
+        message: `Connection note saved for ${lead.name}. Send it manually on LinkedIn.`,
         data: lead,
         ...lead,
       });
     } catch (error) {
       next(error);
     }
+  }
+
+  async markLeadSent(req: Request, res: Response, next: NextFunction) {
+    try { const lead=await linkedinService.markLeadSent(req.user!.organizationId,String(req.params.id)); res.status(200).json({success:true,message:"Marked as sent after your manual LinkedIn action.",data:lead,...lead}); }
+    catch(error){next(error);}
   }
 
   async bulkApproveLeads(req: Request, res: Response, next: NextFunction) {
@@ -572,9 +605,7 @@ export class LinkedinController {
       );
       res.status(200).json({
         success: true,
-        message: `${result.sentCount} request${result.sentCount > 1 ? "s" : ""} sent${
-          result.limitReached ? ` (daily limit of ${result.dailyLimit} reached)` : ""
-        }`,
+        message: `${result.sentCount} connection note${result.sentCount === 1 ? "" : "s"} prepared for manual sending.`,
         data: result,
         ...result,
       });
@@ -636,7 +667,14 @@ export class LinkedinController {
 
   async discoverConnections(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await linkedinService.discoverConnections(req.user!.organizationId);
+      const organizationId = req.user!.organizationId;
+      const result = await trackLinkedinActivity({
+        organizationId,
+        kind: "discover",
+        title: "Research target buyers",
+        run: () => linkedinService.discoverConnections(organizationId),
+        output: (value) => `Research returned ${value.researchSources.length} sources and ${value.discoveredCount} verified buyer candidates.`,
+      });
       res.status(201).json({
         success: true,
         message: `Discovered ${result.discoveredCount} new target buyers`,
@@ -699,22 +737,26 @@ export class LinkedinController {
 
   async connectAccount(req: Request, res: Response, next: NextFunction) {
     try {
-      const validated = connectAccountSchema.parse(req.body ?? {});
-      const account = await linkedinService.connectAccount(req.user!.organizationId, validated);
-      res.status(200).json({
-        success: true,
-        message: "LinkedIn account connected",
-        data: account,
-        ...account,
-      });
-    } catch (error) {
-      next(error);
+      const result = await linkedinService.beginLinkedinOAuth(req.user!.organizationId, req.user!.userId);
+      res.status(200).json({ success: true, data: result, ...result });
+    } catch (error) { next(error); }
+  }
+
+  async linkedinOAuthCallback(req: Request, res: Response) {
+    const destination = new URL("/linkedin", process.env.WEB_URL || "http://localhost:3000");
+    try {
+      if (req.query.error) throw new Error("LinkedIn authorization was cancelled.");
+      await linkedinService.completeLinkedinOAuth(String(req.query.state || ""), String(req.query.code || ""));
+      destination.searchParams.set("linkedin", "connected");
+    } catch {
+      destination.searchParams.set("linkedin", "error");
     }
+    res.redirect(303, destination.toString());
   }
 
   async disconnectAccount(req: Request, res: Response, next: NextFunction) {
     try {
-      const account = await linkedinService.disconnectAccount(req.user!.organizationId);
+      const account = await linkedinService.disconnectAccount(req.user!.organizationId, req.user!.userId);
       res.status(200).json({
         success: true,
         message: "LinkedIn account disconnected",

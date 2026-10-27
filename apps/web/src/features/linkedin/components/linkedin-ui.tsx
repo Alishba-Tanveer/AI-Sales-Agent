@@ -43,7 +43,7 @@ export function StepStrip({ steps }: { steps: StepDef[] }) {
               Step {i + 1}
               {typeof s.count === "number" && <span className={cn("ml-2 font-semibold", TONES[s.tone].text)}>{s.count}</span>}
             </p>
-            <p className="truncate text-sm font-semibold text-foreground transition-colors duration-200 group-hover:text-primary">{s.label}</p>
+            <p className="[overflow-wrap:anywhere] text-sm font-semibold text-foreground transition-colors duration-200 group-hover:text-primary">{s.label}</p>
           </div>
         </li>
       ))}

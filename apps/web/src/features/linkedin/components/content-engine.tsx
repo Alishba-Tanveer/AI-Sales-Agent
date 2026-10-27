@@ -7,12 +7,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "cn";
+import { can, currentRole } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CARD_HOVER, CARD_INNER, CARD_LIFT, HOVER_BUTTONS, Field, Pill, TONES, inputCls } from "@/features/settings/components/settings-ui";
-import { approveScript, checkPostStatus, createScript, fetchContent, markScriptPosted, regenerateScript, removeScript, saveContentSettings, updateScript } from "../api";
+import { approveScript, checkPostStatus, createScript, fetchContent, markScriptPosted, regenerateScript, removeScript, saveContentSettings, updateScript, refreshNicheNews, fetchLinkedinAccount, beginLinkedinConnect } from "../api";
 import { ACTIVITY_URL, composeUrl, copyText, normalizeWebUrl, scriptCaption } from "../links";
 import type { ContentScript, ContentSettings } from "../types";
 import { ConfirmDialog, HowItWorksDialog, IconTile, LinkButton, PageHeader, StepStrip, TabBar, fmtDate, fmtTime } from "./linkedin-ui";
@@ -23,6 +24,8 @@ type Confirm = { kind: "dismiss" | "cancel" | "remove"; s: ContentScript } | nul
 const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
 export function ContentEngine() {
+  const canEditWorkspace = can.editWorkspaceSettings(currentRole());
+  const canConnectIntegration = can.connectIntegrations(currentRole());
   const [scripts, setScripts] = useState<ContentScript[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -35,11 +38,14 @@ export function ContentEngine() {
   const [previewing, setPreviewing] = useState<ContentScript | null>(null);
   const [posting, setPosting] = useState<ContentScript | null>(null);
   const [linking, setLinking] = useState<ContentScript | null>(null);
-  const [settings, setSettings] = useState<ContentSettings>({ remindAt: "08:30", avatar: "", heygenConnected: false });
-  const { remindAt, avatar } = settings;
+  const [settings, setSettings] = useState<ContentSettings>({ remindAt: "08:30" });
+  const [linkedinAccount, setLinkedinAccount] = useState<{connected:boolean;accountName:string;profileUrl:string}>({connected:false,accountName:"",profileUrl:""});
+  const [refreshingNews, setRefreshingNews] = useState(false);
+  const { remindAt } = settings;
 
   useEffect(() => {
     let live = true;
+    fetchLinkedinAccount().then((v) => live && setLinkedinAccount(v)).catch(() => {});
     fetchContent()
       .then(({ scripts: s, settings: cfg }) => {
         if (!live) return;
@@ -52,6 +58,9 @@ export function ContentEngine() {
       live = false;
     };
   }, [attempt]);
+
+  const connectLinkedin = async () => { try { const result=await beginLinkedinConnect(); window.location.assign(result.authorizationUrl); } catch(e) { toast.error(errMsg(e,"Could not start LinkedIn authorization.")); } };
+  const refreshNews = async () => { setRefreshingNews(true); try { const result=await refreshNicheNews(); setScripts((cur)=>[...result.scripts,...(cur??[])]); setTab("approval"); if(result.scripts[0]) setSelectedId(result.scripts[0].id); toast.success(`${result.count} sourced script${result.count===1?"":"s"} added`); } catch(e) { toast.error(errMsg(e,"Could not refresh niche news.")); } finally { setRefreshingNews(false); } };
 
   const retryLoad = () => {
     setLoadError(null);
@@ -74,7 +83,7 @@ export function ContentEngine() {
     try {
       replace(await approveScript(s.id));
       setSelectedId(nextPending(s.id));
-      toast.success(`Approved. Your avatar video is being made. We will remind you to post at ${fmtTime(remindAt)}.`);
+      toast.success(`Script approved. Record your video and post it when ready. Reminder: ${fmtTime(remindAt)}.`);
     } catch (e) {
       toast.error(errMsg(e, "Could not approve this script."));
     }
@@ -143,9 +152,9 @@ export function ContentEngine() {
     setLinking(null);
     toast.success("Post link saved");
   };
-  const savePostingSettings = async (t: string, a: string) => {
-    setSettings(await saveContentSettings({ remindAt: t, avatar: a }));
-    toast.success("Posting settings saved");
+  const savePostingSettings = async (t: string) => {
+    setSettings(await saveContentSettings({ remindAt: t }));
+    toast.success("Reminder time saved");
   };
 
   const selected = pending.find((s) => s.id === selectedId) ?? null;
@@ -155,16 +164,18 @@ export function ContentEngine() {
       <div className={cn("flex flex-col gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between", CARD_HOVER)}>
         <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
           <span className="flex items-center gap-1.5"><Clock className="size-4 text-sky-700 dark:text-sky-400" /> Post reminder daily at <b className="font-semibold text-foreground">{fmtTime(remindAt)}</b></span>
-          <span className="flex items-center gap-1.5"><span className={cn("size-1.5 rounded-full", settings.heygenConnected ? "bg-success" : "bg-warning")} /> {settings.heygenConnected ? "Avatar: HeyGen connected" : "Avatar: HeyGen not connected"} {avatar && <span className="text-foreground">({avatar})</span>}</span>
+          <span className="flex items-center gap-1.5"><Video className="size-4 text-muted-foreground" /> Free-stack workflow: approve the script, then record your own video.</span>
         </p>
-        <Button variant="ghost" size="sm" onClick={() => setAvatarOpen(true)}><Settings2 /> Change</Button>
+        {canEditWorkspace && <Button variant="ghost" size="sm" onClick={() => setAvatarOpen(true)}><Settings2 /> Reminder</Button>}
       </div>
 
       <PageHeader
         title="Content Engine"
-        description="We find news in your niche, write a short video script, and make the video after you approve. You post it on LinkedIn."
+        description="Research in your niche becomes a sourced script. Approve it, record your video, then publish it to LinkedIn."
         actions={
           <>
+            {linkedinAccount.connected ? <Button variant="outline" disabled>Connected: {linkedinAccount.accountName || "LinkedIn"}</Button> : canConnectIntegration && <Button variant="outline" onClick={connectLinkedin}>Connect LinkedIn</Button>}
+            <Button variant="outline" onClick={refreshNews} disabled={refreshingNews}>{refreshingNews ? <Loader2 className="animate-spin"/> : <Newspaper/>} Refresh niche news</Button>
             <Button variant="outline" className={TONES.warning.btn} onClick={() => setHelpOpen(true)}><Lightbulb /> How it works</Button>
             <Button onClick={() => setTopicOpen(true)}><Plus /> Add a topic</Button>
           </>
@@ -176,7 +187,7 @@ export function ContentEngine() {
           { label: "News found", count: list.filter((s) => s.source !== "Your topic").length, icon: Newspaper, tone: "info" },
           { label: "Scripts written", count: pending.length + scheduled.length + posted.length, icon: FileText, tone: "violet" },
           { label: "You approve", count: pending.length, icon: BadgeCheck, tone: "warning" },
-          { label: "Video created", count: scheduled.length, icon: Video, tone: "primary" },
+          { label: "Ready to record", count: scheduled.filter((s) => s.status === "ready").length, icon: Video, tone: "primary" },
           { label: "Posted", count: posted.length, icon: Send, tone: "success" },
         ]}
       />
@@ -202,7 +213,7 @@ export function ContentEngine() {
         <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Loading scripts…</div>
       ) : tab === "approval" ? (
         pending.length === 0 ? (
-          <Empty title="Nothing to approve" text="New scripts appear here every morning." />
+          <Empty title="Nothing to approve" text="Add a topic or refresh news for your niche to create a sourced draft." />
         ) : (
           /* Two equal columns, same height: queue on the left, review on the right */
           <div className="grid items-stretch gap-6 lg:grid-cols-2">
@@ -231,14 +242,14 @@ export function ContentEngine() {
                           <span>{s.seconds}s · {s.words} words</span>
                         </span>
                         <span className="text-sm font-semibold text-foreground">{s.title}</span>
-                        <span className="line-clamp-2 text-xs text-muted-foreground">{s.hook}</span>
+                        <span className="[overflow-wrap:anywhere] text-xs text-muted-foreground">{s.hook}</span>
                       </button>
                     </li>
                   );
                 })}
               </ul>
               <footer className="mt-auto flex items-center gap-2 border-t border-border bg-secondary/30 px-5 py-3 text-xs text-muted-foreground">
-                <Sparkles className="size-3.5 shrink-0 text-primary" /> New scripts are written every morning from fresh news in your niche.
+                <Sparkles className="size-3.5 shrink-0 text-primary" /> Scripts appear when you add a topic or refresh niche news; nothing is fabricated or silently seeded.
               </footer>
             </section>
 
@@ -251,7 +262,7 @@ export function ContentEngine() {
         )
       ) : tab === "scheduled" ? (
         scheduled.length === 0 ? (
-          <Empty title="Nothing scheduled" text="Approved scripts show up here while the video is made." />
+          <Empty title="Nothing scheduled" text="Approved scripts show up here when they are ready for you to record." />
         ) : (
           <ul className="grid gap-4 md:grid-cols-2">
             {scheduled.map((s) => {
@@ -259,15 +270,15 @@ export function ContentEngine() {
               return (
                 <li key={s.id} className={cn("flex flex-col gap-3 rounded-xl border border-border bg-card p-5", CARD_LIFT)}>
                   <div className="flex items-center justify-between gap-2">
-                    {ready ? <Pill tone="success"><CheckCircle2 className="size-3" /> Ready to post</Pill> : <Pill tone="primary"><Loader2 className="size-3 animate-spin" /> Creating video</Pill>}
+                    {ready ? <Pill tone="success"><CheckCircle2 className="size-3" /> Ready to post</Pill> : <Pill tone="primary"><Loader2 className="size-3 animate-spin" /> Waiting for your recording</Pill>}
                     <span className="flex items-center gap-1 text-xs text-muted-foreground"><CalendarClock className="size-3.5" /> Remind me {fmtDate(s.scheduledFor, true)}</span>
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-foreground">{s.title}</p>
-                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{s.hook}</p>
+                    <p className="mt-1 [overflow-wrap:anywhere] text-xs text-muted-foreground">{s.hook}</p>
                   </div>
                   <div className="mt-auto flex flex-wrap gap-2 border-t border-border pt-4">
-                    <Button size="lg" disabled={!ready} onClick={() => setPosting(s)}><Send /> {ready ? "Post on LinkedIn" : "Waiting for video"}</Button>
+                    <Button size="lg" disabled={!ready} onClick={() => setPosting(s)}><Send /> {ready ? "Post on LinkedIn" : "Record video"}</Button>
                     <Button variant="outline" size="lg" disabled={!ready} onClick={() => setPreviewing(s)}><Play /> Preview</Button>
                     <Button variant="ghost" size="lg" className="ml-auto" onClick={() => setConfirm({ kind: "cancel", s })}>Cancel</Button>
                   </div>
@@ -287,7 +298,7 @@ export function ContentEngine() {
       )}
 
       <TopicDialog open={topicOpen} onOpenChange={setTopicOpen} onAdd={addTopic} />
-      <AvatarDialog open={avatarOpen} onOpenChange={setAvatarOpen} time={remindAt} avatar={avatar} connected={settings.heygenConnected} onSave={savePostingSettings} />
+      {canEditWorkspace && <ReminderDialog open={avatarOpen} onOpenChange={setAvatarOpen} time={remindAt} onSave={savePostingSettings} />}
       <PostGuideDialog s={posting} onClose={() => setPosting(null)} onPosted={markPosted} />
       <PreviewDialog s={previewing} onClose={() => setPreviewing(null)} onPost={(s) => { setPreviewing(null); setPosting(s); }} />
 
@@ -329,15 +340,15 @@ export function ContentEngine() {
         onOpenChange={setHelpOpen}
         tone="primary"
         title="How the Content Engine works"
-        description="From news to a finished video in five steps."
+        description="From niche news to a LinkedIn post using the free stack."
         steps={[
-          { title: "We find news", text: "Every day we look for stories in your niche from sources like TechCrunch, Reuters and Forbes." },
+          { title: "We find niche news", text: "Tavily searches recent stories using your saved offer and audience. Each draft links to its source." },
           { title: "We write a short script", text: "Each script has a hook, three main points and a call to action, about 40 seconds long." },
           { title: "You approve", text: "Edit the words, ask for a new draft, or dismiss it. Nothing moves forward without your yes." },
-          { title: "Your avatar video is made", text: "After you approve, HeyGen creates the video with your avatar." },
-          { title: "You post it on LinkedIn", text: "At your reminder time, press Post on LinkedIn. We copy the caption and open LinkedIn's post box for you." },
+          { title: "You record the video", text: "The free stack stops at an approved script. Record your own clip or read from the script." },
+          { title: "Publish on LinkedIn", text: "Review the script and publish your recorded video from your connected LinkedIn account." },
         ]}
-        note="LinkedIn does not let apps publish posts for you, so the last step is a quick paste and Post on your side."
+        note="AI avatar generation and automatic video creation are outside the selected free stack. You approve the script and record your own video."
       />
     </main>
   );
@@ -435,7 +446,7 @@ function ReviewPanel({
 
       <div className="mt-auto flex flex-col gap-2 border-t border-border pt-4">
         <Button size="lg" className="h-10 bg-success text-background hover:bg-success/85" onClick={() => run("approve", () => onApprove(s))} disabled={editing || busy !== null}>
-          {busy === "approve" ? <Loader2 className="animate-spin" /> : <Video />} Approve &amp; create video
+          {busy === "approve" ? <Loader2 className="animate-spin" /> : <Video />} Approve script &amp; record video
         </Button>
         <div className="grid grid-cols-3 gap-2">
           <Button variant="outline" size="lg" onClick={() => (editing ? setEditing(false) : startEdit())} disabled={busy !== null}><Pencil /> Edit</Button>
@@ -494,51 +505,10 @@ function TopicDialog({ open, onOpenChange, onAdd }: { open: boolean; onOpenChang
   );
 }
 
-function AvatarDialog({ open, onOpenChange, time, avatar, connected, onSave }: { open: boolean; onOpenChange: (o: boolean) => void; time: string; avatar: string; connected: boolean; onSave: (t: string, a: string) => Promise<void> }) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">{open && <AvatarForm time={time} avatar={avatar} connected={connected} onCancel={() => onOpenChange(false)} onSave={async (t, a) => { await onSave(t, a); onOpenChange(false); }} />}</DialogContent>
-    </Dialog>
-  );
-}
-
-function AvatarForm({ time, avatar, connected, onCancel, onSave }: { time: string; avatar: string; connected: boolean; onCancel: () => void; onSave: (t: string, a: string) => Promise<void> }) {
-  const [t, setT] = useState(time);
-  const [a, setA] = useState(avatar);
-  const [busy, setBusy] = useState(false);
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!t) return void toast.error("Pick a reminder time.");
-    if (!a.trim()) return void toast.error("Enter an avatar name.");
-    setBusy(true);
-    try {
-      await onSave(t, a.trim());
-    } catch (err) {
-      toast.error(errMsg(err, "Could not save your posting settings."));
-      setBusy(false);
-    }
-  };
-  return (
-    <form onSubmit={submit} className="grid gap-4">
-      <DialogHeader>
-        <div className="flex items-start gap-3 pr-6">
-          <IconTile icon={Settings2} tone="violet" className="size-10" />
-          <div className="grid gap-1.5">
-            <DialogTitle className="text-base">Posting &amp; avatar settings</DialogTitle>
-            <DialogDescription>Choose when we remind you to post and which avatar reads your scripts.</DialogDescription>
-          </div>
-        </div>
-      </DialogHeader>
-      <Field label="Remind me to post at" htmlFor="remind"><Input id="remind" type="time" value={t} onChange={(e) => setT(e.target.value)} className={inputCls} /></Field>
-      <Field label="Avatar" htmlFor="avatar" aside={connected ? <Pill tone="success"><span className="size-1.5 rounded-full bg-success" /> HeyGen connected</Pill> : <Pill tone="warning"><span className="size-1.5 rounded-full bg-warning" /> HeyGen not connected</Pill>}>
-        <Input id="avatar" value={a} onChange={(e) => setA(e.target.value)} className={inputCls} />
-      </Field>
-      <DialogFooter>
-        <Button type="button" variant="ghost" disabled={busy} onClick={onCancel}>Cancel</Button>
-        <Button type="submit" disabled={busy}>{busy && <Loader2 className="animate-spin" />} Save settings</Button>
-      </DialogFooter>
-    </form>
-  );
+function ReminderDialog({ open, onOpenChange, time, onSave }: { open:boolean; onOpenChange:(o:boolean)=>void; time:string; onSave:(t:string)=>Promise<void> }) {
+  const [value,setValue]=useState(time); const [busy,setBusy]=useState(false);
+  const save=async(e:React.FormEvent)=>{ e.preventDefault(); setBusy(true); try { await onSave(value); onOpenChange(false); } catch(err) { toast.error(errMsg(err,"Could not save your reminder.")); } finally { setBusy(false); } };
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-md"><form onSubmit={save} className="grid gap-4"><DialogHeader><DialogTitle className="text-base">Posting reminder</DialogTitle><DialogDescription>Choose when to review and post a video you record yourself.</DialogDescription></DialogHeader><Field label="Remind me at" htmlFor="remind"><Input id="remind" type="time" required value={value} onChange={(e)=>setValue(e.target.value)} className={inputCls}/></Field><DialogFooter><Button type="button" variant="ghost" disabled={busy} onClick={()=>onOpenChange(false)}>Cancel</Button><Button type="submit" disabled={busy}>{busy&&<Loader2 className="animate-spin"/>} Save reminder</Button></DialogFooter></form></DialogContent></Dialog>;
 }
 
 function PreviewDialog({ s, onClose, onPost }: { s: ContentScript | null; onClose: () => void; onPost: (s: ContentScript) => void }) {
@@ -549,11 +519,11 @@ function PreviewDialog({ s, onClose, onPost }: { s: ContentScript | null; onClos
           <>
             <DialogHeader>
               <DialogTitle className="pr-6 text-base">{s.title}</DialogTitle>
-              <DialogDescription>About {s.seconds} seconds · made with your avatar</DialogDescription>
+              <DialogDescription>About {s.seconds} seconds · ready for you to record</DialogDescription>
             </DialogHeader>
             <div className="mx-auto flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-xl border border-border bg-background text-center">
               <span className="flex size-12 items-center justify-center rounded-full border border-primary/30 bg-primary-soft text-primary"><Play className="size-5" /></span>
-              <p className="px-6 text-xs text-muted-foreground">The video will play here once videos come from HeyGen.</p>
+              <p className="px-6 text-xs text-muted-foreground">Record this script yourself using your camera or phone, then upload it in LinkedIn.</p>
             </div>
             <div className={cn("rounded-lg border border-border bg-background p-3", CARD_INNER)}>
               <p className="mb-1.5 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Caption</p>
@@ -610,7 +580,7 @@ function PostGuideBody({ s, onClose, onPosted }: { s: ContentScript; onClose: ()
           <IconTile icon={Send} tone="info" className="size-10" />
           <div className="grid gap-1.5">
             <DialogTitle className="text-base">Post on LinkedIn</DialogTitle>
-            <DialogDescription>LinkedIn only lets you publish yourself. It takes under a minute.</DialogDescription>
+            <DialogDescription>You record the clip and publish it from LinkedIn. We prepare and copy the caption.</DialogDescription>
           </div>
         </div>
       </DialogHeader>
@@ -618,7 +588,7 @@ function PostGuideBody({ s, onClose, onPosted }: { s: ContentScript; onClose: ()
       <ol className="grid gap-2">
         {[
           "Press the button below. We copy your caption and open LinkedIn’s post box in a new tab.",
-          "Add your avatar video with the media button, then paste the caption if it is not already filled in.",
+          "Record a video from the approved script, add it with LinkedIn’s media button, and paste the caption.",
           "Press Post on LinkedIn, then come back here and press “I’ve posted it”.",
         ].map((t, i) => (
           <li key={i} className="flex items-start gap-3 text-sm text-foreground">

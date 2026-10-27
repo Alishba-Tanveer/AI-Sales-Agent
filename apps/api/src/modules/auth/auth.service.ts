@@ -6,7 +6,8 @@ import { env } from "../../config/env";
 import { AppError } from "../../utils/app-error";
 import { blacklistToken } from "../../utils/token-blacklist";
 import { saveOtp, verifyOtpCode } from "../../utils/otp-store";
-import { sendOtpEmail } from "../../utils/mailer";
+import { sendNoticeEmail, sendOtpEmail } from "../../utils/mailer";
+import { notify } from "../../utils/notify";
 import {
   RECOVERY_WINDOW_DAYS,
   RemovalReason,
@@ -105,16 +106,39 @@ export class AuthService {
       restoredScope = outcome.scope;
       accountRestored = true;
       if (restoredScope === "account") {
-        await prisma.inAppNotification.create({
-          data: {
-            organizationId: user.organizationId,
-            type: "team",
-            title: `${user.name} restored their account`,
-            body: `${user.name} (${user.email}) signed back in and restored their account.`,
-            read: false,
-            href: "/settings?tab=team",
-          },
-        }).catch(() => {});
+        // A person came back on their own: Owner and Admins are told (Members are not).
+        await notify({
+          organizationId: user.organizationId,
+          type: "team",
+          title: `${user.name} restored their account`,
+          body: `${user.name} (${user.email}) signed back in and restored their account.`,
+          href: "/settings?tab=team",
+          audience: "OWNER_ADMIN",
+          exceptUserId: user.id,
+        });
+      } else if (restoredScope === "workspace") {
+        // The Owner brought the whole workspace back. Everyone else was locked out meanwhile, so tell them (in-app for
+        // when they sign in, and by email because they could not see anything while locked out).
+        await notify({
+          organizationId: user.organizationId,
+          type: "system",
+          title: "The workspace was restored",
+          body: `${user.name} (the Owner) restored the workspace. Your access is back and your data is intact.`,
+          href: "/overview",
+          audience: "ALL",
+          exceptUserId: user.id,
+        });
+        const others = await prisma.user.findMany({
+          where: { organizationId: user.organizationId, deletedAt: null, id: { not: user.id } },
+          select: { name: true, email: true },
+        });
+        for (const person of others) {
+          void sendNoticeEmail({
+            toEmail: person.email,
+            subject: "Your workspace is back",
+            lines: [`Hi ${person.name}, the Owner restored the workspace. You can sign in again.`],
+          });
+        }
       }
     }
 

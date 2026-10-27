@@ -80,7 +80,7 @@ export function SectionCard({
             </span>
             {title}
           </h2>
-          {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
+          {description && <p className="mt-2 pl-[42px] text-xs leading-relaxed text-muted-foreground">{description}</p>}
         </div>
         {aside}
       </div>

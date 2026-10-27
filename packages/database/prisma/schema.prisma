@@ -131,27 +131,35 @@ model LinkedinConfig {
   organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   // Profile Optimizer
   profileUrl           String?
-  offer                String       @default("I build AI agents for B2B SaaS outbound")
+  offer                String       @default("")
   audience             String       @default("")
   groundingFacts       Json?
-  latestScore          Int          @default(84)
+  latestScore          Int          @default(0)
   latestReadAt         String?
   suggestions          Json?
   auditHistory         Json?
   // Content Engine settings
   remindAt             String       @default("08:30")
-  avatar               String       @default("Ahmed Avatar v2")
-  heygenConnected      Boolean      @default(true)
+  avatar               String       @default("")
+  heygenConnected      Boolean      @default(false)
   contentSources       Json?
   // Engagement & Connections Outreach Strategy
-  strategyAgreedOn     String       @default("2026-10-10")
-  strategyWho          String       @default("VPs and Heads of Sales at B2B SaaS companies, 50-500 employees, US and UK")
-  strategyPerDay       Int          @default(15)
-  strategyMessage      String       @default("Hi {first_name}, I saw your post on {topic}. I work with SaaS sales teams on outbound, would be glad to connect.")
-  strategyFollowUpDays Int          @default(3)
+  strategyAgreedOn     String       @default("")
+  strategyWho          String       @default("")
+  strategyPerDay       Int          @default(0)
+  strategyMessage      String       @default("")
+  strategyFollowUpDays Int          @default(0)
   // LinkedIn Account connection metadata
-  accountConnected     Boolean      @default(true)
+  accountConnected     Boolean      @default(false)
   accountName          String?
+  linkedinMemberUrn     String?
+  linkedinAccessToken   String?
+  linkedinRefreshToken  String?
+  linkedinTokenExpiresAt DateTime?
+  linkedinScopes        String[]     @default([])
+  oauthStateHash        String?      @unique
+  oauthStateExpiresAt   DateTime?
+  oauthStateUserId      String?
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
 }

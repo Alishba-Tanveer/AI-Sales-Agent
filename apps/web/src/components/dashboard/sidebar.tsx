@@ -59,7 +59,7 @@ function NavLink({
             !active && "group-hover:text-primary",
           )}
         />
-        <span className="truncate">{item.label}</span>
+        <span className="[overflow-wrap:anywhere]">{item.label}</span>
       </span>
       {item.badge && count ? (
         <span
@@ -119,7 +119,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
             <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Bot className="size-[18px]" />
             </div>
-            <span className="truncate text-base font-semibold leading-tight text-foreground">
+            <span className="[overflow-wrap:anywhere] text-base font-semibold leading-tight text-foreground">
               AI Sales Agent
             </span>
           </Link>
@@ -162,10 +162,10 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                 <span className="absolute right-0 bottom-0 size-2 rounded-full bg-success ring-2 ring-sidebar" />
               </span>
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-xs leading-tight font-semibold text-foreground">
+                <span className="[overflow-wrap:anywhere] text-xs leading-tight font-semibold text-foreground">
                   {user?.name ?? "Your account"}
                 </span>
-                <span className="truncate text-[11px] text-muted-foreground capitalize">
+                <span className="[overflow-wrap:anywhere] text-[11px] text-muted-foreground capitalize">
                   {user?.role?.toLowerCase() ?? "Member"}
                 </span>
               </span>
@@ -175,12 +175,12 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
               {/* Base UI's GroupLabel must live inside a Group, otherwise it throws when the menu opens */}
               <DropdownMenuGroup>
                 <DropdownMenuLabel className="flex flex-col gap-0.5">
-                  <span className="truncate text-sm font-medium text-foreground">{user?.name}</span>
-                  <span className="truncate text-xs font-normal text-muted-foreground">
+                  <span className="[overflow-wrap:anywhere] text-sm font-medium text-foreground">{user?.name}</span>
+                  <span className="[overflow-wrap:anywhere] text-xs font-normal text-muted-foreground">
                     {user?.email}
                   </span>
                   {user?.organization?.name && (
-                    <span className="truncate text-xs font-normal text-muted-foreground">
+                    <span className="[overflow-wrap:anywhere] text-xs font-normal text-muted-foreground">
                       {user.organization.name}
                     </span>
                   )}

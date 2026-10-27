@@ -140,8 +140,8 @@ export function TeamTab() {
                         <PersonAvatar name={m.name} id={m.id} />
                       )}
                       <div className="flex min-w-0 flex-col">
-                        <span className="truncate text-sm font-medium text-foreground">{m.name}</span>
-                        <span className="truncate text-xs text-muted-foreground">{m.email}</span>
+                        <span className="[overflow-wrap:anywhere] text-sm font-medium text-foreground">{m.name}</span>
+                        <span className="[overflow-wrap:anywhere] text-xs text-muted-foreground">{m.email}</span>
                       </div>
                     </div>
                   </TableCell>
@@ -251,8 +251,8 @@ function RemovedRow({ m, canManage, onRestore }: { m: RemovedMember; canManage: 
       <div className="flex min-w-0 items-center gap-3">
         <PersonAvatar name={m.name} id={m.id} />
         <div className="flex min-w-0 flex-col">
-          <span className="truncate text-sm font-medium text-foreground">{m.name} <span className="text-xs font-normal text-muted-foreground">· {m.role}</span></span>
-          <span className="truncate text-xs text-muted-foreground">
+          <span className="[overflow-wrap:anywhere] text-sm font-medium text-foreground">{m.name} <span className="text-xs font-normal text-muted-foreground">· {m.role}</span></span>
+          <span className="[overflow-wrap:anywhere] text-xs text-muted-foreground">
             {m.email} · {m.reason === "ADMIN" ? `removed by ${m.removedBy}` : "deleted their own account"} · {m.daysLeft} day{m.daysLeft === 1 ? "" : "s"} left
           </span>
         </div>

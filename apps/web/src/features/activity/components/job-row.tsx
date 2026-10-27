@@ -34,12 +34,12 @@ export function JobRow({ job, now, busy, onRetry, onCancel, onView, onOpenLead }
       <TableCell className="overflow-hidden px-4 py-2 font-medium text-foreground" title={job.title}>
         <div className="flex items-center gap-2 overflow-hidden">
           <JobIcon job={job} />
-          <span className="truncate">{job.title}</span>
+          <span className="[overflow-wrap:anywhere]">{job.title}</span>
         </div>
       </TableCell>
 
       <TableCell className="overflow-hidden px-4 py-2 text-foreground" title={hasLead ? `${job.lead.name} · ${job.lead.context}` : job.lead.context}>
-        <span className="block truncate">
+        <span className="block [overflow-wrap:anywhere]">
           {hasLead ? (
             <>
               <span>{job.lead.name}</span>
@@ -52,7 +52,7 @@ export function JobRow({ job, now, busy, onRetry, onCancel, onView, onOpenLead }
       </TableCell>
 
       <TableCell className="overflow-hidden px-4 py-2 text-muted-foreground" title={job.agent}>
-        <span className="block truncate">{job.agent}</span>
+        <span className="block [overflow-wrap:anywhere]">{job.agent}</span>
       </TableCell>
 
       <TableCell className="px-4 py-2">
@@ -60,7 +60,7 @@ export function JobRow({ job, now, busy, onRetry, onCancel, onView, onOpenLead }
       </TableCell>
 
       <TableCell className="overflow-hidden px-4 py-2 text-muted-foreground" title={job.startedAt ? new Date(job.startedAt).toLocaleString() : undefined}>
-        <span className="block truncate">{started}</span>
+        <span className="block [overflow-wrap:anywhere]">{started}</span>
       </TableCell>
 
       <TableCell className={cn("px-4 py-2 text-center font-mono text-xs tabular-nums", job.status === "running" ? "text-primary" : "text-muted-foreground")}>

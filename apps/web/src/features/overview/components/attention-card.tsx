@@ -82,8 +82,8 @@ export function AttentionCard({ items }: { items: AttentionItem[] }) {
                     <Icon className="size-[18px]" />
                   </div>
                   <div className="flex min-w-0 flex-col">
-                    <span className="truncate text-sm font-medium text-foreground">{item.title}</span>
-                    <span className="mt-0.5 truncate text-xs text-muted-foreground">{item.subtitle}</span>
+                    <span className="[overflow-wrap:anywhere] text-sm font-medium text-foreground">{item.title}</span>
+                    <span className="mt-0.5 [overflow-wrap:anywhere] text-xs text-muted-foreground">{item.subtitle}</span>
                   </div>
                 </div>
                 <Link

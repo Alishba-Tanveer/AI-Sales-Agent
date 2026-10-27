@@ -9,7 +9,7 @@ function Item({ label, children }: { label: string; children: React.ReactNode })
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
       <dt className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">{label}</dt>
-      <dd className="truncate text-sm text-foreground">{children}</dd>
+      <dd className="[overflow-wrap:anywhere] text-sm text-foreground">{children}</dd>
     </div>
   );
 }
@@ -24,7 +24,7 @@ export function JobDetailsDialog({ job, open, onOpenChange, now }: { job: Activi
             <DialogHeader>
               <div className="flex items-center gap-2.5 pr-8">
                 <JobIcon job={job} className="size-5" />
-                <DialogTitle className="min-w-0 truncate text-base leading-snug">{job.title}</DialogTitle>
+                <DialogTitle className="min-w-0 [overflow-wrap:anywhere] text-base leading-snug">{job.title}</DialogTitle>
               </div>
               <DialogDescription>{job.lead.name ? (job.lead.context ? `${job.lead.name} (${job.lead.context})` : job.lead.name) : (job.lead.context || "—")}</DialogDescription>
             </DialogHeader>

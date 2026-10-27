@@ -125,3 +125,39 @@ export async function sendTeamInviteEmail(params: TeamInviteEmailParams): Promis
   console.log(`\n[MAILER] Successfully sent Team Invitation email to ${params.toEmail}\n`);
   return true;
 }
+
+export interface NoticeEmailParams {
+  toEmail: string;
+  subject: string;
+  /** Plain sentences, one per paragraph. */
+  lines: string[];
+}
+
+/**
+ * A short account notice for people who cannot see in-app notifications because they are signed out or locked out
+ * (removed from a team, workspace deleted, ownership changed). Never throws.
+ */
+export async function sendNoticeEmail(params: NoticeEmailParams): Promise<boolean> {
+  try {
+    const { smtpUser, smtpPass } = getSmtpCredentials();
+    if (!smtpUser || !smtpPass) {
+      console.warn(`\n[MAILER WARNING] SMTP not configured. Notice not emailed to ${params.toEmail}: ${params.subject}\n`);
+      return false;
+    }
+    const transporter = nodemailer.createTransport({ service: "gmail", auth: { user: smtpUser, pass: smtpPass } });
+    const paragraphs = params.lines
+      .map((l) => `<p style="font-size: 15px; line-height: 1.55; color: #e2e8f0; margin: 0 0 12px;">${escapeHtml(l)}</p>`)
+      .join("");
+    await transporter.sendMail({
+      from: `"AI Sales Agent" <${smtpUser}>`,
+      to: params.toEmail,
+      subject: params.subject,
+      text: params.lines.join("\n\n"),
+      html: `<div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 28px; border: 1px solid #2a3350; border-radius: 14px; background-color: #0b0f19;"><h2 style="margin: 0 0 18px; color: #818cf8; font-size: 20px;">AI Sales Agent</h2>${paragraphs}</div>`,
+    });
+    return true;
+  } catch (err) {
+    console.error("[MAILER ERROR] Could not send account notice:", err);
+    return false;
+  }
+}
