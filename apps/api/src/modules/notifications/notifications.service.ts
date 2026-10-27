@@ -28,9 +28,6 @@ export class NotificationsService {
   constructor(private readonly notificationsRepository: NotificationsRepository) {}
 
   async listNotifications(organizationId: string, userRole: string = "MEMBER", query?: ListNotificationsQuery) {
-    // Auto-seed realistic initial notifications if none exist
-    await this.notificationsRepository.seedDefaultNotificationsIfEmpty(organizationId);
-
     const items = await this.notificationsRepository.list(organizationId, query);
     const visibleItems = items.filter((n) => isNotificationAllowedForRole(n, userRole));
     const unreadCount = visibleItems.filter((n) => !n.read).length;

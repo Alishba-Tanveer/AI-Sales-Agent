@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { Role } from "@ai-sales-agent/database";
+import { Role, prisma } from "@ai-sales-agent/database";
 import { TeamRepository } from "./team.repository";
 import type {
   CreateInvitationInput,
@@ -279,6 +279,17 @@ export class TeamService {
     const emailError = await this.deliverInvitation(invitation, invitedById, organizationId);
     const saved = { ...invitation, emailError };
 
+    await prisma.inAppNotification.create({
+      data: {
+        organizationId,
+        type: "team",
+        title: `Invitation sent to ${invitation.email}`,
+        body: `An invitation was sent to ${invitation.name} (${invitation.email}) to join as ${formatRoleLabel(invitation.role)}.`,
+        read: false,
+        href: "/settings?tab=team",
+      },
+    }).catch(() => {});
+
     return {
       message: emailError
         ? `Invitation saved, but the email could not be sent: ${emailError}. Use Resend to try again.`
@@ -425,6 +436,16 @@ export class TeamService {
         );
       }
       await this.teamRepository.softDeleteMember(member.id, currentUserId);
+      await prisma.inAppNotification.create({
+        data: {
+          organizationId,
+          type: "team",
+          title: `${member.name} was removed from the team`,
+          body: `${member.name} (${member.email}) was removed from the team. They can be restored from Recently removed.`,
+          read: false,
+          href: "/settings?tab=team",
+        },
+      }).catch(() => {});
       const info = recoveryInfo(new Date());
       return {
         message: `${member.name} was removed. You can restore them for the next 30 days.`,
@@ -464,6 +485,16 @@ export class TeamService {
     }
 
     const restored = await this.teamRepository.restoreMember(user.id);
+    await prisma.inAppNotification.create({
+      data: {
+        organizationId,
+        type: "team",
+        title: `${restored.name}'s account was restored`,
+        body: `${restored.name} (${restored.email}) was restored to the team as ${formatRoleLabel(restored.role)}.`,
+        read: false,
+        href: "/settings?tab=team",
+      },
+    }).catch(() => {});
     return {
       message: `${restored.name} was restored to the team`,
       data: {
@@ -703,6 +734,17 @@ export class TeamService {
         code: "INVITE_USED",
       });
     }
+
+    await prisma.inAppNotification.create({
+      data: {
+        organizationId: invite.organizationId,
+        type: "team",
+        title: `${user.name} joined your workspace`,
+        body: `${user.name} (${user.email}) accepted the invitation and joined as ${formatRoleLabel(user.role)}.`,
+        read: false,
+        href: "/settings?tab=team",
+      },
+    }).catch(() => {});
 
     const token = jwt.sign(
       {

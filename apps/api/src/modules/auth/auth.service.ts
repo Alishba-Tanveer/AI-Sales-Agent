@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { Role } from "@ai-sales-agent/database";
+import { Role, prisma } from "@ai-sales-agent/database";
 import { env } from "../../config/env";
 import { AppError } from "../../utils/app-error";
 import { blacklistToken } from "../../utils/token-blacklist";
@@ -104,6 +104,18 @@ export class AuthService {
       user = outcome.user;
       restoredScope = outcome.scope;
       accountRestored = true;
+      if (restoredScope === "account") {
+        await prisma.inAppNotification.create({
+          data: {
+            organizationId: user.organizationId,
+            type: "team",
+            title: `${user.name} restored their account`,
+            body: `${user.name} (${user.email}) signed back in and restored their account.`,
+            read: false,
+            href: "/settings?tab=team",
+          },
+        }).catch(() => {});
+      }
     }
 
     // 3. Set token expiry based on remember me checkbox
