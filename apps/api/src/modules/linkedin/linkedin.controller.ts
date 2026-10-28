@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { trackLinkedinActivity } from "../activity/activity-logger";
+import { notify } from "../../utils/notify";
 import { linkedinService } from "./linkedin.service";
 import {
   analyzeProfileSchema,
@@ -703,10 +704,14 @@ export class LinkedinController {
 
   async addLeadToCrm(req: Request, res: Response, next: NextFunction) {
     try {
-      const crmLead = await linkedinService.addLeadToCrm(
+      const result = await linkedinService.addLeadToCrm(
         req.user!.organizationId,
         String(req.params.id),
       );
+      const crmLead = result.lead;
+      if (result.created) {
+        await notify({ organizationId: req.user!.organizationId, type: "lead", title: "New lead added", body: `${crmLead.name} was added from LinkedIn to the lead pipeline.`, href: `/leads/${crmLead.id}`, audience: "ALL", exceptUserId: req.user!.userId });
+      }
       res.status(201).json({
         success: true,
         message: `${crmLead.name} added to Leads`,

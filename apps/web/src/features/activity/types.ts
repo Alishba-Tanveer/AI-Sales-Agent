@@ -1,6 +1,6 @@
 export type JobStatus = "completed" | "running" | "failed" | "queued" | "cancelled";
 
-export type JobKind = "research" | "draft" | "sync" | "enrich" | "invite" | "analyze" | "discover" | "followup";
+export type JobKind = "research" | "draft" | "sync" | "enrich" | "invite" | "analyze" | "discover" | "followup" | "lead";
 
 export type AgentName = "General Agent" | "LinkedIn Agent";
 

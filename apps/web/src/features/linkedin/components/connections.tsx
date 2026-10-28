@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Clock, ClipboardCopy, ExternalLink, Eye, Heart, Lightbulb, Loader2, MessageSquare, Pencil, Plus, Search, Send, Target, TriangleAlert, Upload, UserPlus, Users, type LucideIcon } from "lucide-react";
+import { Ban, Check, ChevronDown, Clock, ExternalLink, Eye, Heart, Lightbulb, Loader2, MessageSquare, Pencil, Plus, Send, Target, TriangleAlert, Upload, Users, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { can, currentRole } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CARD_HOVER, CARD_INNER, HOVER_BUTTONS, Field, Pill, SectionCard, TONES, initials, inputCls, type Tone } from "@/features/settings/components/settings-ui";
-import { bulkApproveLeads, createLead, discoverLeads, fetchLeads, fetchStrategy, importLeads, saveLeadNote, saveStrategy, sendLead, skipLead, markLeadSent, type ImportRow } from "../api";
-import { copyText, normalizeLinkedInProfileUrl, personSearchUrl } from "../links";
+import { addLeadToCrm, bulkApproveLeads, createLead, fetchLeads, fetchStrategy, importLeads, saveLeadNote, saveStrategy, sendLead, skipLead, markLeadSent, markLeadConnected, type ImportRow } from "../api";
+import { copyText, linkedinMessageUrl, normalizeLinkedInProfileUrl, personSearchUrl } from "../links";
 import type { Lead, OutreachStrategy } from "../types";
 import { ConfirmDialog, HowItWorksDialog, IconTile, LinkButton, PageHeader, TabBar, fmtDate } from "./linkedin-ui";
 
@@ -50,10 +51,9 @@ export function Connections() {
   const [strategyOpen, setStrategyOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [researching, setResearching] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [detail, setDetail] = useState<Lead | null>(null);
-  const [confirm, setConfirm] = useState<{ kind: "skip" | "withdraw" | "bulk"; lead?: Lead } | null>(null);
+  const [confirm, setConfirm] = useState<{ kind: "skip" | "withdraw" | "connected" | "bulk"; lead?: Lead } | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -97,14 +97,20 @@ export function Connections() {
     setSelected(new Set());
   };
 
-  const send = async (l: Lead, note?: string) => {
-    try {
-      replaceLead(await sendLead(l.id, note));
-      unselect(l.id);
-      toast.success(`Connection note saved for ${l.name}. Send it manually on LinkedIn.`);
-    } catch (e) {
-      // e.g. "Daily limit of 15 requests reached."
-      toast.error(errMsg(e, `Could not send the request to ${l.name}.`));
+  const messageOnLinkedIn = (l: Lead) => {
+    const note = l.note.trim();
+    if (!note) return void toast.error(`Add a note for ${l.name} before opening LinkedIn.`);
+
+    void copyText(note).then((copied) => {
+      if (copied) toast.success(`Note copied. LinkedIn's message composer opened for ${l.name}; paste it and send.`);
+      else toast.error("LinkedIn's message composer opened, but the note could not be copied. Copy it manually.");
+    });
+
+    // Suggested leads become prepared in the app while LinkedIn opens from this click.
+    if (l.status === "suggested") {
+      void sendLead(l.id, note).then(replaceLead).catch((e) => {
+        toast.error(errMsg(e, `Could not save the prepared note for ${l.name}.`));
+      });
     }
   };
   const skip = async (l: Lead) => {
@@ -117,6 +123,20 @@ export function Connections() {
     }
   };
   const markSent = async (l:Lead) => { try { replaceLead(await markLeadSent(l.id)); toast.success(`Marked ${l.name} invitation as sent.`); } catch(e) { toast.error(errMsg(e,"Could not update this invitation.")); } };
+  const markConnected = async (l: Lead) => {
+    try {
+      replaceLead(await markLeadConnected(l.id));
+      setConfirm(null);
+      toast.success(`${l.name} marked connected. You can message them or add them to Leads.`);
+    } catch (e) { toast.error(errMsg(e, `Could not update ${l.name}'s connection status.`)); }
+  };
+  const promoteToCrm = async (l: Lead) => {
+    try {
+      const crmLead = await addLeadToCrm(l.id);
+      replaceLead({ ...l, crmLeadId: crmLead.id });
+      toast.success(`${l.name} is now in Leads.`);
+    } catch (e) { toast.error(errMsg(e, `Could not add ${l.name} to Leads.`)); }
+  };
   const withdraw = async (l: Lead) => {
     try {
       replaceLead(await skipLead(l.id, "withdraw"));
@@ -163,22 +183,6 @@ export function Connections() {
     toast.success(`Imported ${res.importedCount} ${res.importedCount === 1 ? "person" : "people"}`);
   };
 
-  /** Searches public sources for people matching the saved niche; only candidates with a cited LinkedIn link come back. */
-  const research = async () => {
-    setResearching(true);
-    try {
-      const res = await discoverLeads();
-      setLeads((cur) => [...res.leads, ...(cur ?? [])]);
-      changeTab("buyers");
-      if (res.discoveredCount > 0) toast.success(`Found ${res.discoveredCount} buyer candidate${res.discoveredCount === 1 ? "" : "s"} from ${res.researchSources.length} public sources.`);
-      else toast(`Checked ${res.researchSources.length} public sources but none named a person with a LinkedIn link. Try broadening your target audience.`);
-    } catch (e) {
-      toast.error(errMsg(e, "Could not research buyers right now."));
-    } finally {
-      setResearching(false);
-    }
-  };
-
   /** "Save note" on someone waiting for approval, or just save the message for someone already connected. */
   const submitNote = async (l: Lead, note: string) => {
     if (open(l)) {
@@ -203,11 +207,10 @@ export function Connections() {
     <main className={cn("mx-auto flex w-full max-w-[1280px] flex-col gap-6 p-6 lg:p-8", HOVER_BUTTONS)}>
       <PageHeader
         title="Engagement & Connections"
-        description="Research likely buyers from public sources, track contacts you import, and prepare connection notes for manual sending."
+        description="Import LinkedIn contacts or add people manually, then track connection status and prepare notes for manual sending."
         actions={
           <>
             <Button variant="outline" className={TONES.warning.btn} onClick={() => setHelpOpen(true)}><Lightbulb /> How it works</Button>
-            <Button variant="outline" className={TONES.violet.btn} onClick={research} disabled={researching}>{researching ? <Loader2 className="animate-spin" /> : <Search />} {researching ? "Researching…" : "Research buyers"}</Button>
             <Button variant="outline" className={TONES.success.btn} onClick={() => setImportOpen(true)}><Upload /> Import</Button>
             <Button variant="outline" className={TONES.info.btn} onClick={() => setAddOpen(true)}><Plus /> Add person</Button>
             <Button onClick={() => setConfirm({ kind: "bulk" })} disabled={selected.size === 0}><Send /> Prepare notes ({selected.size})</Button>
@@ -278,7 +281,7 @@ export function Connections() {
       ) : (
         <div className={cn("overflow-hidden rounded-xl border border-border bg-card", CARD_HOVER)}>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
+            <table className="w-full min-w-[1100px] text-left text-sm">
               <thead className="border-b border-border bg-secondary/40 text-xs text-muted-foreground">
                 <tr>
                   {showSelect && (
@@ -320,18 +323,25 @@ export function Connections() {
                         {l.status === "pending" && <Pill tone="primary"><Clock className="size-3" /> Awaiting acceptance</Pill>}
                         {l.status === "connected" && <Pill tone="success"><Users className="size-3" /> Connected</Pill>}
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex justify-end gap-1.5">
+                      <td className="min-w-[360px] px-4 py-3 align-middle">
+                        <div className="flex min-h-8 flex-wrap items-center justify-end gap-2">
                           {open(l) && (
                             <>
-                              <Button size="sm" onClick={() => send(l)}><UserPlus /> Prepare connection notes</Button>
                               <Button size="sm" variant="outline" onClick={() => setNoteLead(l)}>Edit note</Button>
                               <Button size="sm" variant="ghost" onClick={() => setConfirm({ kind: "skip", lead: l })}>Skip</Button>
                             </>
                           )}
-                          {l.status === "approved" && <><Button size="sm" variant="outline" onClick={() => markSent(l)}>I sent it</Button><Button size="sm" variant="ghost" onClick={() => setNoteLead(l)}>Copy note</Button></>}
-                          {l.status === "pending" && <Button size="sm" variant="ghost" onClick={() => setConfirm({ kind: "withdraw", lead: l })}>Track withdrawal</Button>}
-                          {l.status === "connected" && <Button size="sm" variant="outline" onClick={() => setNoteLead(l)}>Message</Button>}
+                          {l.url && l.status !== "connected" && <LinkButton size="sm" variant="outline" href={linkedinMessageUrl(l.url) ?? normalizeLinkedInProfileUrl(l.url) ?? l.url} onClick={() => messageOnLinkedIn(l)}><MessageSquare /> Copy note &amp; open LinkedIn inbox</LinkButton>}
+                          {l.status === "approved" && <Button size="sm" variant="ghost" onClick={() => markSent(l)}>I sent it</Button>}
+                          {l.url && <a href={normalizeLinkedInProfileUrl(l.url) ?? l.url} target="_blank" rel="noreferrer" title={l.status === "pending" ? "Open their profile to check the invitation or follow them" : "Open their LinkedIn profile"} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-2.5 text-xs font-medium hover:bg-muted"><ExternalLink className="size-3.5"/>{l.status === "pending" ? "Check / follow" : "Open profile"}</a>}
+                          {l.status === "pending" && <DropdownMenu>
+                            <DropdownMenuTrigger className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Update status<ChevronDown className="size-3.5"/></DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="min-w-44">
+                              <DropdownMenuItem onClick={() => setConfirm({ kind: "connected", lead: l })}><Users/>Mark connected</DropdownMenuItem>
+                              <DropdownMenuItem variant="destructive" onClick={() => setConfirm({ kind: "withdraw", lead: l })}><Ban/>Mark withdrawn</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>}
+                          {tab !== "buyers" && (l.crmLeadId ? <span className="px-2 text-xs font-medium text-emerald-400">In Leads</span> : <Button size="sm" variant="ghost" onClick={() => void promoteToCrm(l)}><Plus /> Add to Leads</Button>)}
                         </div>
                       </td>
                     </tr>
@@ -369,15 +379,24 @@ export function Connections() {
         open={confirm?.kind === "withdraw"}
         onOpenChange={(o) => !o && setConfirm(null)}
         tone="destructive"
-        title="Withdraw this request?"
+        title="Mark this request withdrawn?"
         description={confirm?.lead ? `Your request to ${confirm.lead.name} is marked as withdrawn here. To cancel it on LinkedIn too, open Manage invitations → Sent.` : ""}
-        confirmLabel="Withdraw"
+        confirmLabel="Mark withdrawn"
         onConfirm={() => confirm?.lead && withdraw(confirm.lead)}
       >
         <LinkButton href="https://www.linkedin.com/mynetwork/invitation-manager/sent/" variant="outline" size="sm" className="w-fit">
           Open sent invitations <ExternalLink className="size-3" />
         </LinkButton>
       </ConfirmDialog>
+      <ConfirmDialog
+        open={confirm?.kind === "connected"}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        tone="success"
+        title="They accepted your invitation?"
+        description={confirm?.lead ? `Confirm on LinkedIn that ${confirm.lead.name} accepted. This only updates the status in this app; LinkedIn does not sync acceptance events here.` : ""}
+        confirmLabel="Mark connected"
+        onConfirm={() => confirm?.lead && markConnected(confirm.lead)}
+      />
       <ConfirmDialog
         open={confirm?.kind === "bulk"}
         onOpenChange={(o) => !o && setConfirm(null)}
@@ -394,9 +413,9 @@ export function Connections() {
         onOpenChange={setHelpOpen}
         tone="info"
         title="How Connections works"
-        description="Research and track contacts. You decide manually who to contact."
+        description="Import and track contacts. You decide manually who to contact."
         steps={[
-          { title: "Find and import the right people", text: "Import contacts who engaged with you. Research buyers from public sources using your saved niche and target audience." },
+          { title: "Add the right people", text: "Import people who engaged with you from CSV, or add target buyers manually." },
           { title: "You review the list", text: "Click a name to see why they are here. Edit the note, skip them, or prepare it for manual sending." },
           { title: "Prepare notes for your review", text: "Copy a personalized note and send invitations yourself in LinkedIn. No automatic messages or campaigns." },
           { title: "Track replies manually", text: "After the invitation is accepted, mark the person Connected here. The app does not read invitation events." },
@@ -479,7 +498,7 @@ function NoteForm({ lead, onClose, onSend }: { lead: Lead; onClose: () => void; 
       <Field label="Note" htmlFor="note" aside={<span className={cn("text-xs", over ? "text-destructive" : "text-muted-foreground")}>{note.length}/300</span>}>
         <Textarea id="note" rows={5} value={note} onChange={(e) => setNote(e.target.value)} />
       </Field>
-      <p className="text-xs text-muted-foreground">Save your note here, then open the profile and send the invitation manually in LinkedIn.</p>
+      <p className="text-xs text-muted-foreground">Save your note, then use Message on LinkedIn to copy it and open the message box. You send it yourself.</p>
       <DialogFooter>
         <Button variant="ghost" disabled={busy} onClick={onClose}>Cancel</Button>
         <Button disabled={over || !note.trim() || busy} onClick={submit}>{busy && <Loader2 className="animate-spin" />} {isOpen ? "Save note" : "Save message"}</Button>
@@ -714,10 +733,12 @@ function ImportDialog({ open, onOpenChange, onImport }: { open: boolean; onOpenC
 function LeadDialog({ lead, onClose, onEditNote }: { lead: Lead | null; onClose: () => void; onEditNote: (l: Lead) => void }) {
   const Icon = lead ? REASON_ICON[lead.reasonKind] : Target;
   const isOpen = !!lead && (lead.status === "suggested" || lead.status === "approved");
-  const copy = async () => {
+  const copyAndMessage = () => {
     if (!lead) return;
-    if (await copyText(lead.note)) toast.success("Note copied. Paste it into LinkedIn.");
-    else toast.error("Could not copy. Select the text and copy it manually.");
+    void copyText(lead.note).then((copied) => {
+      if (copied) toast.success(`Note copied. LinkedIn's message composer opened for ${lead.name}; paste it and send.`);
+      else toast.error("LinkedIn's message composer opened, but the note could not be copied. Copy it manually.");
+    });
   };
   return (
     <Dialog open={!!lead} onOpenChange={(o) => !o && onClose()}>
@@ -754,9 +775,8 @@ function LeadDialog({ lead, onClose, onEditNote }: { lead: Lead | null; onClose:
 
             <DialogFooter>
               {isOpen && <Button variant="ghost" onClick={() => onEditNote(lead)}><Pencil /> Edit note</Button>}
-              <Button variant="outline" onClick={copy}><ClipboardCopy /> Copy note</Button>
-              <LinkButton size="default" href={lead.url ?? personSearchUrl(lead.name, lead.company)}>
-                <ExternalLink /> {lead.url ? "Open on LinkedIn" : "Find on LinkedIn"}
+              <LinkButton size="default" href={linkedinMessageUrl(lead.url ?? "") ?? normalizeLinkedInProfileUrl(lead.url ?? "") ?? personSearchUrl(lead.name, lead.company)} onClick={copyAndMessage}>
+                <MessageSquare /> {lead.url ? "Copy note & open LinkedIn inbox" : "Find on LinkedIn"}
               </LinkButton>
             </DialogFooter>
           </>

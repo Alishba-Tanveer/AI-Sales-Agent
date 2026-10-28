@@ -19,12 +19,17 @@ export async function generateGeminiJson<T>(input: {
   );
   endpoint.searchParams.set("key", env.GEMINI_API_KEY);
   let response: Response | null = null;
+  const isGemini3 = /^gemini-3\./.test(env.GEMINI_MODEL);
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: input.system }] },
     contents: [{ role: "user", parts: [{ text: input.prompt }] }],
     generationConfig: {
       responseMimeType: "application/json",
-      temperature: input.temperature ?? 0.25,
+      // Gemini 3 models default to medium thinking, which adds latency to these
+      // short drafting tasks. Gemini 3.6+ also ignores temperature settings.
+      ...(isGemini3
+        ? { thinkingConfig: { thinkingLevel: "LOW" } }
+        : { temperature: input.temperature ?? 0.25 }),
     },
   });
 
@@ -37,8 +42,11 @@ export async function generateGeminiJson<T>(input: {
         signal: AbortSignal.timeout(45_000),
         body,
       });
-    } catch {
-      throw new AppError("Could not reach Gemini. Check the API server's internet connection and try again.", 502, { code: "GEMINI_UNAVAILABLE" });
+    } catch (error) {
+      if (error instanceof Error && error.name === "TimeoutError") {
+        throw new AppError("Gemini took longer than 45 seconds to draft this. Please try again.", 504, { code: "GEMINI_TIMEOUT" });
+      }
+      throw new AppError("The API server could not connect to Gemini. Check its network connection and try again.", 502, { code: "GEMINI_UNAVAILABLE" });
     }
     if (response.status !== 503 || attempt === 2) break;
     await new Promise((resolve) => setTimeout(resolve, 1_000 * (attempt + 1)));

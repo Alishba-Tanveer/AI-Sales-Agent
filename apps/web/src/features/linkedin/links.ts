@@ -19,6 +19,16 @@ export function normalizeLinkedInProfileUrl(value: string): string | null {
   return m ? `https://www.linkedin.com/in/${m[1]}` : null;
 }
 
+/** Open LinkedIn's compose window with a profile's public username prefilled. */
+export function linkedinMessageUrl(value: string): string | null {
+  const profileUrl = normalizeLinkedInProfileUrl(value);
+  if (!profileUrl) return null;
+  const username = new URL(profileUrl).pathname.split("/").filter(Boolean).at(-1);
+  return username
+    ? `https://www.linkedin.com/messaging/compose/?recipient=${encodeURIComponent(username)}`
+    : null;
+}
+
 export const isLinkedInProfileUrl = (value: string) => normalizeLinkedInProfileUrl(value) !== null;
 
 /** Any web link, with or without https://. Returns the full https link, or null when it is not a link. */

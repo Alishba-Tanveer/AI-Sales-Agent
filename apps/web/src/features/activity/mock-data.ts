@@ -22,6 +22,7 @@ const OUTPUT: Record<JobKind, (lead: string | undefined, context: string) => str
   analyze: (_l, ctx) => `Tech stack for ${ctx} detected. Fit score updated.`,
   discover: () => "Discovery run finished. 9 new prospects added to Leads as New.",
   followup: (lead) => `Follow-up #2 scheduled for ${lead ?? "the lead"} and queued for approval.`,
+  lead: (lead) => `${lead ?? "A new contact"} was added to Leads.`,
 };
 
 const mk = (s: Seed, i: number, now: number): ActivityJob => ({

@@ -3,12 +3,12 @@ import type { LeadStage, StageCount } from "../types";
 
 /** Categorical stage colours — identical in light and dark (same hues as the design). */
 const STAGE_META: Record<LeadStage, { label: string; color: string }> = {
-  new: { label: "New", color: "#818CF8" },
-  reviewed: { label: "Reviewed", color: "#38BDF8" },
-  contacted: { label: "Contacted", color: "#A78BFA" },
-  interested: { label: "Interested", color: "#FBBF24" },
+  new: { label: "New", color: "#38BDF8" },
+  contacted: { label: "Contacted", color: "#FBBF24" },
+  interested: { label: "Interested", color: "#F472B6" },
   won: { label: "Won", color: "#4ADE80" },
-  lost: { label: "Lost", color: "#F87171" },
+  lost: { label: "Lost", color: "#94A3B8" },
+  do_not_contact: { label: "Do not contact", color: "#F87171" },
 };
 
 export function LeadsByStage({ stages, totalLeads }: { stages: StageCount[]; totalLeads: number }) {

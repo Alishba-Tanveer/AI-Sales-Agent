@@ -173,10 +173,6 @@ export const importLeads = (leads: ImportRow[]) =>
   unwrap(api<Res<{ importedCount: number; leads: Lead[] }>>("/api/linkedin/leads/import", { method: "POST", body: json({ leads }) }));
 
 /** POST /api/linkedin/leads/discover  ->  buyer candidates found in public sources (Tavily search + Gemini, can take up to a minute) */
-export type DiscoverResult = { discoveredCount: number; leads: Lead[]; researchSources: Array<{ title: string; url: string }> };
-export const discoverLeads = () =>
-  unwrap(api<Res<DiscoverResult>>("/api/linkedin/leads/discover", { method: "POST", body: json({}) }));
-
 /** Save a connection note for manual sending; does not send a LinkedIn invitation. */
 export const sendLead = (id: string, note?: string) =>
   unwrap(api<Res<Lead>>(`/api/linkedin/leads/${id}/send`, { method: "POST", body: json(note ? { note } : {}) }));
@@ -184,6 +180,8 @@ export const sendLead = (id: string, note?: string) =>
 /** Prepare selected connection notes for manual sending and return the refreshed list. */
 export type BulkResult = { sentCount: number; requestedCount: number; dailyLimit: number; limitReached: boolean; leads: Lead[] };
 export const markLeadSent = (id:string) => unwrap(api<Res<Lead>>(`/api/linkedin/leads/${id}/mark-sent`, { method:"POST", body:json({}) }));
+/** Mark a pending connection as accepted after confirming it manually on LinkedIn. */
+export const markLeadConnected = (id: string) => unwrap(api<Res<Lead>>(`/api/linkedin/leads/${id}/mark-connected`, { method: "POST", body: json({}) }));
 export const bulkApproveLeads = (ids: string[]) =>
   unwrap(api<Res<BulkResult>>("/api/linkedin/leads/bulk-approve", { method: "POST", body: json({ ids }) }));
 
@@ -194,3 +192,7 @@ export const skipLead = (id: string, how: "skip" | "withdraw") =>
 /** PATCH /api/linkedin/leads/:id/note  { note }  (saves the note without sending anything) */
 export const saveLeadNote = (id: string, note: string) =>
   unwrap(api<Res<Lead>>(`/api/linkedin/leads/${id}/note`, { method: "PATCH", body: json({ note }) }));
+
+/** Copy a LinkedIn prospect into the shared CRM lead pipeline (idempotent). */
+export const addLeadToCrm = (id: string) =>
+  api<{ id: string; name: string }>(`/api/linkedin/leads/${id}/add-to-leads`, { method: "POST", body: json({}) });
