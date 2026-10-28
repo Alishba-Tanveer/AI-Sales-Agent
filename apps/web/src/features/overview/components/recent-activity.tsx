@@ -11,7 +11,11 @@ const typeMeta: Record<ActivityType, { icon: LucideIcon; cls: string }> = {
   lead_added: { icon: UserPlus, cls: "text-muted-foreground" },
 };
 
+/** Only the newest few are shown so this card stays the same height as its neighbours. */
+const MAX_ITEMS = 6;
+
 export function RecentActivity({ items }: { items: ActivityItem[] }) {
+  const recent = [...items].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, MAX_ITEMS);
   return (
     <section
       className="flex flex-col rounded-xl border border-border bg-card p-6 transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
@@ -24,7 +28,7 @@ export function RecentActivity({ items }: { items: ActivityItem[] }) {
         <span className="text-xs text-muted-foreground">Live feed</span>
       </div>
       <ul className="divide-y divide-border">
-        {items.map((item) => {
+        {recent.map((item) => {
           const { icon: Icon, cls } = typeMeta[item.type];
           return (
             <li

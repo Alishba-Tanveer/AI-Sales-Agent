@@ -64,11 +64,11 @@ export class AnalyticsService {
 
     const stages = [
       { stage: "new" as const, count: stageMap.get(LeadStage.NEW) ?? 0 },
-      { stage: "reviewed" as const, count: stageMap.get(LeadStage.REVIEWED) ?? 0 },
       { stage: "contacted" as const, count: stageMap.get(LeadStage.CONTACTED) ?? 0 },
       { stage: "interested" as const, count: stageMap.get(LeadStage.INTERESTED) ?? 0 },
       { stage: "won" as const, count: stageMap.get(LeadStage.WON) ?? 0 },
       { stage: "lost" as const, count: stageMap.get(LeadStage.LOST) ?? 0 },
+      { stage: "do_not_contact" as const, count: stageMap.get(LeadStage.DO_NOT_CONTACT) ?? 0 },
     ];
 
     const attention: Array<{

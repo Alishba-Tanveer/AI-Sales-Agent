@@ -6,6 +6,7 @@ import {
   Compass,
   Loader2,
   Mail,
+  UserRound,
   RefreshCw,
   ScanSearch,
   Search,
@@ -25,6 +26,7 @@ const KIND_ICON: Record<JobKind, LucideIcon> = {
   analyze: ScanSearch,
   discover: Compass,
   followup: CalendarClock,
+  lead: UserRound,
 };
 
 /** Icon in front of the task name. Status wins over kind for running / failed / queued / cancelled. */

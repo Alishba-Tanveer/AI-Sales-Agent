@@ -5,7 +5,7 @@ import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
 /**
- * Toasts sit top-right, just under the top bar (64px tall), and are larger than the default.
+ * Toasts sit top-right under the app bar and notification bell.
  * Each type has its own solid color (a tint of the status color) so a toast never blends into the page.
  */
 const Toaster = ({ ...props }: ToasterProps) => {

@@ -21,6 +21,7 @@ import { env } from "../../config/env";
 import { linkedinAuthorizationUrl, exchangeLinkedinCode, linkedinUserInfo } from "../../integrations/linkedin";
 import { sealSecret } from "../../utils/secret-box";
 import { tavilySearch } from "../../integrations/tavily";
+import { trackLinkedinActivity } from "../activity/activity-logger";
 
 /** Helper to extract a human name from a LinkedIn profile URL slug, e.g. "alishba-tanveer" -> "Alishba Tanveer" */
 function extractNameFromLinkedInUrl(url: string): string | null {
@@ -889,6 +890,7 @@ export class LinkedinService {
     reasonKind: string;
     note: string;
     url: string | null;
+    crmLeadId: string | null;
     sentAt: string | null;
     connectedAt: string | null;
   }) {
@@ -902,6 +904,7 @@ export class LinkedinService {
       reason: row.reason,
       reasonKind: row.reasonKind as "like" | "comment" | "view" | "fit",
       note: row.note,
+      ...(row.crmLeadId ? { crmLeadId: row.crmLeadId } : {}),
       ...(row.url ? { url: row.url } : {}),
       ...(row.sentAt ? { sentAt: row.sentAt } : {}),
       ...(row.connectedAt ? { connectedAt: row.connectedAt } : {}),
@@ -1219,19 +1222,44 @@ export class LinkedinService {
       throw new AppError("Connection lead not found", 404);
     }
 
-    const crmLead = await prisma.lead.create({
-      data: {
-        organizationId,
-        name: liLead.name,
-        company: liLead.company !== "—" ? liLead.company : null,
-        jobTitle: liLead.role !== "—" ? liLead.role : null,
-        source: `LinkedIn (${liLead.source})`,
-        notes: `${liLead.reason}\n\nNote: ${liLead.note}`,
-        stage: liLead.status === "connected" ? "CONTACTED" : "NEW",
-      },
-    });
+    if (liLead.crmLeadId) {
+      const existing = await prisma.lead.findFirst({ where: { id: liLead.crmLeadId, organizationId } });
+      if (existing) return { lead: existing, created: false };
+    }
 
-    return crmLead;
+    try {
+      return await trackLinkedinActivity({
+        organizationId, kind: "lead", title: `Add LinkedIn lead: ${liLead.name}`, leadName: liLead.name, context: liLead.company,
+        run: async () => {
+          const lead = await prisma.$transaction(async (tx) => {
+            const created = await tx.lead.create({
+              data: {
+                organizationId,
+                name: liLead.name,
+                company: liLead.company !== "—" ? liLead.company : null,
+                jobTitle: liLead.role !== "—" ? liLead.role : null,
+                source: `LinkedIn (${liLead.source})`,
+                notes: `${liLead.reason}\n\nNote: ${liLead.note}`,
+                linkedinUrl: liLead.url,
+                stage: liLead.status === "connected" ? "CONTACTED" : "NEW",
+              },
+            });
+            const linked = await tx.linkedinLead.updateMany({ where: { id: liLead.id, organizationId, crmLeadId: null }, data: { crmLeadId: created.id } });
+            if (!linked.count) throw new AppError("This contact was just added to Leads.", 409);
+            return created;
+          });
+          return { lead, created: true };
+        },
+        output: (result) => `${result.lead.name} added from LinkedIn to the lead pipeline.`,
+      });
+    } catch (error) {
+      const latest = await linkedinRepository.findLeadById(organizationId, id);
+      if (latest?.crmLeadId) {
+        const existing = await prisma.lead.findFirst({ where: { id: latest.crmLeadId, organizationId } });
+        if (existing) return { lead: existing, created: false };
+      }
+      throw error;
+    }
   }
 
   /* ========================================================================

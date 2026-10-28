@@ -1,4 +1,4 @@
-export type LeadStage = "new" | "reviewed" | "contacted" | "interested" | "won" | "lost";
+export type LeadStage = "new" | "contacted" | "interested" | "won" | "lost" | "do_not_contact";
 
 export type OverviewMetrics = {
   totalLeads: number;

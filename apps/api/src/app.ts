@@ -12,6 +12,8 @@ import { linkedinRoutes } from "./modules/linkedin/linkedin.routes";
 import { activityRoutes } from "./modules/activity/activity.routes";
 import { notificationsRoutes } from "./modules/notifications/notifications.routes";
 import { analyticsRoutes } from "./modules/analytics/analytics.routes";
+import { leadsRoutes } from "./modules/leads/leads.routes";
+import { inboxRoutes } from "./modules/inbox/inbox.routes";
 
 const app = express();
 
@@ -36,6 +38,8 @@ app.use("/api/linkedin", linkedinRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/leads", leadsRoutes);
+app.use("/api/inbox", inboxRoutes);
 
 app.use(errorHandler);
 

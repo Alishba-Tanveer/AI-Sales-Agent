@@ -16,27 +16,43 @@ enum Role {
 
 enum LeadStage {
   NEW
-  REVIEWED
   CONTACTED
   INTERESTED
   WON
   LOST
+  DO_NOT_CONTACT
+}
+
+enum LeadMessageChannel {
+  EMAIL
+  LINKEDIN
+}
+
+enum LeadMessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum LeadMessageStatus {
+  DRAFT
+  SENT
+  RECEIVED
 }
 
 model Organization {
-  id                  String             @id @default(cuid())
+  id                  String              @id @default(cuid())
   name                String
   websiteUrl          String?
   industry            String?
   description         String?
-  services            String[]           @default([])
+  services            String[]            @default([])
   differentiation     String?
-  targetIndustries    String[]           @default([])
-  targetTitles        String[]           @default([])
-  locations           String[]           @default([])
+  targetIndustries    String[]            @default([])
+  targetTitles        String[]            @default([])
+  locations           String[]            @default([])
   companySize         String?
   customerDescription String?
-  onboardingCompleted Boolean            @default(false)
+  onboardingCompleted Boolean             @default(false)
   users               User[]
   leads               Lead[]
   invitations         TeamInvitation[]
@@ -46,8 +62,9 @@ model Organization {
   linkedinLeads       LinkedinLead[]
   activityLogs        ActivityLog[]
   notifications       InAppNotification[]
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  leadCommunications  LeadCommunication[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 }
 
 model User {
@@ -66,8 +83,8 @@ model User {
   organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
-  removedById      String?
-  removedReason    String?
+  removedById       String?
+  removedReason     String?
 }
 
 model TeamInvitation {
@@ -83,11 +100,11 @@ model TeamInvitation {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  status           String    @default("PENDING")
-  emailError       String?
-  lastSentAt       DateTime?
-  acceptedAt       DateTime?
-  cancelledAt      DateTime?
+  status      String    @default("PENDING")
+  emailError  String?
+  lastSentAt  DateTime?
+  acceptedAt  DateTime?
+  cancelledAt DateTime?
 
   @@unique([organizationId, email])
 }
@@ -126,42 +143,42 @@ model WorkspaceSettings {
 }
 
 model LinkedinConfig {
-  id                   String       @id @default(cuid())
-  organizationId       String       @unique
-  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                     String       @id @default(cuid())
+  organizationId         String       @unique
+  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   // Profile Optimizer
-  profileUrl           String?
-  offer                String       @default("")
-  audience             String       @default("")
-  groundingFacts       Json?
-  latestScore          Int          @default(0)
-  latestReadAt         String?
-  suggestions          Json?
-  auditHistory         Json?
+  profileUrl             String?
+  offer                  String       @default("")
+  audience               String       @default("")
+  groundingFacts         Json?
+  latestScore            Int          @default(0)
+  latestReadAt           String?
+  suggestions            Json?
+  auditHistory           Json?
   // Content Engine settings
-  remindAt             String       @default("08:30")
-  avatar               String       @default("")
-  heygenConnected      Boolean      @default(false)
-  contentSources       Json?
+  remindAt               String       @default("08:30")
+  avatar                 String       @default("")
+  heygenConnected        Boolean      @default(false)
+  contentSources         Json?
   // Engagement & Connections Outreach Strategy
-  strategyAgreedOn     String       @default("")
-  strategyWho          String       @default("")
-  strategyPerDay       Int          @default(0)
-  strategyMessage      String       @default("")
-  strategyFollowUpDays Int          @default(0)
+  strategyAgreedOn       String       @default("")
+  strategyWho            String       @default("")
+  strategyPerDay         Int          @default(0)
+  strategyMessage        String       @default("")
+  strategyFollowUpDays   Int          @default(0)
   // LinkedIn Account connection metadata
-  accountConnected     Boolean      @default(false)
-  accountName          String?
-  linkedinMemberUrn     String?
-  linkedinAccessToken   String?
-  linkedinRefreshToken  String?
+  accountConnected       Boolean      @default(false)
+  accountName            String?
+  linkedinMemberUrn      String?
+  linkedinAccessToken    String?
+  linkedinRefreshToken   String?
   linkedinTokenExpiresAt DateTime?
-  linkedinScopes        String[]     @default([])
-  oauthStateHash        String?      @unique
-  oauthStateExpiresAt   DateTime?
-  oauthStateUserId      String?
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
+  linkedinScopes         String[]     @default([])
+  oauthStateHash         String?      @unique
+  oauthStateExpiresAt    DateTime?
+  oauthStateUserId       String?
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
 }
 
 model LinkedinScript {
@@ -202,6 +219,8 @@ model LinkedinLead {
   reasonKind     String       @default("fit")
   note           String
   url            String?
+  crmLeadId      String?      @unique
+  crmLead        Lead?        @relation("LinkedinLeadToCrmLead", fields: [crmLeadId], references: [id], onDelete: SetNull)
   sentAt         String?
   connectedAt    String?
   createdAt      DateTime     @default(now())
@@ -212,20 +231,47 @@ model LinkedinLead {
 }
 
 model Lead {
-  id             String       @id @default(cuid())
+  id             String              @id @default(cuid())
   name           String
   email          String?
   company        String?
   jobTitle       String?
   source         String?
   notes          String?
-  stage          LeadStage    @default(NEW)
+  linkedinUrl    String?
+  websiteUrl     String?
+  nextFollowUpAt DateTime?
+  archivedAt     DateTime?
+  stage          LeadStage           @default(NEW)
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  communications LeadCommunication[]
+  linkedinLead   LinkedinLead?       @relation("LinkedinLeadToCrmLead")
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
 
   @@index([organizationId, stage])
+  @@index([organizationId, archivedAt])
+}
+
+model LeadCommunication {
+  id             String               @id @default(cuid())
+  organizationId String
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leadId         String
+  lead           Lead                 @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  channel        LeadMessageChannel
+  direction      LeadMessageDirection
+  status         LeadMessageStatus
+  subject        String?
+  body           String               @db.Text
+  occurredAt     DateTime             @default(now())
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([organizationId, occurredAt])
+  @@index([leadId, occurredAt])
+  @@index([organizationId, status, occurredAt])
 }
 
 model ActivityLog {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "cn";
 import { Reveal } from "@/features/overview/components/reveal";
@@ -145,8 +146,8 @@ export function ActivityPage() {
                       Showing {from}-{to} of {filtered.length}
                     </span>
                     <div className="flex items-center gap-2">
-                      <PagerButton disabled={current === 0} onClick={() => setPage(current - 1)}>Previous</PagerButton>
-                      <PagerButton disabled={current >= pageCount - 1} onClick={() => setPage(current + 1)}>Next</PagerButton>
+                      <PagerButton disabled={current === 0} onClick={() => setPage(current - 1)}><ChevronLeft className="size-3.5" />Previous</PagerButton>
+                      <PagerButton disabled={current >= pageCount - 1} onClick={() => setPage(current + 1)}>Next<ChevronRight className="size-3.5" /></PagerButton>
                     </div>
                   </div>
                 </>
@@ -167,7 +168,7 @@ function PagerButton({ disabled, onClick, children }: { disabled: boolean; onCli
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="h-8 cursor-pointer rounded-lg border border-border bg-secondary px-3 text-xs font-medium text-muted-foreground outline-none transition-colors hover:border-primary/40 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border disabled:hover:text-muted-foreground"
+      className="inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-border bg-secondary px-3 text-xs font-medium text-muted-foreground outline-none transition-colors hover:border-primary/40 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border disabled:hover:text-muted-foreground"
     >
       {children}
     </button>

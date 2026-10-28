@@ -41,12 +41,12 @@ export function buildMockOverview(): OverviewData {
       },
     ],
     stages: [
-      { stage: "new", count: 182 },
-      { stage: "reviewed", count: 240 },
+      { stage: "new", count: 422 },
       { stage: "contacted", count: 342 },
       { stage: "interested", count: 47 },
       { stage: "won", count: 12 },
       { stage: "lost", count: 31 },
+      { stage: "do_not_contact", count: 0 },
     ],
     activity: [
       { id: "r1", type: "draft", text: "AI draft created for Daniel Hughes (Northwind Dental)", at: minutesAgo(18) },

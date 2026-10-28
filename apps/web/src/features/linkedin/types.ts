@@ -74,6 +74,7 @@ export type LeadStatus = "suggested" | "approved" | "pending" | "connected" | "s
 
 export type Lead = {
   id: string;
+  crmLeadId?: string;
   name: string;
   role: string;
   company: string;
