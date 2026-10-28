@@ -1,0 +1,3 @@
+ALTER TABLE "LinkedinScript"
+  ALTER COLUMN "points" SET DEFAULT ARRAY[]::TEXT[],
+  ALTER COLUMN "points" SET NOT NULL;
