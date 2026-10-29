@@ -17,7 +17,7 @@ import {
 import { cn } from "cn";
 import type { ActivityJob, JobKind, JobStatus } from "../types";
 
-const KIND_ICON: Record<JobKind, LucideIcon> = {
+export const KIND_ICON: Record<JobKind, LucideIcon> = {
   research: Search,
   draft: Mail,
   sync: RefreshCw,
@@ -28,6 +28,9 @@ const KIND_ICON: Record<JobKind, LucideIcon> = {
   followup: CalendarClock,
   lead: UserRound,
 };
+
+/** One theme color per kind of task, shared by the Activity page and the Overview feed. */
+export const KIND_TONE: Record<JobKind, string> = { research: "text-sky-500", draft: "text-violet-500", sync: "text-teal-500", enrich: "text-amber-500", invite: "text-pink-500", analyze: "text-indigo-500", discover: "text-emerald-500", followup: "text-orange-500", lead: "text-primary" };
 
 /** Icon in front of the task name. Status wins over kind for running / failed / queued / cancelled. */
 export function JobIcon({ job, className }: { job: Pick<ActivityJob, "kind" | "status">; className?: string }) {
@@ -43,7 +46,7 @@ export function JobIcon({ job, className }: { job: Pick<ActivityJob, "kind" | "s
       return <Ban className={cn(base, "text-muted-foreground")} aria-hidden />;
     default: {
       const Icon = KIND_ICON[job.kind];
-      return <Icon className={cn(base, "text-primary")} aria-hidden />;
+      return <Icon className={cn(base, KIND_TONE[job.kind])} aria-hidden />;
     }
   }
 }

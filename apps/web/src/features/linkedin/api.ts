@@ -32,6 +32,8 @@ type AuditDto = {
   currentSections?: Partial<ProfileSections>;
   doneKeys: string[];
   suggestions: ProfileAnalysis["suggestions"];
+  generatedBy?: "ai" | "template";
+  notice?: string;
 };
 const toAudit = (d: AuditDto): SavedAudit => ({
   hasAudit: d.hasAudit ?? d.suggestions?.length > 0,
@@ -44,7 +46,7 @@ const toAudit = (d: AuditDto): SavedAudit => ({
     experience: d.currentSections?.experience ?? "",
     skills: d.currentSections?.skills ?? "",
   },
-  analysis: { readAt: d.readAt, suggestions: d.suggestions ?? [], doneKeys: d.doneKeys ?? [] },
+  analysis: { readAt: d.readAt, suggestions: d.suggestions ?? [], doneKeys: d.doneKeys ?? [], generatedBy: d.generatedBy, notice: d.notice },
 });
 
 /**
@@ -116,9 +118,8 @@ export async function fetchContent(): Promise<{ scripts: ContentScript[]; settin
   return { scripts: res.scripts, settings: res.settings };
 }
 
-export const refreshNicheNews = async () => (await api<{ count:number; scripts:ContentScript[] }>("/api/linkedin/content/news/refresh", { method:"POST", body:json({}) }));
-export const fetchLinkedinAccount = async () => api<{ connected:boolean; accountName:string; profileUrl:string }>("/api/linkedin/account");
-export const beginLinkedinConnect = async () => api<{ authorizationUrl:string }>("/api/linkedin/account/connect", { method:"POST", body:json({}) });
+export type NewsRefreshResult = { count:number; scripts:ContentScript[]; searched?:number; skippedIrrelevant?:number; sources?:{ title:string; url:string }[] };
+export const refreshNicheNews = async () => (await api<NewsRefreshResult>("/api/linkedin/content/news/refresh", { method:"POST", body:json({}) }));
 
 /** POST /api/linkedin/content/scripts  { topic }  ->  a new draft at the top of "Needs approval" */
 export const createScript = (topic: string) =>
@@ -166,24 +167,28 @@ export const fetchLeads = async (): Promise<Lead[]> => (await api<{ leads: Lead[
 export const createLead = (v: { name: string; role?: string; company?: string; url: string }) =>
   unwrap(api<Res<Lead>>("/api/linkedin/leads", { method: "POST", body: json({ ...v, source: "buyer", status: "suggested" }) }));
 
-export type ImportRow = { name: string; role?: string; company?: string; url?: string; source: Lead["source"]; reason?: string };
+export type ImportRow = { name: string; role?: string; company?: string; url?: string; source: Lead["source"]; status?: "suggested" | "connected"; connectedAt?: string; reason?: string };
 
 /** POST /api/linkedin/leads/import  { leads }  (people from a CSV the user exported; each lands in its chosen list as "Suggested") */
 export const importLeads = (leads: ImportRow[]) =>
-  unwrap(api<Res<{ importedCount: number; leads: Lead[] }>>("/api/linkedin/leads/import", { method: "POST", body: json({ leads }) }));
+  unwrap(api<Res<{ importedCount: number; skippedDuplicates?: number; leads: Lead[] }>>("/api/linkedin/leads/import", { method: "POST", body: json({ leads }) }));
 
-/** POST /api/linkedin/leads/discover  ->  buyer candidates found in public sources (Tavily search + Gemini, can take up to a minute) */
+export type DiscoverResult = { discoveredCount: number; leads: Lead[]; researchSources: { title: string; url: string }[] };
+
+/**
+ * POST /api/linkedin/leads/discover  ->  buyer candidates found in public sources (Tavily search + Gemini, can take up to a minute).
+ * Every candidate is checked against the source text on the server and lands in Target buyers as "Suggested".
+ */
+export const discoverBuyers = () =>
+  unwrap(api<Res<DiscoverResult>>("/api/linkedin/leads/discover", { method: "POST", body: json({}) }));
+
 /** Save a connection note for manual sending; does not send a LinkedIn invitation. */
 export const sendLead = (id: string, note?: string) =>
   unwrap(api<Res<Lead>>(`/api/linkedin/leads/${id}/send`, { method: "POST", body: json(note ? { note } : {}) }));
 
-/** Prepare selected connection notes for manual sending and return the refreshed list. */
-export type BulkResult = { sentCount: number; requestedCount: number; dailyLimit: number; limitReached: boolean; leads: Lead[] };
 export const markLeadSent = (id:string) => unwrap(api<Res<Lead>>(`/api/linkedin/leads/${id}/mark-sent`, { method:"POST", body:json({}) }));
 /** Mark a pending connection as accepted after confirming it manually on LinkedIn. */
 export const markLeadConnected = (id: string) => unwrap(api<Res<Lead>>(`/api/linkedin/leads/${id}/mark-connected`, { method: "POST", body: json({}) }));
-export const bulkApproveLeads = (ids: string[]) =>
-  unwrap(api<Res<BulkResult>>("/api/linkedin/leads/bulk-approve", { method: "POST", body: json({ ids }) }));
 
 /** POST /api/linkedin/leads/:id/skip  or  /withdraw  (both mark the person as skipped) */
 export const skipLead = (id: string, how: "skip" | "withdraw") =>
@@ -196,3 +201,12 @@ export const saveLeadNote = (id: string, note: string) =>
 /** Copy a LinkedIn prospect into the shared CRM lead pipeline (idempotent). */
 export const addLeadToCrm = (id: string) =>
   api<{ id: string; name: string }>(`/api/linkedin/leads/${id}/add-to-leads`, { method: "POST", body: json({}) });
+
+/**
+ * DELETE /api/linkedin/leads/:id  or  POST /api/linkedin/leads/bulk-delete { ids }
+ * Permanently removes people from the lists. The server refuses anyone already added to Leads.
+ */
+export const deleteLeads = (ids: string[]) =>
+  ids.length === 1
+    ? unwrap(api<Res<{ deletedCount: number }>>(`/api/linkedin/leads/${ids[0]}`, { method: "DELETE" }))
+    : unwrap(api<Res<{ deletedCount: number }>>("/api/linkedin/leads/bulk-delete", { method: "POST", body: json({ ids }) }));

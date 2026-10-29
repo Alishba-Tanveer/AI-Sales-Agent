@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   BadgeCheck, CalendarClock, CheckCircle2, Clock, ClipboardCopy, ExternalLink, FileText, Lightbulb, Loader2, Newspaper, Pencil, Plus,
-  RefreshCw, Send, Sparkles, Trash2, Video, X, Play, Settings2, Link2, TriangleAlert,
+  RefreshCw, Send, Sparkles, Trash2, Video, X, Play, Settings2, Link2, TriangleAlert, Download, Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "cn";
@@ -13,8 +13,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CARD_HOVER, CARD_INNER, CARD_LIFT, HOVER_BUTTONS, Field, Pill, TONES, inputCls } from "@/features/settings/components/settings-ui";
-import { approveScript, checkPostStatus, createScript, fetchContent, markScriptPosted, regenerateScript, removeScript, saveContentSettings, updateScript, refreshNicheNews, fetchLinkedinAccount, beginLinkedinConnect } from "../api";
+import { approveScript, checkPostStatus, createScript, fetchContent, markScriptPosted, regenerateScript, removeScript, saveContentSettings, updateScript, refreshNicheNews } from "../api";
 import { ACTIVITY_URL, composeUrl, copyText, normalizeWebUrl, scriptCaption } from "../links";
+import { downloadCaption, downloadPostImage, downloadScript } from "../post-assets";
 import type { ContentScript, ContentSettings } from "../types";
 import { ConfirmDialog, HowItWorksDialog, IconTile, LinkButton, PageHeader, StepStrip, TabBar, fmtDate, fmtTime } from "./linkedin-ui";
 
@@ -25,7 +26,6 @@ const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.messag
 
 export function ContentEngine() {
   const canEditWorkspace = can.editWorkspaceSettings(currentRole());
-  const canConnectIntegration = can.connectIntegrations(currentRole());
   const [scripts, setScripts] = useState<ContentScript[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -39,13 +39,11 @@ export function ContentEngine() {
   const [posting, setPosting] = useState<ContentScript | null>(null);
   const [linking, setLinking] = useState<ContentScript | null>(null);
   const [settings, setSettings] = useState<ContentSettings>({ remindAt: "08:30" });
-  const [linkedinAccount, setLinkedinAccount] = useState<{connected:boolean;accountName:string;profileUrl:string}>({connected:false,accountName:"",profileUrl:""});
   const [refreshingNews, setRefreshingNews] = useState(false);
   const { remindAt } = settings;
 
   useEffect(() => {
     let live = true;
-    fetchLinkedinAccount().then((v) => live && setLinkedinAccount(v)).catch(() => {});
     fetchContent()
       .then(({ scripts: s, settings: cfg }) => {
         if (!live) return;
@@ -59,8 +57,7 @@ export function ContentEngine() {
     };
   }, [attempt]);
 
-  const connectLinkedin = async () => { try { const result=await beginLinkedinConnect(); window.location.assign(result.authorizationUrl); } catch(e) { toast.error(errMsg(e,"Could not start LinkedIn authorization.")); } };
-  const refreshNews = async () => { setRefreshingNews(true); try { const result=await refreshNicheNews(); setScripts((cur)=>[...result.scripts,...(cur??[])]); setTab("approval"); if(result.scripts[0]) setSelectedId(result.scripts[0].id); toast.success(`${result.count} sourced script${result.count===1?"":"s"} added`); } catch(e) { toast.error(errMsg(e,"Could not refresh niche news.")); } finally { setRefreshingNews(false); } };
+  const refreshNews = async () => { setRefreshingNews(true); try { const result=await refreshNicheNews(); setScripts((cur)=>[...result.scripts,...(cur??[])]); setTab("approval"); if(result.scripts[0]) setSelectedId(result.scripts[0].id); if (result.count === 0) toast("Niche research finished"); else toast.success("Niche research complete"); } catch { toast.error("Niche research failed"); } finally { setRefreshingNews(false); } };
 
   const retryLoad = () => {
     setLoadError(null);
@@ -171,10 +168,9 @@ export function ContentEngine() {
 
       <PageHeader
         title="Content Engine"
-        description="Research in your niche becomes a sourced script. Approve it, record your video, then publish it to LinkedIn."
+        description="Research in your niche becomes a sourced script. Approve it, record your video or download the post, then publish it on LinkedIn yourself."
         actions={
           <>
-            {linkedinAccount.connected ? <Button variant="outline" disabled>Connected: {linkedinAccount.accountName || "LinkedIn"}</Button> : canConnectIntegration && <Button variant="outline" onClick={connectLinkedin}>Connect LinkedIn</Button>}
             <Button variant="outline" onClick={refreshNews} disabled={refreshingNews}>{refreshingNews ? <Loader2 className="animate-spin"/> : <Newspaper/>} Refresh niche news</Button>
             <Button variant="outline" className={TONES.warning.btn} onClick={() => setHelpOpen(true)}><Lightbulb /> How it works</Button>
             <Button onClick={() => setTopicOpen(true)}><Plus /> Add a topic</Button>
@@ -226,13 +222,13 @@ export function ContentEngine() {
                 {pending.map((s) => {
                   const active = s.id === selectedId;
                   return (
-                    <li key={s.id}>
+                    <li key={s.id} className="relative">
                       <button
                         type="button"
                         onClick={() => setSelectedId(s.id)}
                         aria-pressed={active}
                         className={cn(
-                          "flex w-full cursor-pointer flex-col gap-1.5 rounded-lg border p-4 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          "flex w-full min-w-0 cursor-pointer flex-col gap-1.5 rounded-lg border p-4 pr-14 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
                           active ? "border-primary bg-primary-soft" : "border-border bg-background hover:border-primary/40",
                         )}
                       >
@@ -244,6 +240,7 @@ export function ContentEngine() {
                         <span className="text-sm font-semibold text-foreground">{s.title}</span>
                         <span className="[overflow-wrap:anywhere] text-xs text-muted-foreground">{s.hook}</span>
                       </button>
+                      <Button type="button" variant="ghost" size="sm" className="absolute right-2 top-2 z-10 text-destructive hover:text-destructive" aria-label={`Delete ${s.title}`} title="Delete this content" onClick={() => setConfirm({ kind: "dismiss", s })}><Trash2 className="size-4"/></Button>
                     </li>
                   );
                 })}
@@ -280,7 +277,7 @@ export function ContentEngine() {
                   <div className="mt-auto flex flex-wrap gap-2 border-t border-border pt-4">
                     <Button size="lg" disabled={!ready} onClick={() => setPosting(s)}><Send /> {ready ? "Post on LinkedIn" : "Record video"}</Button>
                     <Button variant="outline" size="lg" disabled={!ready} onClick={() => setPreviewing(s)}><Play /> Preview</Button>
-                    <Button variant="ghost" size="lg" className="ml-auto" onClick={() => setConfirm({ kind: "cancel", s })}>Cancel</Button>
+                    <Button variant="ghost" size="lg" className="ml-auto text-destructive hover:text-destructive" aria-label={`Delete ${s.title}`} title="Delete this content" onClick={() => setConfirm({ kind: "cancel", s })}><Trash2 className="size-4"/>Delete</Button>
                   </div>
                 </li>
               );
@@ -342,11 +339,11 @@ export function ContentEngine() {
         title="How the Content Engine works"
         description="From niche news to a LinkedIn post using the free stack."
         steps={[
-          { title: "We find niche news", text: "Tavily searches recent stories using your saved offer and audience. Each draft links to its source." },
+          { title: "We find niche news", text: "Tavily searches this week\u2019s news using your niche, audience, services and target industries. The AI then scores each story for how useful it is to your audience and keeps only the relevant ones. Each draft links to its source." },
           { title: "We write a short script", text: "Each script has a hook, three main points and a call to action, about 40 seconds long." },
           { title: "You approve", text: "Edit the words, ask for a new draft, or dismiss it. Nothing moves forward without your yes." },
           { title: "You record the video", text: "The free stack stops at an approved script. Record your own clip or read from the script." },
-          { title: "Publish on LinkedIn", text: "Review the script and publish your recorded video from your connected LinkedIn account." },
+          { title: "Post it yourself", text: "Download the caption, script or post image, then publish on LinkedIn by hand. LinkedIn does not allow apps to post for you." },
         ]}
         note="AI avatar generation and automatic video creation are outside the selected free stack. You approve the script and record your own video."
       />
@@ -529,14 +526,31 @@ function PreviewDialog({ s, onClose, onPost }: { s: ContentScript | null; onClos
               <p className="mb-1.5 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Caption</p>
               <p className="text-sm whitespace-pre-line text-foreground">{scriptCaption(s)}</p>
             </div>
+            <DownloadRow s={s} />
             <DialogFooter>
               <Button variant="ghost" onClick={onClose}>Close</Button>
-              <Button onClick={() => onPost(s)}><Send /> Post on LinkedIn</Button>
+              <Button onClick={() => onPost(s)}><Send /> Copy caption &amp; post</Button>
             </DialogFooter>
           </>
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** LinkedIn does not allow posting from apps, so the person downloads what they need and posts it themselves. */
+function DownloadRow({ s }: { s: ContentScript }) {
+  const run = (label: string, fn: () => void) => () => { try { fn(); toast.success(`${label} downloaded`); } catch (e) { toast.error(errMsg(e, `Could not download the ${label.toLowerCase()}.`)); } };
+  return (
+    <div className="grid gap-2">
+      <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Download to post yourself</p>
+      <div className="grid grid-cols-3 gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={run("Caption", () => downloadCaption(s))}><Download /> Caption</Button>
+        <Button type="button" variant="outline" size="sm" onClick={run("Script", () => downloadScript(s))}><FileText /> Script</Button>
+        <Button type="button" variant="outline" size="sm" onClick={run("Image", () => downloadPostImage(s))}><ImageIcon /> Image</Button>
+      </div>
+      <p className="text-xs text-muted-foreground">Caption and image make a text or photo post. Read the script on camera for a video post.</p>
+    </div>
   );
 }
 

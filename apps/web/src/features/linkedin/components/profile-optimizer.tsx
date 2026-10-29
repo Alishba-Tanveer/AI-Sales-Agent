@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CARD_INNER, HOVER_BUTTONS, Field, Pill, SectionCard, TONES, inputCls, type Tone } from "@/features/settings/components/settings-ui";
 import { ApiError } from "@/lib/api";
+import { can } from "@/lib/permissions";
+import { useRole } from "@/lib/use-role";
 import { analyzeProfile, fetchSavedAudit, importProfilePdf, setSuggestionDone } from "../api";
 import { copyText, editTarget, normalizeLinkedInProfileUrl } from "../links";
 import type { ProfileAnalysis, ProfileSections, ProfileSuggestion, SuggestionKey } from "../types";
@@ -30,6 +32,10 @@ const EMPTY_SECTIONS: ProfileSections = { headline: "", about: "", experience: "
 const MAX_PDF_BYTES = 3 * 1024 * 1024;
 
 export function ProfileOptimizer() {
+  // Same rule as the API (linkedin.routes.ts): only Owners and Admins may read a profile again or mark changes as applied.
+  // useRole() is null until the stored user is read on the client, so editing controls stay hidden until the role is known.
+  const role = useRole();
+  const canEdit = role !== null && can.editWorkspaceSettings(role);
   const [offer, setOffer] = useState("");
   const [audience, setAudience] = useState("");
   const [url, setUrl] = useState("");
@@ -166,11 +172,11 @@ export function ProfileOptimizer() {
     <main className={cn("mx-auto flex w-full max-w-[1280px] flex-col gap-6 p-6 lg:p-8", HOVER_BUTTONS)}>
       <PageHeader
         title="Profile Optimizer"
-        description="Tell us your niche, share your current LinkedIn text, and get a clear list of changes to make."
+        description={canEdit ? "Tell us your niche, share your current LinkedIn text, and get a clear list of changes to make." : "Suggested changes for your LinkedIn profile. You can copy any of them; an Owner or Admin keeps the list up to date."}
         actions={
           <>
             <Button variant="outline" className={TONES.warning.btn} onClick={() => setHelpOpen(true)}><Lightbulb /> How it works</Button>
-            {analysis && (
+            {canEdit && analysis && (
               <Button variant="outline" className={TONES.info.btn} onClick={() => (done.size ? setRereadOpen(true) : read())} disabled={reading}>
                 {reading ? <Loader2 className="animate-spin" /> : <RefreshCw />} Get new suggestions
               </Button>
@@ -179,6 +185,8 @@ export function ProfileOptimizer() {
         }
       />
 
+      {canEdit && (
+        <>
       <StepStrip
         steps={[
           { label: "Tell us your niche", icon: Target, tone: "info" },
@@ -283,6 +291,8 @@ export function ProfileOptimizer() {
         </div>
         </div>}
       </SectionCard>
+        </>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-card/50 p-10 text-sm text-muted-foreground" role="status">
@@ -291,14 +301,26 @@ export function ProfileOptimizer() {
       ) : !analysis ? (
         <div className="rounded-xl border border-dashed border-border bg-card/50 p-10 text-center">
           <p className="text-sm font-medium text-foreground">Your list of changes will appear here</p>
-          <p className="mt-1 text-sm text-muted-foreground">Add your niche and your current profile text above, then press “Get my suggestions”.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {canEdit ? "Add your niche and your current profile text above, then press “Get my suggestions”." : "An Owner or Admin hasn’t reviewed the profile yet. Suggestions will show up here once they have."}
+          </p>
         </div>
       ) : (
         <section className="flex flex-col gap-4" aria-live="polite">
           <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning-soft p-4 text-sm text-foreground">
             <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" />
-            <p>LinkedIn doesn&apos;t allow apps to edit your profile. Copy each suggestion, paste it into LinkedIn, then press Mark as applied so we remember it.</p>
+            <p>
+              {canEdit
+                ? "LinkedIn doesn't allow apps to edit your profile. Copy each suggestion, paste it into LinkedIn, then press Mark as applied so we remember it."
+                : "LinkedIn doesn't allow apps to edit a profile. Copy a suggestion and paste it into LinkedIn yourself. Only Owners and Admins can mark changes as applied."}
+            </p>
           </div>
+          {analysis.notice && (
+            <div className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground" role="status">
+              <Info className="mt-0.5 size-4 shrink-0 text-info" />
+              <p>{analysis.notice}</p>
+            </div>
+          )}
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-base font-semibold text-foreground">Changes to make</h2>
@@ -323,6 +345,7 @@ export function ProfileOptimizer() {
                 onToggleOpen={() => toggleOpen(s.key)}
                 onToggleDone={() => toggleDone(s.key)}
                 onGuide={() => setGuide(s)}
+                canEdit={canEdit}
               />
             ))}
           </ul>
@@ -335,6 +358,7 @@ export function ProfileOptimizer() {
         done={guide ? done.has(guide.key) : false}
         onClose={() => setGuide(null)}
         onMarkDone={(key) => { setDoneKey(key, true); toast.success("Nice. Marked as applied."); }}
+        canEdit={canEdit}
       />
 
       <ConfirmDialog
@@ -365,7 +389,7 @@ export function ProfileOptimizer() {
 }
 
 function SuggestionCard({
-  s, open, done, onToggleOpen, onToggleDone, onGuide,
+  s, open, done, onToggleOpen, onToggleDone, onGuide, canEdit,
 }: {
   s: ProfileSuggestion;
   open: boolean;
@@ -373,6 +397,7 @@ function SuggestionCard({
   onToggleOpen: () => void;
   onToggleDone: () => void;
   onGuide: () => void;
+  canEdit: boolean;
 }) {
   const Icon = SECTION_ICON[s.key];
   const copy = async () => {
@@ -450,11 +475,11 @@ function SuggestionCard({
               <Button size="lg" onClick={copy}><ClipboardCopy /> Copy suggestion</Button>
               <Button size="lg" variant="outline" onClick={onGuide}>Open on LinkedIn <ExternalLink className="size-3.5" /></Button>
             </div>
-            {done ? (
+            {canEdit && (done ? (
               <Button size="lg" variant="ghost" onClick={onToggleDone}><Undo2 /> Applied. Undo</Button>
             ) : (
               <Button size="lg" variant="outline" className={TONES.success.btn} onClick={onToggleDone}><CheckCircle2 /> Mark as applied</Button>
-            )}
+            ))}
           </div>
         </div>
       )}
@@ -464,13 +489,14 @@ function SuggestionCard({
 
 /** Popup shown before leaving for LinkedIn: copies the text, then says exactly where to click and paste. */
 function EditGuideDialog({
-  s, profileUrl, done, onClose, onMarkDone,
+  s, profileUrl, done, onClose, onMarkDone, canEdit,
 }: {
   s: ProfileSuggestion | null;
   profileUrl: string;
   done: boolean;
   onClose: () => void;
   onMarkDone: (key: string) => void;
+  canEdit: boolean;
 }) {
   const target = s ? editTarget(profileUrl, s.section) : null;
 
@@ -515,7 +541,7 @@ function EditGuideDialog({
             </p>
 
             <DialogFooter>
-              {!done && <Button variant="ghost" onClick={() => { onMarkDone(s.key); onClose(); }}><Check /> Mark as applied</Button>}
+              {canEdit && !done && <Button variant="ghost" onClick={() => { onMarkDone(s.key); onClose(); }}><Check /> Mark as applied</Button>}
               <LinkButton href={target.url} onClick={copyAndGo}><ClipboardCopy /> Copy &amp; open LinkedIn</LinkButton>
             </DialogFooter>
           </>

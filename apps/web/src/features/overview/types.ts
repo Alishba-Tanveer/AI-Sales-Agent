@@ -1,3 +1,4 @@
+import type { JobKind } from "../activity/types";
 export type LeadStage = "new" | "contacted" | "interested" | "won" | "lost" | "do_not_contact";
 
 export type OverviewMetrics = {
@@ -27,6 +28,9 @@ export type ActivityType = "draft" | "reply" | "approved" | "failed" | "lead_add
 export type ActivityItem = {
   id: string;
   type: ActivityType;
+  /** kind of task, so the feed can use the same icon and color as the Activity page */
+  kind?: JobKind;
+  status?: string;
   text: string;
   /** ISO timestamp */
   at: string;

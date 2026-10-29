@@ -109,6 +109,8 @@ export class AnalyticsService {
       return {
         id: a.id,
         type,
+        kind: a.kind,
+        status: a.status,
         text: a.title,
         at: (a.startedAt ?? a.createdAt).toISOString(),
       };

@@ -57,14 +57,17 @@ export function TabBar<T extends string>({
   value,
   onChange,
   label,
+  aside,
 }: {
   tabs: { id: T; label: string; count?: number }[];
   value: T;
   onChange: (id: T) => void;
   label: string;
+  /** Optional control (a search box, say) shown at the right end of the tab row, outside the tab list. */
+  aside?: React.ReactNode;
 }) {
-  return (
-    <div role="tablist" aria-label={label} className="flex w-full items-center gap-1 overflow-x-auto border-b border-border whitespace-nowrap [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
+  const list = (
+    <div role="tablist" aria-label={label} className={cn("flex items-center gap-1 overflow-x-auto whitespace-nowrap [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden", aside ? "min-w-0 flex-1" : "w-full border-b border-border")}>
       {tabs.map((t) => {
         const active = t.id === value;
         return (
@@ -90,6 +93,14 @@ export function TabBar<T extends string>({
       })}
     </div>
   );
+  if (!aside) return list;
+  // The line under the tabs belongs to this wrapper so it runs under the search box too. On phones the search sits above the tabs.
+  return (
+    <div className="flex w-full flex-col gap-2 border-b border-border sm:flex-row sm:items-end sm:gap-3">
+      {list}
+      <div className="order-first shrink-0 pb-1 sm:order-last sm:mb-2 sm:self-end sm:pb-0">{aside}</div>
+    </div>
+  );
 }
 
 export function fmtDate(iso?: string, withTime = false) {
@@ -100,7 +111,7 @@ export function fmtDate(iso?: string, withTime = false) {
 
 /* ---------- Themed pop-ups shared by the three LinkedIn pages ---------- */
 
-const TONE_ICON_DEFAULT: Record<Tone, LucideIcon> = { primary: Info, success: CheckCircle2, warning: TriangleAlert, destructive: TriangleAlert, info: Info, violet: Info };
+const TONE_ICON_DEFAULT: Record<Tone, LucideIcon> = { primary: Info, success: CheckCircle2, warning: TriangleAlert, destructive: TriangleAlert, info: Info, violet: Info, pink: Info };
 
 /** Small "are you sure?" popup, used instead of acting straight away on anything that is hard to undo. */
 export function ConfirmDialog({
@@ -195,7 +206,7 @@ export function HowItWorksDialog({
 
 /** A link that looks like a button and opens in a new tab. `onClick` runs before the tab opens (e.g. to copy text). */
 export function LinkButton({
-  href, children, variant = "default", size = "lg", className, onClick,
+  href, children, variant = "default", size = "lg", className, onClick, title,
 }: {
   href: string;
   children: React.ReactNode;
@@ -203,9 +214,10 @@ export function LinkButton({
   size?: "default" | "sm" | "lg";
   className?: string;
   onClick?: () => void;
+  title?: string;
 }) {
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" onClick={onClick} className={cn(buttonVariants({ variant, size }), className)}>
+    <a href={href} target="_blank" rel="noopener noreferrer" onClick={onClick} title={title} className={cn(buttonVariants({ variant, size }), className)}>
       {children}
     </a>
   );

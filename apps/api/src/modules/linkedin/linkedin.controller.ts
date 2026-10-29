@@ -5,7 +5,6 @@ import { linkedinService } from "./linkedin.service";
 import {
   analyzeProfileSchema,
   approveScriptSchema,
-  bulkApproveLeadsSchema,
   bulkApproveScriptsSchema,
   checkPostStatusSchema,
   connectAccountSchema,
@@ -190,7 +189,7 @@ export class LinkedinController {
         kind: "research",
         title: "Research niche news",
         run: () => linkedinService.refreshNews(organizationId),
-        output: (value) => `Found ${value.sources.length} current sources and created ${value.count} new script drafts.`,
+        output: () => "Niche news research completed.",
       });
       res.status(201).json({ success: true, data: result, ...result });
     }
@@ -597,24 +596,6 @@ export class LinkedinController {
     catch(error){next(error);}
   }
 
-  async bulkApproveLeads(req: Request, res: Response, next: NextFunction) {
-    try {
-      const validated = bulkApproveLeadsSchema.parse(req.body ?? {});
-      const result = await linkedinService.bulkApproveLeads(
-        req.user!.organizationId,
-        validated.ids,
-      );
-      res.status(200).json({
-        success: true,
-        message: `${result.sentCount} connection note${result.sentCount === 1 ? "" : "s"} prepared for manual sending.`,
-        data: result,
-        ...result,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
   async skipOrWithdrawLead(req: Request, res: Response, next: NextFunction) {
     try {
       const lead = await linkedinService.skipOrWithdrawLead(
@@ -626,6 +607,24 @@ export class LinkedinController {
         message: `Skipped ${lead.name}`,
         data: lead,
         ...lead,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /** DELETE /leads/:id, or POST /leads/bulk-delete { ids } */
+  async deleteLeads(req: Request, res: Response, next: NextFunction) {
+    try {
+      const ids = req.params.id
+        ? [String(req.params.id)]
+        : Array.isArray(req.body?.ids) ? (req.body.ids as unknown[]).filter((x): x is string => typeof x === "string") : [];
+      const result = await linkedinService.deleteLeads(req.user!.organizationId, ids);
+      res.status(200).json({
+        success: true,
+        message: `Deleted ${result.deletedCount} ${result.deletedCount === 1 ? "person" : "people"}.`,
+        data: result,
+        ...result,
       });
     } catch (error) {
       next(error);
@@ -674,11 +673,11 @@ export class LinkedinController {
         kind: "discover",
         title: "Research target buyers",
         run: () => linkedinService.discoverConnections(organizationId),
-        output: (value) => `Research returned ${value.researchSources.length} sources and ${value.discoveredCount} verified buyer candidates.`,
+        output: () => "Buyer research completed. Review the suggested buyers before reaching out.",
       });
       res.status(201).json({
         success: true,
-        message: `Discovered ${result.discoveredCount} new target buyers`,
+        message: "Buyer research completed",
         data: result,
         ...result,
       });
@@ -740,38 +739,6 @@ export class LinkedinController {
     }
   }
 
-  async connectAccount(req: Request, res: Response, next: NextFunction) {
-    try {
-      const result = await linkedinService.beginLinkedinOAuth(req.user!.organizationId, req.user!.userId);
-      res.status(200).json({ success: true, data: result, ...result });
-    } catch (error) { next(error); }
-  }
-
-  async linkedinOAuthCallback(req: Request, res: Response) {
-    const destination = new URL("/linkedin", process.env.WEB_URL || "http://localhost:3000");
-    try {
-      if (req.query.error) throw new Error("LinkedIn authorization was cancelled.");
-      await linkedinService.completeLinkedinOAuth(String(req.query.state || ""), String(req.query.code || ""));
-      destination.searchParams.set("linkedin", "connected");
-    } catch {
-      destination.searchParams.set("linkedin", "error");
-    }
-    res.redirect(303, destination.toString());
-  }
-
-  async disconnectAccount(req: Request, res: Response, next: NextFunction) {
-    try {
-      const account = await linkedinService.disconnectAccount(req.user!.organizationId, req.user!.userId);
-      res.status(200).json({
-        success: true,
-        message: "LinkedIn account disconnected",
-        data: account,
-        ...account,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
 }
 
 export const linkedinController = new LinkedinController();

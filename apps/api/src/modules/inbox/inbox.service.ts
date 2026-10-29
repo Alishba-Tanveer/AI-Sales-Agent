@@ -4,8 +4,13 @@ import { AppError } from "../../utils/app-error";
 import { trackActivity } from "../activity/activity-logger";
 
 export class InboxService {
+  /**
+   * One conversation per person. Every reply logged for the same lead belongs to that lead's single thread, so the list
+   * returns the newest received message of each lead (with how many they have sent) and the thread view shows everything:
+   * their replies, your drafts and what you sent.
+   */
   async list(organizationId: string, q?: string) {
-    return prisma.leadCommunication.findMany({
+    const messages = await prisma.leadCommunication.findMany({
       where: {
         organizationId,
         direction: "INBOUND",
@@ -19,8 +24,15 @@ export class InboxService {
       },
       include: { lead: true },
       orderBy: { occurredAt: "desc" },
-      take: 100,
+      take: 1000,
     });
+    const byLead = new Map<string, { latest: (typeof messages)[number]; count: number }>();
+    for (const message of messages) {
+      const entry = byLead.get(message.leadId);
+      if (entry) entry.count += 1;
+      else byLead.set(message.leadId, { latest: message, count: 1 });
+    }
+    return [...byLead.values()].slice(0, 200).map(({ latest, count }) => ({ ...latest, threadReplyCount: count }));
   }
 
   async recordInbound(organizationId: string, input: { leadId: string; channel: "EMAIL" | "LINKEDIN"; subject?: string; body: string; occurredAt?: string }) {

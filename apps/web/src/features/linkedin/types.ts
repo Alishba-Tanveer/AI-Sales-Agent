@@ -21,6 +21,10 @@ export type ProfileAnalysis = {
   suggestions: ProfileSuggestion[];
   /** keys of the suggestions already marked as done */
   doneKeys: string[];
+  /** "ai" when Gemini wrote the suggestions; "template" when it was unavailable and a fixed template was used */
+  generatedBy?: "ai" | "template";
+  /** why the template was used, or which sections could not be personalised */
+  notice?: string;
 };
 
 /** The parts of a LinkedIn profile the person gives us (pasted, or taken from their LinkedIn PDF). */
