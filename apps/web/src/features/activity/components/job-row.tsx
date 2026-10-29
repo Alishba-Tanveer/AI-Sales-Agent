@@ -46,7 +46,7 @@ export function JobRow({ job, now, busy, onRetry, onCancel, onView, onOpenLead }
               {job.lead.context ? <span className="text-muted-foreground"> ({job.lead.context})</span> : null}
             </>
           ) : (
-            <span className="text-muted-foreground">{job.lead.context || "—"}</span>
+            <span className="text-muted-foreground">{job.lead.context || "General activity"}</span>
           )}
         </span>
       </TableCell>

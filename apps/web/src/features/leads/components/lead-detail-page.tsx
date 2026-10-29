@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Ban, Edit2, ExternalLink, Loader2, Mail, MessageSquareText, Sparkles } from "lucide-react";
+import { ArrowLeft, Ban, Edit2, ExternalLink, Loader2, Mail, MessageSquareText, Sparkles, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -14,7 +14,7 @@ import type { Lead, LeadCommunication, LeadStage } from "../types";
 import { STAGE_META, STAGE_ORDER } from "../stages";
 import { LeadAvatar } from "./lead-avatar";
 import { TONES } from "@/features/settings/components/settings-ui";
-import { markReplySent } from "@/features/inbox/api";
+import { markReplySent, recordInbound } from "@/features/inbox/api";
 
 const STAGE_OPTIONS = STAGE_ORDER.map((value) => ({ value, ...STAGE_META[value] }));
 // "Do not contact" has its own button, so it is only listed when the lead is already in that stage.
@@ -34,6 +34,11 @@ export function LeadDetailPage() {
   const [followUp, setFollowUp] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [dncOpen, setDncOpen] = useState(false);
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyChannel, setReplyChannel] = useState<"EMAIL" | "LINKEDIN">("LINKEDIN");
+  const [replySubject, setReplySubject] = useState("");
+  const [replyBody, setReplyBody] = useState("");
+  const [replyBusy, setReplyBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -79,6 +84,20 @@ export function LeadDetailPage() {
       toast.success("Marked as sent. The lead timeline is updated.");
     } catch (e) { toast.error(errorText(e)); }
   };
+  const savePersonReply = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!lead || !replyBody.trim()) return;
+    setReplyBusy(true);
+    try {
+      const message = await recordInbound({ leadId: lead.id, channel: replyChannel, subject: replyChannel === "EMAIL" ? replySubject.trim() || undefined : undefined, body: replyBody.trim() });
+      setLead((current) => current ? { ...current, communications: [message, ...(current.communications ?? [])] } : current);
+      setReplyOpen(false); setReplyBody(""); setReplySubject("");
+      toast.success(`Reply added to ${lead.name}’s conversation.`);
+    } catch (e) { toast.error(errorText(e)); }
+    finally { setReplyBusy(false); }
+  };
+  const personEmailUrl = lead?.email ? `https://mail.google.com/mail/u/0/#search/${encodeURIComponent(`from:${lead.email} OR to:${lead.email}`)}` : "https://mail.google.com/mail/u/0/#inbox";
+
   const moveToDoNotContact = async () => {
     if (!lead) return;
     setBusy(true);
@@ -109,7 +128,8 @@ export function LeadDetailPage() {
 
     {latestDrafts.length > 0 && <section className="space-y-3"><h2 className="text-lg font-semibold">Drafts to review</h2>{latestDrafts.map((draft) => <article key={draft.id} className="rounded-xl border border-border bg-card p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="inline-flex rounded-md border border-primary/30 bg-primary-soft px-2 py-0.5 text-[11px] font-semibold text-primary">EMAIL DRAFT</p><h3 className="mt-1 font-semibold">{draft.subject || "No subject"}</h3></div><Button size="sm" variant="outline" onClick={() => void copy(`${draft.subject ? `${draft.subject}\n\n` : ""}${draft.body}`)}>Copy draft</Button></div><p className="mt-3 whitespace-pre-wrap text-sm leading-6">{draft.body}</p><div className="mt-4 flex flex-wrap gap-2">{lead.email && <a className="inline-flex h-8 items-center gap-2 rounded-lg bg-primary px-3 text-sm text-primary-foreground" href={`mailto:${encodeURIComponent(lead.email)}?subject=${encodeURIComponent(draft.subject ?? "")}&body=${encodeURIComponent(draft.body)}`}><Mail className="size-4"/>Open email draft</a>}<Button size="sm" variant="outline" onClick={() => void sent(draft)}>I sent this</Button></div></article>)}</section>}
 
-    <section className="rounded-xl border border-border bg-card"><div className="border-b border-border p-5"><h2 className="text-lg font-semibold">Activity and conversation</h2><p className="mt-1 text-sm text-muted-foreground">Email and LinkedIn messages you log in the app appear here. External accounts are not synced.</p></div>{messages.length ? <div className="divide-y divide-border">{messages.map((message) => <article key={message.id} className="p-5"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 text-sm font-medium"><MessageSquareText className="size-4 text-primary"/>{messageLabel(message)}</div><time className="text-xs text-muted-foreground">{new Date(message.occurredAt).toLocaleString()}</time></div>{message.subject && <h3 className="mt-2 font-medium">{message.subject}</h3>}<p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{message.body}</p></article>)}</div> : <p className="p-8 text-center text-sm text-muted-foreground">No messages recorded yet. Log a reply from the Inbox page to keep the conversation here.</p>}</section>
+    <section className="rounded-xl border border-border bg-card"><div className="flex flex-wrap items-start justify-between gap-3 border-b border-border p-5"><div><h2 className="text-lg font-semibold">Activity and conversation</h2><p className="mt-1 text-sm text-muted-foreground">Messages you log here stay in {lead.name}’s conversation. External accounts are not synced automatically.</p></div><Button size="sm" onClick={() => { setReplyChannel(lead.linkedinUrl ? "LINKEDIN" : "EMAIL"); setReplyOpen(true); }}><Plus/> Log next reply</Button></div>{messages.length ? <div className="divide-y divide-border">{messages.map((message) => <article key={message.id} className="p-5"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 text-sm font-medium"><MessageSquareText className="size-4 text-primary"/>{messageLabel(message)}</div><time className="text-xs text-muted-foreground">{new Date(message.occurredAt).toLocaleString()}</time></div>{message.subject && <h3 className="mt-2 font-medium">{message.subject}</h3>}<p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{message.body}</p></article>)}</div> : <p className="p-8 text-center text-sm text-muted-foreground">No messages recorded yet. Log a reply here to start this person’s conversation.</p>}</section>
+    <Dialog open={replyOpen} onOpenChange={(open) => { if (!replyBusy) setReplyOpen(open); }}><DialogContent className="sm:max-w-lg"><form className="grid gap-4" onSubmit={savePersonReply}><DialogHeader><DialogTitle>Log a reply from {lead.name}</DialogTitle><DialogDescription>Open this person’s inbox in a new tab, copy their latest reply, then return here and paste it below. It will be added to this person’s conversation.</DialogDescription></DialogHeader><label className="grid gap-1.5 text-sm"><span className="text-muted-foreground">Channel</span><OptionSelect value={replyChannel} onValueChange={(value) => setReplyChannel(value as "EMAIL" | "LINKEDIN")} aria-label="Reply channel" options={[{ value: "LINKEDIN", label: "LinkedIn" }, { value: "EMAIL", label: "Email" }]}/></label>{replyChannel === "LINKEDIN" ? <div className="rounded-lg border border-border bg-background p-3"><p className="text-sm text-muted-foreground">Open LinkedIn in a new tab, copy {lead.name}’s reply, then return here and paste it below.</p>{lead.linkedinUrl ? <a href={lead.linkedinUrl} target="_blank" rel="noreferrer" className={`mt-2 inline-flex h-8 items-center gap-2 rounded-lg border px-3 text-sm font-medium ${TONES.info.btn}`}><ExternalLink className="size-4"/>Open {lead.name} on LinkedIn</a> : <a href="https://www.linkedin.com/messaging/" target="_blank" rel="noreferrer" className={`mt-2 inline-flex h-8 items-center gap-2 rounded-lg border px-3 text-sm font-medium ${TONES.info.btn}`}><ExternalLink className="size-4"/>Open LinkedIn messages</a>}</div> : <div className="rounded-lg border border-border bg-background p-3"><p className="text-sm text-muted-foreground">Open the email conversation, copy their reply, then return here and paste it below.</p><a href={personEmailUrl} target="_blank" rel="noreferrer" className={`mt-2 inline-flex h-8 items-center gap-2 rounded-lg border px-3 text-sm font-medium ${TONES.success.btn}`}><ExternalLink className="size-4"/>{lead.email ? `Open ${lead.name}’s Gmail conversation` : "Open Gmail inbox"}</a></div>}{replyChannel === "EMAIL" && <label className="grid gap-1.5 text-sm"><span className="text-muted-foreground">Subject (optional)</span><Input value={replySubject} onChange={(e) => setReplySubject(e.target.value)} placeholder="Email subject"/></label>}<label className="grid gap-1.5 text-sm"><span className="text-muted-foreground">Their reply</span><Textarea required rows={6} value={replyBody} onChange={(e) => setReplyBody(e.target.value)} placeholder="Paste their reply here"/></label><DialogFooter><Button type="button" variant="ghost" disabled={replyBusy} onClick={() => setReplyOpen(false)}>Cancel</Button><Button type="submit" disabled={replyBusy || !replyBody.trim()}>{replyBusy && <Loader2 className="animate-spin"/>}Save reply</Button></DialogFooter></form></DialogContent></Dialog>
     <EditLeadDialog key={`${lead.id}-${lead.updatedAt}`} open={editOpen} lead={lead} busy={busy} onClose={() => setEditOpen(false)} onSave={saveContact}/>
     <Dialog open={dncOpen} onOpenChange={setDncOpen}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Move {lead.name} to Do not contact?</DialogTitle><DialogDescription>This keeps the lead in your pipeline, clears their follow-up date, and prevents AI email drafts.</DialogDescription></DialogHeader><DialogFooter><Button variant="ghost" disabled={busy} onClick={() => setDncOpen(false)}>Cancel</Button><Button variant="destructive" disabled={busy} onClick={() => void moveToDoNotContact()}>{busy && <Loader2 className="animate-spin"/>}Move to Do not contact</Button></DialogFooter></DialogContent></Dialog>
   </main>;

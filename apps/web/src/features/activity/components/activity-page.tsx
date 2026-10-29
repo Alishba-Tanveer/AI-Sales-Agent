@@ -71,7 +71,7 @@ export function ActivityPage() {
           <Reveal>
             <header>
               <h1 className="text-2xl font-semibold tracking-tight text-foreground">Activity</h1>
-              <p className="mt-1 text-sm text-muted-foreground">Background tasks, research and drafting jobs.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Track what your workspace is doing—from lead research and email drafting to LinkedIn syncing. Review results, retry failed tasks, and open related leads from one place.</p>
             </header>
           </Reveal>
 

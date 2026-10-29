@@ -195,10 +195,6 @@ export const updateLeadNoteSchema = z.object({
   send: z.boolean().optional(),
 });
 
-export const bulkApproveLeadsSchema = z.object({
-  ids: z.array(z.string().trim().min(1)).min(1, "Select at least one person to approve."),
-});
-
 export const importLeadsSchema = z.object({
   leads: z
     .array(
@@ -208,12 +204,15 @@ export const importLeadsSchema = z.object({
         company: z.string().trim().optional(),
         url: z.string().trim().optional(),
         source: leadSourceSchema.optional(),
-        reason: z.string().trim().optional(),
+        status: z.enum(["suggested", "connected"]).optional(),
+        connectedAt: z.string().trim().optional(),
+        reason: z.string().trim().max(500).optional(),
         note: z.string().trim().max(300).optional(),
       }),
     )
+    .max(500, "Import up to 500 people at a time.")
     .optional(),
-  csv: z.string().optional(),
+  csv: z.string().max(500_000, "That CSV is too large. Split it into smaller files.").optional(),
 });
 
 export const connectAccountSchema = z.object({

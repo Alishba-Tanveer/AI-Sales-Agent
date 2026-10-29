@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Search } from "lucide-react";
 import { cn } from "cn";
 import { buttonVariants } from "@/components/ui/button";
 import { userStore } from "@/features/auth/user-store";
@@ -25,9 +25,30 @@ export default function OverviewPage() {
       {state.status === "error" && <OverviewError message={state.message} onRetry={retry} />}
 
       {state.status === "success" && state.data.metrics.totalLeads === 0 && (
-        <Reveal>
+        <div className="flex w-full flex-col gap-6">
+          <Reveal>
+            <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+              <div className="flex flex-col">
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+                  {greeting()}
+                  {name && `, ${name}`}
+                </h1>
+                <p className="mt-1 text-sm text-muted-foreground">Your workspace is ready. Here is how to get your first leads in.</p>
+              </div>
+              <Link
+                href="/find-opportunities"
+                className={cn(
+                  buttonVariants(),
+                  "group h-auto gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 hover:bg-primary/85 hover:shadow-lg hover:shadow-primary/25 motion-safe:hover:-translate-y-0.5",
+                )}
+              >
+                <Search className="size-[18px] transition-transform duration-200 group-hover:scale-110" />
+                Find Opportunities
+              </Link>
+            </header>
+          </Reveal>
           <OverviewEmpty />
-        </Reveal>
+        </div>
       )}
 
       {state.status === "success" && state.data.metrics.totalLeads > 0 && (

@@ -18,6 +18,7 @@ export async function tavilySearch(input: {
   topic?: "general" | "news";
   maxResults?: number;
   timeRange?: "day" | "week" | "month" | "year";
+  excludeDomains?: string[];
 }): Promise<ResearchResult[]> {
   if (!env.TAVILY_API_KEY) throw new AppError("News search needs Tavily. Add TAVILY_API_KEY to the project .env file, then restart the API.", 503, { code: "TAVILY_NOT_CONFIGURED" });
   let response: Response;
@@ -28,19 +29,25 @@ export async function tavilySearch(input: {
       authorization: `Bearer ${env.TAVILY_API_KEY}`,
       "content-type": "application/json",
     },
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(20_000),
     body: JSON.stringify({
       query: input.query,
       topic: input.topic ?? "general",
       search_depth: "basic",
       max_results: Math.min(Math.max(input.maxResults ?? 5, 1), 8),
       ...(input.timeRange ? { time_range: input.timeRange } : {}),
+      ...(input.excludeDomains?.length ? { exclude_domains: input.excludeDomains } : {}),
       include_answer: false,
       include_raw_content: false,
     }),
     });
-  } catch {
-    throw new AppError("Could not reach Tavily. Check the API server's internet connection and try again.", 502, { code: "TAVILY_UNAVAILABLE" });
+  } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      throw new AppError("Tavily did not answer within 20 seconds. Please try again.", 504, { code: "TAVILY_TIMEOUT" });
+    }
+    const cause = error instanceof Error ? (error as Error & { cause?: { code?: string; message?: string } }).cause : undefined;
+    const reason = [cause?.code, cause?.message ?? (error instanceof Error ? error.message : "")].filter(Boolean).join(": ");
+    throw new AppError(`Could not connect to Tavily${reason ? ` (${reason})` : ""}.`, 502, { code: "TAVILY_UNAVAILABLE" });
   }
   if (!response.ok) {
     const message = response.status === 401 || response.status === 403

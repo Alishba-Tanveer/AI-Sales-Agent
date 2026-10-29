@@ -26,7 +26,7 @@ export function JobDetailsDialog({ job, open, onOpenChange, now }: { job: Activi
                 <JobIcon job={job} className="size-5" />
                 <DialogTitle className="min-w-0 [overflow-wrap:anywhere] text-base leading-snug">{job.title}</DialogTitle>
               </div>
-              <DialogDescription>{job.lead.name ? (job.lead.context ? `${job.lead.name} (${job.lead.context})` : job.lead.name) : (job.lead.context || "—")}</DialogDescription>
+              <DialogDescription>{job.lead.name ? (job.lead.context ? `${job.lead.name} (${job.lead.context})` : job.lead.name) : (job.lead.context || "General activity · not linked to a specific lead")}</DialogDescription>
             </DialogHeader>
 
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3">

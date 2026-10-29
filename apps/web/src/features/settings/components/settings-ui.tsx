@@ -28,6 +28,13 @@ export const TONES = {
     bar: "bg-violet-500 dark:bg-violet-400",
     btn: "border-violet-500/30 bg-violet-100 text-violet-700 hover:bg-violet-200 hover:text-violet-800 dark:border-violet-400/30 dark:bg-violet-400/15 dark:text-violet-400 dark:hover:bg-violet-400/25 dark:hover:text-violet-300",
   },
+  pink: {
+    text: "text-pink-700 dark:text-pink-400",
+    tile: "border-pink-500/30 bg-pink-100 text-pink-700 dark:border-pink-400/30 dark:bg-pink-400/15 dark:text-pink-400",
+    soft: "bg-pink-100 text-pink-700 dark:bg-pink-400/15 dark:text-pink-400",
+    bar: "bg-pink-500 dark:bg-pink-400",
+    btn: "border-pink-500/30 bg-pink-100 text-pink-700 hover:bg-pink-200 hover:text-pink-800 dark:border-pink-400/30 dark:bg-pink-400/15 dark:text-pink-400 dark:hover:bg-pink-400/25 dark:hover:text-pink-300",
+  },
 } as const;
 export type Tone = keyof typeof TONES;
 

@@ -236,8 +236,13 @@ export class LinkedinRepository {
     });
   }
 
-  async createLead(organizationId: string, data: Omit<Prisma.LinkedinLeadCreateInput, "organization">) {
-    return prisma.linkedinLead.create({
+  /** Pass `db` (a transaction client) to make this insert part of a larger all-or-nothing change. */
+  async createLead(
+    organizationId: string,
+    data: Omit<Prisma.LinkedinLeadCreateInput, "organization">,
+    db: Pick<Prisma.TransactionClient, "linkedinLead"> = prisma,
+  ) {
+    return db.linkedinLead.create({
       data: {
         ...data,
         organization: { connect: { id: organizationId } },
@@ -252,14 +257,12 @@ export class LinkedinRepository {
     });
   }
 
-  async updateManyLeads(organizationId: string, ids: string[], data: Prisma.LinkedinLeadUpdateManyMutationInput) {
-    return prisma.linkedinLead.updateMany({
-      where: {
-        organizationId,
-        id: { in: ids },
-      },
-      data,
+  /** Deletes only people who are not in the CRM Leads yet; returns how many rows were removed. */
+  async deleteLeadsNotInCrm(organizationId: string, ids: string[]) {
+    const res = await prisma.linkedinLead.deleteMany({
+      where: { organizationId, id: { in: ids }, crmLeadId: null },
     });
+    return res.count;
   }
 }
 

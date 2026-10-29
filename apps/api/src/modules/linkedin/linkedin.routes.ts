@@ -4,7 +4,6 @@ import { requireAuth, requireRole } from "../../middleware/auth";
 import { linkedinController } from "./linkedin.controller";
 
 const router = Router();
-router.get("/account/callback", (req, res) => linkedinController.linkedinOAuthCallback(req, res));
 router.use(requireAuth);
 const ownerOrAdmin = requireRole(Role.OWNER, Role.ADMIN);
 
@@ -155,12 +154,6 @@ router.put("/strategy", ownerOrAdmin, (req, res, next) => linkedinController.upd
 router.patch("/strategy", ownerOrAdmin, (req, res, next) => linkedinController.updateStrategy(req, res, next));
 
 // Static /leads/* and /connections/* actions BEFORE /:id
-router.post("/leads/bulk-approve", (req, res, next) =>
-  linkedinController.bulkApproveLeads(req, res, next),
-);
-router.post("/connections/bulk-approve", (req, res, next) =>
-  linkedinController.bulkApproveLeads(req, res, next),
-);
 router.post("/connections/discover", (req, res, next) =>
   linkedinController.discoverConnections(req, res, next),
 );
@@ -171,12 +164,14 @@ router.post("/connections/import", (req, res, next) =>
   linkedinController.importLeads(req, res, next),
 );
 router.post("/leads/import", (req, res, next) => linkedinController.importLeads(req, res, next));
+router.post("/leads/bulk-delete", (req, res, next) => linkedinController.deleteLeads(req, res, next));
 
 // Frontend /api/linkedin/leads routes
 router.get("/leads", (req, res, next) => linkedinController.listLeads(req, res, next));
 router.post("/leads", (req, res, next) => linkedinController.createLead(req, res, next));
 router.get("/leads/:id", (req, res, next) => linkedinController.getLeadById(req, res, next));
 router.patch("/leads/:id", (req, res, next) => linkedinController.updateLead(req, res, next));
+router.delete("/leads/:id", (req, res, next) => linkedinController.deleteLeads(req, res, next));
 router.patch("/leads/:id/note", (req, res, next) =>
   linkedinController.updateLeadNote(req, res, next),
 );
@@ -236,12 +231,5 @@ router.post("/connections/:id/add-to-leads", (req, res, next) =>
  * ======================================================================== */
 
 router.get("/account", (req, res, next) => linkedinController.getAccount(req, res, next));
-// Connecting or disconnecting an integration is for Owner and Admins only (the same rule as Settings > Integrations).
-router.post("/account/connect", requireRole(Role.OWNER, Role.ADMIN), (req, res, next) =>
-  linkedinController.connectAccount(req, res, next),
-);
-router.delete("/account", requireRole(Role.OWNER, Role.ADMIN), (req, res, next) =>
-  linkedinController.disconnectAccount(req, res, next),
-);
-
+// Posting is manual (copy / download), so there is no LinkedIn connect or disconnect route.
 export const linkedinRoutes = router;
