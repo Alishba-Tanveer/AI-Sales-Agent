@@ -1,105 +1,124 @@
-# AI Sales Agent — LinkedIn, Content & Activity Improvements
+## Find Opportunities – Frontend Implementation
 
-## Overview
+**Status:** Frontend implemented and browser testing completed
+**Backend:** Pending implementation by the backend team
 
-This update improves the LinkedIn Connections and Engagement workflow, LinkedIn content research, inbox navigation, activity tracking, and dashboard UI. It also includes backend API changes, AI provider integration updates, and removal of unused or duplicate code.
+### Overview
 
-## 1. LinkedIn Connections & Engagement
+Implemented the Find Opportunities page frontend to help users discover relevant job openings, business opportunities and potential leads from external sources.
 
-### CSV Import Improvements
+The page follows the existing project architecture, component patterns and theme styling.
 
-- Fixed LinkedIn CSV import handling, including LinkedIn message exports such as `messages.csv`.
-- Updated message import logic to identify people from conversations instead of treating conversation IDs as names.
-- Import one person per conversation where possible, using available names and profile URLs.
-- Exclude the current user's own entry and skip entries with hidden or unavailable names, such as `LinkedIn Member`.
-- Increased the supported CSV upload size limit from 5 MB to 25 MB.
-- Aligned the People Who Engaged workflow with the Target Buyers workflow.
+### Features Implemented
 
-### Search & Filtering
+- **Search Filters**
+  - Keyword-based search
+  - Multiple source selection
+  - Opportunity type filtering
+  - Minimum match score
+  - Posted date range
 
-- Added a search bar above the Connections tabs.
-- Search the currently selected tab by name, company, and job title.
-- Improved the search bar's spacing, width, focus behaviour, and styling.
+- **Opportunity Results**
+  - Opportunity cards with match scores
+  - Extracted intent signals
+  - Budget information
+  - Company and source information
+  - Top Match indicator for opportunities scoring 85 or higher
 
-### Connection Management
+- **Opportunity Actions**
+  - Save as Lead using the existing Leads API
+  - Dismiss opportunities
+  - Restore dismissed opportunities
+  - Open original opportunity sources
 
-- Added individual delete controls for connection rows and bulk deletion for selected rows.
-- Added corresponding backend delete API support.
-- Prevent deletion of people who have already been added to Leads.
-- Positioned and resized the bulk-delete control alongside the search bar.
-- Styled the delete icon as a simple red icon without a border or background.
+- **Additional Functionality**
+  - Opportunity sorting
+  - CSV export
+  - Live results count
+  - Loading state
+  - Error state with retry
+  - Empty results state
+  - Partial source failure notification and retry option
 
-### Button & Empty-State Improvements
+### UI and Design Improvements
 
-- Removed redundant LinkedIn profile links, Open Profile buttons, and Skip buttons.
-- Removed the copy button from pending rows.
-- Added a Check Reply / Follow action to help users navigate to a person's inbox.
-- Restricted Add to Leads to the Connected tab.
-- Standardised button icons, outline colours, labels, and interaction styling.
-- Simplified empty states on the Pending and Connected tabs by removing unnecessary action buttons.
-- Retained relevant actions on People Who Engaged and Target Buyers.
+- Improved spacing between the filter panel and results section.
+- Made filter panels and opportunity cards more compact.
+- Removed the header banner and decorative icon.
+- Removed gradients throughout the page.
+- Standardized buttons using the existing Button component.
+- Replaced heavily colored source pills with a simple checkbox list.
+- Applied alternating theme colors to opportunity cards.
+- Used neutral styling for opportunity types and source labels.
+- Kept match scores visually consistent.
+- Added a Top Match label for opportunities scoring 85 or above.
 
-## 2. LinkedIn Inbox Improvements
+### Technical Implementation
 
-- Improved inbox-related navigation from the Connections workflow.
-- Added an action to open the relevant person's inbox so users can review replies and follow-up messages.
-- Updated inbox UI and types to support the improved workflow.
+Created the Opportunities feature following the existing frontend architecture.
 
-## 3. LinkedIn Content Engine & Content Search
+Location:
 
-- Improved content search and business-news research handling.
-- Updated the Tavily integration used for web and news research.
-- Refined LinkedIn content UI and related API integration.
-- Added support for managing searched news scripts, including individual deletion controls.
-- Added `post-assets.ts` to support LinkedIn post asset handling and content previews.
-- Improved the content workflow for preparing posts and media assets.
+`apps/web/src/features/opportunities/`
 
-**Content publishing note:** Content generation and asset preparation are separate from publishing. Direct LinkedIn publishing depends on the available LinkedIn API permissions and integration capabilities.
+Main files include:
 
-## 4. AI Provider & Email Improvements
+- `api.ts` – API service and mock-mode configuration.
+- `types.ts` – TypeScript types and interfaces.
+- `hooks.ts` – Opportunities feature hooks.
+- `constants.ts` – Feature constants and configuration.
+- `format.ts` – Formatting utilities.
+- `mock-data.ts` – Mock opportunity records.
+- `components/` – Opportunities page components.
 
-- Updated the AI integration configuration and provider handling.
-- Added Groq support alongside the existing Gemini integration.
-- Fixed issues encountered with Gemini during content generation and email generation.
-- Updated related configuration and service code to support the revised AI workflow.
+Page:
 
-Provider availability, fallback behaviour, and generated output quality depend on the configured API credentials and implementation.
+`apps/web/src/app/(dashboard)/find-opportunities/page.tsx`
 
-## 5. Overview & Recent Activity
+### Testing and Verification
 
-- Improved the Overview page and its metric cards, recent activity, and loading/empty/error states.
-- Updated the analytics backend to return task kind and status information needed by the Overview.
-- Added activity-specific icons and theme colours based on the activity type.
-- Improved visual differentiation for activities such as video generation, news research, replies, emails, imports, and lead-related tasks.
-- Improved the Related Lead display to provide more useful text instead of an empty dash where possible.
+The following checks were completed:
 
-## 6. Activity Page & Job Details
+| Check | Result |
+|---|---|
+| Prisma Client generation | Passed |
+| Frontend TypeScript check | Passed |
+| Next.js production build | Passed |
+| Find Opportunities page loading | Tested |
+| Filters and source selection | Tested |
+| Opportunity search using mock data | Tested |
+| Sorting | Tested |
+| Save as Lead | Tested |
+| Dismiss and Restore | Tested |
+| CSV export | Tested |
 
-- Updated activity rows, job UI, and job details dialogs.
-- Improved task status and activity presentation.
-- Refined the display of related information and removed unnecessary placeholder dashes.
-- Improved consistency between activity types, their icons, and their visual styling.
+**Commands used:**
 
-## 7. Leads, Inbox & Settings UI
+```bash
+npm run db:generate
 
-- Updated the Lead Detail page.
-- Refined Inbox components and supporting types.
-- Improved Settings UI styling.
-- Updated LinkedIn frontend API calls and types to support the revised workflows.
+npx tsc --project apps/web/tsconfig.json --noEmit
 
-## 8. Backend Changes & Code Cleanup
+npm run build -w apps/web
 
-- Updated API environment configuration and AI integration code.
-- Updated the LinkedIn controller, routes, schema, service, and repository.
-- Updated inbox service behaviour.
-- Updated analytics service behaviour.
-- Added or revised backend support for connection deletion and related UI actions.
-- Removed unused bulk-approval functionality from the frontend API and corresponding backend routes, controller, service, schema, and repository.
-- Removed the stale nested `apps/api/src/src` source tree to avoid duplicate backend files.
-- Removed the obsolete `apps/api/NOTIFICATIONS.md` file as part of cleanup.
+npm run dev
+```
 
-The active backend source is maintained under `apps/api/src/`.
+### Mock Data and Backend Integration
 
-## Summary
+The Opportunities frontend currently uses mock data for search results.
+Real backend integration is pending and will be handled by the backend team.
+The frontend API service includes comments documenting the expected backend endpoints.
+The mock configuration should remain enabled until the backend endpoints are implemented and verified.
 
-This update focuses on making LinkedIn engagement management more practical, fixing CSV import behaviour, improving content research and AI provider integration, making activity information easier to understand, refining dashboard UI, and removing obsolete backend code.
+### Pending Work
+
+- Integrate the frontend with the real Opportunities backend.
+- Connect external opportunity sources.
+- Implement real opportunity search and filtering.
+- Connect backend match scoring and intent extraction.
+- Implement persistent dismiss and restore functionality.
+- Test real search results and source failure handling.
+- Verify end-to-end integration with the existing Leads module.
+
+**Current Status:** Find Opportunities frontend implementation and initial browser testing completed. Awaiting backend integration.
