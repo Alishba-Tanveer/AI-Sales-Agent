@@ -3,6 +3,7 @@ import { OpportunitiesRepository } from "./opportunities.repository";
 import type { SearchOpportunitiesInput, SaveOpportunityInput } from "./opportunities.schema";
 import { trackActivity } from "../activity/activity-logger";
 import { tavilySearch } from "../../integrations/tavily";
+import { env } from "../../config/env";
 import { AppError } from "../../utils/app-error";
 
 export type OpportunityType = "client_project" | "job_posting" | "freelance";
@@ -46,164 +47,31 @@ const SOURCE_LABELS: Record<string, string> = {
   sam_gov: "SAM.gov Contract Feed",
 };
 
-const DEFAULT_SEEDS = [
-  {
-    title: "AI workflow automation developer",
-    company: "BrightCart",
-    type: "client_project" as OpportunityType,
-    sourceId: "jobicy",
-    relevance: 92,
-    budget: "$40k–$60k",
-    location: "Remote",
-    hoursAgo: 3,
-    signals: "Seeking enterprise partner to architect autonomous order routing and multi-channel inventory sync. Explicit urgency to deploy LLM-based exception handlers across the warehouse management stack.",
-    url: "https://jobicy.com/jobs/ai-workflow-automation-developer",
-  },
-  {
-    title: "Automated Lead Triage & CRM Routing Engine",
-    company: "ClearRoute Inc.",
-    type: "client_project" as OpportunityType,
-    sourceId: "company_sites",
-    relevance: 91,
-    budget: null,
-    location: "Remote (US)",
-    hoursAgo: 4,
-    signals: "Request for proposal to replace manual BDR lead grading with automated LangChain agents connecting HubSpot to Slack alerts.",
-    url: "https://example.com/rfp/lead-triage-crm",
-  },
-  {
-    title: "Autonomous Customer Support & Agent Integration",
-    company: "DentalSphere UK",
-    type: "client_project" as OpportunityType,
-    sourceId: "sam_gov",
-    relevance: 88,
-    budget: null,
-    location: "United Kingdom",
-    hoursAgo: 20,
-    signals: "Published RFP for AI conversational triage to reduce emergency call load across 24 clinics. Looking to integrate Zendesk, a custom EHR and an appointment scheduling agent.",
-    url: "https://sam.gov/opp/dentalsphere-ai-support",
-  },
-  {
-    title: "Enterprise Knowledge Base RAG Migration",
-    company: "Vanguard Nordic",
-    type: "client_project" as OpportunityType,
-    sourceId: "remotive",
-    relevance: 86,
-    budget: "€30k–€45k",
-    location: "Remote (EU)",
-    hoursAgo: 27,
-    signals: "Hiring contract implementation partner for Pinecone vector search integration across internal technical documentation.",
-    url: "https://remotive.com/remote-jobs/rag-migration",
-  },
-  {
-    title: "Senior AI Solutions Architect (Contract)",
-    company: "ShipEasy Logistics",
-    type: "job_posting" as OpportunityType,
-    sourceId: "arbeitnow",
-    relevance: 84,
-    budget: null,
-    location: "Berlin / Remote",
-    hoursAgo: 50,
-    signals: "Contract position for a specialist to deploy document parsers and freight rate predictive matching. Mentions open budget for third-party agency engagement if talent delivery is rapid.",
-    url: "https://www.arbeitnow.com/jobs/ai-solutions-architect",
-  },
-  {
-    title: "Voice agent for appointment booking",
-    company: "Lumen Health",
-    type: "freelance" as OpportunityType,
-    sourceId: "remoteok",
-    relevance: 83,
-    budget: "$8k–$12k",
-    location: "Remote",
-    hoursAgo: 55,
-    signals: "Wants a voice AI agent that books and reschedules patient appointments and syncs with their existing calendar system.",
-    url: "https://remoteok.com/remote-jobs/voice-agent-booking",
-  },
-  {
-    title: "Zapier to custom agent migration",
-    company: "Orbit Analytics",
-    type: "freelance" as OpportunityType,
-    sourceId: "weworkremotely",
-    relevance: 81,
-    budget: "$5k–$9k",
-    location: "Remote",
-    hoursAgo: 70,
-    signals: "Outgrown Zapier flows for lead enrichment. Looking for someone to move them to a maintainable agent-based pipeline.",
-    url: "https://weworkremotely.com/jobs/zapier-agent-migration",
-  },
-  {
-    title: "Custom LLM & Zapier/Make Automation Stack",
-    company: "Apex Media Works",
-    type: "freelance" as OpportunityType,
-    sourceId: "jobicy",
-    relevance: 79,
-    budget: null,
-    location: "Remote",
-    hoursAgo: 78,
-    signals: "Small marketing firm seeking a low-budget Zapier connection for blog post generation.",
-    url: "https://jobicy.com/jobs/custom-llm-make-automation",
-  },
-  {
-    title: "Invoice processing automation",
-    company: "Marlow & Co",
-    type: "client_project" as OpportunityType,
-    sourceId: "company_sites",
-    relevance: 77,
-    budget: "$15k–$20k",
-    location: "London",
-    hoursAgo: 96,
-    signals: "Procurement notice for automated invoice capture and approval routing into their ERP.",
-    url: "https://example.com/procurement/invoice-processing",
-  },
-  {
-    title: "AI sales assistant for inbound leads",
-    company: "Helix Freight",
-    type: "client_project" as OpportunityType,
-    sourceId: "remotive",
-    relevance: 76,
-    budget: null,
-    location: "Remote (US)",
-    hoursAgo: 120,
-    signals: "Wants an assistant that qualifies inbound website leads and hands warm ones to the sales team.",
-    url: "https://remotive.com/remote-jobs/ai-sales-assistant",
-  },
-  {
-    title: "Prompt engineer / automation consultant",
-    company: "Kite Logistics",
-    type: "job_posting" as OpportunityType,
-    sourceId: "arbeitnow",
-    relevance: 72,
-    budget: null,
-    location: "Amsterdam",
-    hoursAgo: 160,
-    signals: "Part-time consultant to review prompts and automation flows across support and operations.",
-    url: "https://www.arbeitnow.com/jobs/prompt-engineer-consultant",
-  },
-  {
-    title: "Chatbot rebuild for member support",
-    company: "Greenfield Energy",
-    type: "freelance" as OpportunityType,
-    sourceId: "remoteok",
-    relevance: 68,
-    budget: "$6k–$10k",
-    location: "Remote",
-    hoursAgo: 210,
-    signals: "Existing rule-based chatbot is failing. Looking for an LLM-powered replacement with human handoff.",
-    url: "https://remoteok.com/remote-jobs/chatbot-rebuild",
-  },
-  {
-    title: "Data enrichment agent for outbound",
-    company: "Solstice Solar",
-    type: "client_project" as OpportunityType,
-    sourceId: "jobicy",
-    relevance: 64,
-    budget: null,
-    location: "Remote",
-    hoursAgo: 300,
-    signals: "Early mention of building an enrichment step before outbound campaigns; no budget or timeline given.",
-    url: "https://jobicy.com/jobs/data-enrichment-agent",
-  },
-];
+function stripHtml(html: string): string {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function inferOpportunityType(title: string, description: string): OpportunityType {
+  const text = `${title} ${description}`.toLowerCase();
+  if (text.includes("freelance") || text.includes("part-time") || text.includes("gig")) {
+    return "freelance";
+  }
+  if (text.includes("contract") || text.includes("project") || text.includes("consultant") || text.includes("rfp")) {
+    return "client_project";
+  }
+  return "job_posting";
+}
 
 export class OpportunitiesService {
   constructor(private readonly opportunitiesRepository: OpportunitiesRepository) {}
@@ -213,7 +81,7 @@ export class OpportunitiesService {
     signals: string,
     keywords: string[],
     orgServices: string[],
-    baseRelevance: number = 75
+    baseRelevance: number = 65
   ): number {
     const combined = `${title} ${signals}`.toLowerCase();
     let score = baseRelevance;
@@ -223,9 +91,9 @@ export class OpportunitiesService {
       const lower = kw.toLowerCase().trim();
       if (!lower) continue;
       if (title.toLowerCase().includes(lower)) {
-        score += 8;
+        score += 15;
       } else if (combined.includes(lower)) {
-        score += 4;
+        score += 8;
       }
     }
 
@@ -233,12 +101,14 @@ export class OpportunitiesService {
     for (const s of orgServices) {
       const lower = s.toLowerCase().trim();
       if (!lower) continue;
-      if (combined.includes(lower)) {
-        score += 3;
+      if (title.toLowerCase().includes(lower)) {
+        score += 10;
+      } else if (combined.includes(lower)) {
+        score += 5;
       }
     }
 
-    return Math.min(Math.max(score, 50), 98);
+    return Math.min(Math.max(score, 50), 99);
   }
 
   private getTimeLimitMs(postedWithin: "any" | "24h" | "7d" | "30d"): number {
@@ -286,89 +156,239 @@ export class OpportunitiesService {
         });
         const orgServices = org?.services ?? [];
 
-        // 2. Fetch from external APIs or perform live search where requested
         const now = Date.now();
         const timeLimitMs = this.getTimeLimitMs(input.postedWithin);
 
+        // 2. Fetch live data from each requested public source
         for (const sourceId of input.sourceIds) {
           try {
             if (sourceId === "jobicy") {
-              // Jobicy public remote jobs API
-              const res = await fetch("https://jobicy.com/api/v2/remote-jobs?count=10", {
-                signal: AbortSignal.timeout(5_000),
+              const res = await fetch("https://jobicy.com/api/v2/remote-jobs?count=25", {
+                signal: AbortSignal.timeout(6_000),
                 headers: { "User-Agent": "AI-Sales-Agent/1.0" },
               });
-              if (res.ok) {
-                const data = (await res.json()) as { jobs?: Array<any> };
-                if (data.jobs && Array.isArray(data.jobs)) {
-                  for (const j of data.jobs.slice(0, 5)) {
-                    const postedAt = j.pubDate ? new Date(j.pubDate) : new Date(now - 12 * 3600_000);
-                    if (now - postedAt.getTime() > timeLimitMs) continue;
-                    const cleanSignals = (j.jobExcerpt || j.jobDescription || "")
-                      .replace(/<[^>]*>?/gm, "")
-                      .slice(0, 240);
-                    const budget = j.annualSalaryMin && j.annualSalaryMax
-                      ? `${j.salaryCurrency || "$"}${Math.round(j.annualSalaryMin / 1000)}k–${Math.round(j.annualSalaryMax / 1000)}k`
-                      : null;
-                    const rel = this.calculateRelevance(j.jobTitle || "", cleanSignals, input.keywords, orgServices, 80);
-                    foundItems.push({
-                      title: j.jobTitle || "Workflow Automation Developer",
-                      company: j.companyName || "Tech Client",
-                      type: "client_project",
-                      sourceId: "jobicy",
-                      sourceLabel: SOURCE_LABELS.jobicy,
-                      postedAt,
-                      relevance: rel,
-                      signals: cleanSignals || "Seeking automation engineering partner to integrate systems.",
-                      budget,
-                      location: j.jobGeo || "Remote",
-                      url: j.url || "https://jobicy.com",
-                    });
-                  }
+              if (!res.ok) throw new Error(`Jobicy responded with HTTP ${res.status}`);
+              const data = (await res.json()) as { jobs?: Array<any> };
+              if (data.jobs && Array.isArray(data.jobs)) {
+                for (const j of data.jobs) {
+                  const postedAt = j.pubDate ? new Date(j.pubDate) : new Date(now - 12 * 3600_000);
+                  if (now - postedAt.getTime() > timeLimitMs) continue;
+                  const cleanSignals = stripHtml(j.jobExcerpt || j.jobDescription || "").slice(0, 260);
+                  const budget = j.annualSalaryMin && j.annualSalaryMax
+                    ? `${j.salaryCurrency || "$"}${Math.round(j.annualSalaryMin / 1000)}k–${Math.round(j.annualSalaryMax / 1000)}k`
+                    : null;
+                  const title = j.jobTitle || "Remote Developer";
+                  const rel = this.calculateRelevance(title, cleanSignals, input.keywords, orgServices, 65);
+                  foundItems.push({
+                    title,
+                    company: j.companyName || "Client Partner",
+                    type: inferOpportunityType(title, cleanSignals),
+                    sourceId: "jobicy",
+                    sourceLabel: SOURCE_LABELS.jobicy,
+                    postedAt,
+                    relevance: rel,
+                    signals: cleanSignals || "Seeking technical engineering partner for systems integration.",
+                    budget,
+                    location: j.jobGeo || "Remote",
+                    url: j.url || "https://jobicy.com",
+                  });
                 }
               }
             } else if (sourceId === "arbeitnow") {
-              // Arbeitnow free public API
               const res = await fetch("https://www.arbeitnow.com/api/job-board-api", {
-                signal: AbortSignal.timeout(5_000),
+                signal: AbortSignal.timeout(6_000),
               });
-              if (res.ok) {
-                const data = (await res.json()) as { data?: Array<any> };
-                if (data.data && Array.isArray(data.data)) {
-                  for (const j of data.data.slice(0, 5)) {
-                    const postedAt = j.created_at ? new Date(j.created_at * 1000) : new Date(now - 24 * 3600_000);
-                    if (now - postedAt.getTime() > timeLimitMs) continue;
-                    const cleanSignals = (j.description || "")
-                      .replace(/<[^>]*>?/gm, "")
-                      .slice(0, 240);
-                    const rel = this.calculateRelevance(j.title || "", cleanSignals, input.keywords, orgServices, 78);
-                    foundItems.push({
-                      title: j.title || "AI Systems Integration Specialist",
-                      company: j.company_name || "Logistics Partner",
-                      type: "job_posting",
-                      sourceId: "arbeitnow",
-                      sourceLabel: SOURCE_LABELS.arbeitnow,
-                      postedAt,
-                      relevance: rel,
-                      signals: cleanSignals || "Contract engagement for deploying AI integration pipelines.",
-                      budget: null,
-                      location: j.location || "Remote",
-                      url: j.url || "https://www.arbeitnow.com",
-                    });
-                  }
+              if (!res.ok) throw new Error(`Arbeitnow responded with HTTP ${res.status}`);
+              const data = (await res.json()) as { data?: Array<any> };
+              if (data.data && Array.isArray(data.data)) {
+                for (const j of data.data) {
+                  const postedAt = j.created_at ? new Date(j.created_at * 1000) : new Date(now - 24 * 3600_000);
+                  if (now - postedAt.getTime() > timeLimitMs) continue;
+                  const cleanSignals = stripHtml(j.description || "").slice(0, 260);
+                  const title = j.title || "Software Solutions Specialist";
+                  const rel = this.calculateRelevance(title, cleanSignals, input.keywords, orgServices, 65);
+                  foundItems.push({
+                    title,
+                    company: j.company_name || "Logistics Partner",
+                    type: inferOpportunityType(title, cleanSignals),
+                    sourceId: "arbeitnow",
+                    sourceLabel: SOURCE_LABELS.arbeitnow,
+                    postedAt,
+                    relevance: rel,
+                    signals: cleanSignals || "Contract engagement for deploying AI integration pipelines.",
+                    budget: null,
+                    location: j.location || "Remote",
+                    url: j.url || "https://www.arbeitnow.com",
+                  });
                 }
               }
-            } else if (sourceId === "sam_gov" && input.sourceIds.includes("sam_gov") && input.sourceIds.length > 4) {
-              // SAM.gov contracts: simulate public registry timeout or partial failure when queried broadly
-              // (matches frontend test specification for partial failure notification)
-              failures.push({
-                sourceId: "sam_gov",
-                label: SOURCE_LABELS.sam_gov,
-                reason: "Federal SAM.gov portal timed out after 5s",
+            } else if (sourceId === "remotive") {
+              const res = await fetch("https://remotive.com/api/remote-jobs?limit=25", {
+                signal: AbortSignal.timeout(6_000),
+                headers: { "User-Agent": "AI-Sales-Agent/1.0" },
               });
+              if (!res.ok) throw new Error(`Remotive responded with HTTP ${res.status}`);
+              const data = (await res.json()) as { jobs?: Array<any> };
+              if (data.jobs && Array.isArray(data.jobs)) {
+                for (const j of data.jobs) {
+                  const postedAt = j.publication_date ? new Date(j.publication_date) : new Date(now - 16 * 3600_000);
+                  if (now - postedAt.getTime() > timeLimitMs) continue;
+                  const cleanSignals = stripHtml(j.description || "").slice(0, 260);
+                  const title = j.title || "Automation Specialist";
+                  const rel = this.calculateRelevance(title, cleanSignals, input.keywords, orgServices, 65);
+                  foundItems.push({
+                    title,
+                    company: j.company_name || "Client",
+                    type: inferOpportunityType(title, cleanSignals),
+                    sourceId: "remotive",
+                    sourceLabel: SOURCE_LABELS.remotive,
+                    postedAt,
+                    relevance: rel,
+                    signals: cleanSignals || "Looking for an implementation partner for workflows and automation.",
+                    budget: j.salary || null,
+                    location: j.candidate_required_location || "Remote",
+                    url: j.url || "https://remotive.com",
+                  });
+                }
+              }
+            } else if (sourceId === "remoteok") {
+              const res = await fetch("https://remoteok.com/api", {
+                signal: AbortSignal.timeout(6_000),
+                headers: { "User-Agent": "AI-Sales-Agent/1.0" },
+              });
+              if (!res.ok) throw new Error(`RemoteOK responded with HTTP ${res.status}`);
+              const data = (await res.json()) as Array<any>;
+              if (Array.isArray(data)) {
+                for (const j of data.filter((item) => item && item.position)) {
+                  const postedAt = j.date ? new Date(j.date) : new Date(now - 20 * 3600_000);
+                  if (now - postedAt.getTime() > timeLimitMs) continue;
+                  const cleanSignals = stripHtml(j.description || "").slice(0, 260);
+                  const title = j.position || "AI & Automation Developer";
+                  const rel = this.calculateRelevance(title, cleanSignals, input.keywords, orgServices, 65);
+                  const budget = j.salary_min && j.salary_max
+                    ? `$${Math.round(j.salary_min / 1000)}k–$${Math.round(j.salary_max / 1000)}k`
+                    : null;
+                  foundItems.push({
+                    title,
+                    company: j.company || "Technology Partner",
+                    type: inferOpportunityType(title, cleanSignals),
+                    sourceId: "remoteok",
+                    sourceLabel: SOURCE_LABELS.remoteok,
+                    postedAt,
+                    relevance: rel,
+                    signals: cleanSignals || "Hiring partner or specialist for remote system integrations.",
+                    budget,
+                    location: j.location || "Remote",
+                    url: j.url || `https://remoteok.com/remote-jobs/${j.id}`,
+                  });
+                }
+              }
+            } else if (sourceId === "weworkremotely") {
+              const res = await fetch("https://weworkremotely.com/categories/remote-programming-jobs.rss", {
+                signal: AbortSignal.timeout(6_000),
+                headers: { "User-Agent": "AI-Sales-Agent/1.0" },
+              });
+              if (!res.ok) throw new Error(`We Work Remotely responded with HTTP ${res.status}`);
+              const text = await res.text();
+              const itemMatches = text.matchAll(/<item>([\s\S]*?)<\/item>/gi);
+              for (const match of itemMatches) {
+                const itemContent = match[1];
+                const rawTitle = itemContent.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>|<title>(.*?)<\/title>/i);
+                const titleText = (rawTitle?.[1] || rawTitle?.[2] || "").trim();
+                const linkMatch = itemContent.match(/<link>(.*?)<\/link>/i);
+                const linkText = (linkMatch?.[1] || "https://weworkremotely.com").trim();
+                const pubDateMatch = itemContent.match(/<pubDate>(.*?)<\/pubDate>/i);
+                const postedAt = pubDateMatch ? new Date(pubDateMatch[1]) : new Date(now - 24 * 3600_000);
+                if (now - postedAt.getTime() > timeLimitMs) continue;
+                const descMatch = itemContent.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>|<description>([\s\S]*?)<\/description>/i);
+                const cleanSignals = stripHtml(descMatch?.[1] || descMatch?.[2] || "").slice(0, 260);
+
+                let company = "Client";
+                let jobTitle = titleText;
+                if (titleText.includes(":")) {
+                  const parts = titleText.split(":");
+                  company = parts[0].trim();
+                  jobTitle = parts.slice(1).join(":").trim();
+                }
+
+                const rel = this.calculateRelevance(jobTitle, cleanSignals, input.keywords, orgServices, 65);
+                foundItems.push({
+                  title: jobTitle,
+                  company,
+                  type: inferOpportunityType(jobTitle, cleanSignals),
+                  sourceId: "weworkremotely",
+                  sourceLabel: SOURCE_LABELS.weworkremotely,
+                  postedAt,
+                  relevance: rel,
+                  signals: cleanSignals || "Contract or remote opportunity posted on We Work Remotely.",
+                  budget: null,
+                  location: "Remote",
+                  url: linkText,
+                });
+              }
+            } else if (sourceId === "sam_gov") {
+              if (env.TAVILY_API_KEY) {
+                const query = `site:sam.gov ${input.keywords.join(" ")} "solicitation" OR "contract"`;
+                const searchRes = await tavilySearch({ query, maxResults: 4 });
+                for (const item of searchRes) {
+                  const title = item.title.replace(/\|.*$/g, "").trim();
+                  const rel = this.calculateRelevance(title, item.content, input.keywords, orgServices, 70);
+                  foundItems.push({
+                    title,
+                    company: "Federal Agency (SAM.gov)",
+                    type: "client_project",
+                    sourceId: "sam_gov",
+                    sourceLabel: SOURCE_LABELS.sam_gov,
+                    postedAt: item.publishedDate ? new Date(item.publishedDate) : new Date(now - 48 * 3600_000),
+                    relevance: rel,
+                    signals: item.content.slice(0, 260),
+                    budget: null,
+                    location: "United States",
+                    url: item.url,
+                  });
+                }
+              } else {
+                failures.push({
+                  sourceId: "sam_gov",
+                  label: SOURCE_LABELS.sam_gov,
+                  reason: "SAM.gov live search requires TAVILY_API_KEY in .env",
+                });
+              }
+            } else if (sourceId === "company_sites") {
+              if (env.TAVILY_API_KEY) {
+                const query = `${input.keywords.join(" ")} "request for proposal" OR "we are hiring" OR "looking for agency"`;
+                const searchRes = await tavilySearch({ query, maxResults: 4 });
+                for (const item of searchRes) {
+                  const title = item.title.replace(/\|.*$/g, "").trim();
+                  let company = "Company";
+                  try {
+                    const parsedUrl = new URL(item.url);
+                    company = parsedUrl.hostname.replace(/^www\./, "");
+                  } catch {}
+                  const rel = this.calculateRelevance(title, item.content, input.keywords, orgServices, 70);
+                  foundItems.push({
+                    title,
+                    company,
+                    type: "client_project",
+                    sourceId: "company_sites",
+                    sourceLabel: SOURCE_LABELS.company_sites,
+                    postedAt: item.publishedDate ? new Date(item.publishedDate) : new Date(now - 24 * 3600_000),
+                    relevance: rel,
+                    signals: item.content.slice(0, 260),
+                    budget: null,
+                    location: "Remote",
+                    url: item.url,
+                  });
+                }
+              } else {
+                failures.push({
+                  sourceId: "company_sites",
+                  label: SOURCE_LABELS.company_sites,
+                  reason: "Company sites live crawler requires TAVILY_API_KEY in .env",
+                });
+              }
             }
           } catch (error) {
-            // Log graceful failure so the rest of the search succeeds
             failures.push({
               sourceId,
               label: SOURCE_LABELS[sourceId] ?? sourceId,
@@ -377,32 +397,7 @@ export class OpportunitiesService {
           }
         }
 
-        // 3. Combine with curated template opportunities for each requested source
-        // This ensures the user ALWAYS sees high quality opportunities matching their filter
-        for (const seed of DEFAULT_SEEDS) {
-          if (!input.sourceIds.includes(seed.sourceId)) continue;
-          if (failures.some((f) => f.sourceId === seed.sourceId && seed.sourceId === "sam_gov")) continue;
-
-          const postedAt = new Date(now - seed.hoursAgo * 3600_000);
-          if (now - postedAt.getTime() > timeLimitMs) continue;
-
-          const rel = this.calculateRelevance(seed.title, seed.signals, input.keywords, orgServices, seed.relevance);
-          foundItems.push({
-            title: seed.title,
-            company: seed.company,
-            type: seed.type,
-            sourceId: seed.sourceId,
-            sourceLabel: SOURCE_LABELS[seed.sourceId] ?? seed.sourceId,
-            postedAt,
-            relevance: rel,
-            signals: seed.signals,
-            budget: seed.budget,
-            location: seed.location,
-            url: seed.url,
-          });
-        }
-
-        // 4. Upsert/persist opportunities in the database for persistence (preserves status & leadId)
+        // 3. Upsert discovered real opportunities into the database to persist user saves/dismissals
         const savedOpportunities: Opportunity[] = [];
         for (const item of foundItems) {
           const row = await this.opportunitiesRepository.upsertOpportunity({
@@ -422,14 +417,14 @@ export class OpportunitiesService {
           savedOpportunities.push(row);
         }
 
-        // 5. Also load any previously saved or dismissed opportunities from the DB that match the criteria
+        // 4. Also load existing opportunities for this organization from DB
         const existingDbItems = await this.opportunitiesRepository.list(organizationId, {
           sourceIds: input.sourceIds,
           minRelevance: input.minRelevance,
           since: timeLimitMs !== Infinity ? new Date(now - timeLimitMs) : undefined,
         });
 
-        // Merge by ID / URL, giving priority to existing DB rows with 'saved' status
+        // Merge DB rows (giving priority to items already in DB with user modifications)
         const mergedMap = new Map<string, Opportunity>();
         for (const opp of savedOpportunities) {
           mergedMap.set(opp.id, opp);
@@ -438,7 +433,7 @@ export class OpportunitiesService {
           mergedMap.set(opp.id, opp);
         }
 
-        // 6. Apply search filter rules
+        // 5. Apply filters strictly to the real discovered data
         const keywordWords = input.keywords.map((k) => k.toLowerCase().trim()).filter(Boolean);
         const filteredItems = Array.from(mergedMap.values()).filter((o) => {
           if (!input.sourceIds.includes(o.sourceId)) return false;
@@ -449,7 +444,7 @@ export class OpportunitiesService {
           const matchesKeyword =
             keywordWords.length === 0 ||
             keywordWords.some((w) => text.includes(w)) ||
-            o.relevance >= 85;
+            o.relevance >= 80;
 
           return matchesKeyword;
         });
