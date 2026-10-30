@@ -7,7 +7,7 @@ import type { Opportunity, SearchFilters, SearchResult } from "./types";
  * The opportunities backend module is still empty, so this page runs on mock data.
  * Flip to `false` once the endpoints below exist. Nothing else in the page changes.
  */
-const USE_MOCK = true;
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK_OPPORTUNITIES === "true";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
