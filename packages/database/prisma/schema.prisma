@@ -63,6 +63,7 @@ model Organization {
   activityLogs        ActivityLog[]
   notifications       InAppNotification[]
   leadCommunications  LeadCommunication[]
+  opportunities       Opportunity[]
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 }
@@ -247,6 +248,7 @@ model Lead {
   organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   communications LeadCommunication[]
   linkedinLead   LinkedinLead?       @relation("LinkedinLeadToCrmLead")
+  opportunity    Opportunity?        @relation("OpportunityToLead")
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 
@@ -313,4 +315,33 @@ model InAppNotification {
   updatedAt      DateTime     @updatedAt
 
   @@index([organizationId, read, createdAt])
+}
+
+
+model Opportunity {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  title          String
+  company        String
+  type           String       @default("client_project")
+  sourceId       String
+  sourceLabel    String
+  postedAt       DateTime     @default(now())
+  relevance      Int          @default(80)
+  signals        String       @db.Text
+  budget         String?
+  location       String?
+  url            String
+  status         String       @default("open")
+  leadId         String?      @unique
+  lead           Lead?        @relation("OpportunityToLead", fields: [leadId], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, status])
+  @@index([organizationId, sourceId])
+  @@index([organizationId, relevance])
+  @@index([organizationId, postedAt])
+  @@index([organizationId, url])
 }
