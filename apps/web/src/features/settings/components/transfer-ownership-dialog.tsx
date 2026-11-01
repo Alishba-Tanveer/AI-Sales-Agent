@@ -122,7 +122,7 @@ export function TransferOwnershipDialog({
                         on ? "border-primary bg-primary-soft/60" : "border-border hover:border-primary/40 hover:bg-muted/60",
                       )}
                     >
-                      <PersonAvatar name={m.name} id={m.id} />
+                      <PersonAvatar name={m.name} id={m.id} avatar={m.avatar} />
                       <span className="flex min-w-0 flex-1 flex-col">
                         <span className="[overflow-wrap:anywhere] text-sm font-medium text-foreground">{m.name}</span>
                         <span className="[overflow-wrap:anywhere] text-xs text-muted-foreground">{m.email} · {m.role}</span>

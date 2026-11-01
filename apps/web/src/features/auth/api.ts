@@ -9,6 +9,8 @@ export type AuthUser = {
   name: string;
   email: string;
   role: string;
+  avatar?: string | null;
+  avatarUrl?: string | null;
   organization: { id: string; name: string };
   createdAt: string;
 };

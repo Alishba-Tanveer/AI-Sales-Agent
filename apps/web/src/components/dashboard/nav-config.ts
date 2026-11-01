@@ -15,7 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-export type NavBadgeKey = "approvals" | "activity";
+export type NavBadgeKey = "approvals" | "activity" | "opportunities";
 
 export type NavItem = {
   label: string;
@@ -37,7 +37,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: "Overview", href: "/overview", icon: LayoutGrid },
       { label: "Leads", href: "/leads", icon: Users },
-      { label: "Find Opportunities", href: "/find-opportunities", icon: Compass },
+      { label: "Find Opportunities", href: "/find-opportunities", icon: Compass, badge: { key: "opportunities", tone: "warning" } },
       { label: "Approvals", href: "/approvals", icon: ListChecks, badge: { key: "approvals", tone: "warning" } },
       { label: "Inbox", href: "/inbox", icon: Inbox },
       { label: "Follow-ups", href: "/follow-ups", icon: Clock },

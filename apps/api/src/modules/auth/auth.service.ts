@@ -75,6 +75,8 @@ export class AuthService {
         name: user.name,
         email: user.email,
         role: user.role,
+        avatar: user.avatarUrl ?? null,
+        avatarUrl: user.avatarUrl ?? null,
         organization: {
           id: user.organization.id,
           name: user.organization.name,
@@ -167,6 +169,8 @@ export class AuthService {
         name: user.name,
         email: user.email,
         role: user.role,
+        avatar: user.avatarUrl ?? null,
+        avatarUrl: user.avatarUrl ?? null,
         organization: {
           id: user.organization.id,
           name: user.organization.name,

@@ -1,3 +1,5 @@
+import { env } from "../../config/env";
+import { tavilySearch } from "../../integrations/tavily";
 import { LeadStage, Prisma, prisma } from "@ai-sales-agent/database";
 import { generateGeminiJson } from "../../integrations/ai";
 import { AppError } from "../../utils/app-error";
@@ -137,6 +139,110 @@ export class LeadsService {
         } });
       },
       output: (draft) => `Email draft saved for ${lead.name} for manual review.`,
+    });
+  }
+
+  async findContact(organizationId: string, id: string) {
+    const lead = await prisma.lead.findFirst({ where: { id, organizationId } });
+    if (!lead) throw new AppError("Lead not found", 404);
+
+    return trackActivity({
+      organizationId,
+      agent: "General Agent",
+      kind: "enrich",
+      title: `Find contact: ${lead.company || lead.name}`,
+      leadName: lead.name,
+      context: lead.company ?? "",
+      run: async () => {
+        let foundEmail = lead.email;
+        let foundLinkedin = lead.linkedinUrl;
+
+        const websiteUrl = lead.websiteUrl;
+        const companyName = lead.company || lead.name;
+
+        // 1. If we have a websiteUrl, scrape domain/contact pages directly
+        if (websiteUrl && (!foundEmail || !foundLinkedin)) {
+          try {
+            const parsed = new URL(websiteUrl);
+            const targetUrls: string[] = [websiteUrl];
+            if (!parsed.hostname.includes("arbeitnow") && !parsed.hostname.includes("jobicy") && !parsed.hostname.includes("remoteok") && !parsed.hostname.includes("remotive")) {
+              targetUrls.push(`${parsed.origin}/contact`, `${parsed.origin}/about`, `${parsed.origin}/impressum`);
+            }
+
+            for (const u of targetUrls) {
+              if (foundEmail && foundLinkedin) break;
+              try {
+                const res = await fetch(u, {
+                  signal: AbortSignal.timeout(5_000),
+                  headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+                });
+                if (res.ok) {
+                  const text = await res.text();
+                  if (!foundEmail) {
+                    const emailMatches = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
+                    if (emailMatches) {
+                      const cleanEmail = emailMatches.find(
+                        (e) => !e.endsWith(".png") && !e.endsWith(".jpg") && !e.includes("sentry") && !e.includes("wixpress") && !e.includes("example.com")
+                      );
+                      if (cleanEmail) foundEmail = cleanEmail.toLowerCase();
+                    }
+                  }
+                  if (!foundLinkedin) {
+                    const liMatch = text.match(/https?:\/\/(?:www\.)?linkedin\.com\/(?:company|in)\/[a-zA-Z0-9_-]+/i);
+                    if (liMatch) foundLinkedin = liMatch[0];
+                  }
+                }
+              } catch {}
+            }
+          } catch {}
+        }
+
+        // 2. If Tavily is configured and we still need email or LinkedIn, perform a web search
+        if ((!foundEmail || !foundLinkedin) && env.TAVILY_API_KEY) {
+          try {
+            const tavilyRes = await tavilySearch({
+              query: `${companyName} official contact email OR linkedin`,
+              maxResults: 5,
+            });
+            for (const item of tavilyRes) {
+              if (!foundEmail) {
+                const emailMatches = item.content.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
+                if (emailMatches) {
+                  const cleanEmail = emailMatches.find(
+                    (e) => !e.endsWith(".png") && !e.endsWith(".jpg") && !e.includes("sentry") && !e.includes("example.com")
+                  );
+                  if (cleanEmail) foundEmail = cleanEmail.toLowerCase();
+                }
+              }
+              if (!foundLinkedin) {
+                if (item.url.includes("linkedin.com/company/") || item.url.includes("linkedin.com/in/")) {
+                  foundLinkedin = item.url;
+                } else {
+                  const liMatch = item.content.match(/https?:\/\/(?:www\.)?linkedin\.com\/(?:company|in)\/[a-zA-Z0-9_-]+/i);
+                  if (liMatch) foundLinkedin = liMatch[0];
+                }
+              }
+            }
+          } catch {}
+        }
+
+        // 3. Fallback: Provide direct LinkedIn search URL if no direct profile exists
+        if (!foundLinkedin && companyName) {
+          foundLinkedin = `https://www.linkedin.com/search/results/all/?keywords=${encodeURIComponent(companyName)}`;
+        }
+
+        // 4. Update the lead in DB
+        const updated = await prisma.lead.update({
+          where: { id },
+          data: {
+            email: foundEmail ?? lead.email,
+            linkedinUrl: foundLinkedin ?? lead.linkedinUrl,
+          },
+        });
+
+        return updated;
+      },
+      output: (l) => `Contact search for ${l.company || l.name}: Email: ${l.email || "not found"}, LinkedIn: ${l.linkedinUrl ? "found" : "not found"}.`,
     });
   }
 }

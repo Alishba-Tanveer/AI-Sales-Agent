@@ -73,4 +73,4 @@ export const emptyMockOverview: OverviewData = {
   activity: [],
 };
 
-export const mockNavCounts: NavCounts = { approvals: 12, activity: 2 };
+export const mockNavCounts: NavCounts = { approvals: 12, activity: 2, opportunities: 0 };

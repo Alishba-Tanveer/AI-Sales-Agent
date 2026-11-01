@@ -8,7 +8,7 @@ import { Reveal } from "@/features/overview/components/reveal";
 import { useNow } from "@/lib/use-now";
 import { DEFAULT_FILTERS } from "../constants";
 import { accentAt, exportOpportunitiesCsv, sortOpportunities } from "../format";
-import { useOpportunities } from "../hooks";
+import { useOpportunities, getCachedOpportunityFilters } from "../hooks";
 import type { SearchFilters, SortKey } from "../types";
 import { FilterPanel } from "./filter-panel";
 import { OpportunityCard } from "./opportunity-card";
@@ -23,7 +23,7 @@ const SORT_OPTIONS = [
 export function OpportunitiesPage() {
   const now = useNow();
   const { state, run, retry, busy, save, dismiss, restore } = useOpportunities();
-  const [filters, setFilters] = useState<SearchFilters>(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState<SearchFilters>(() => getCachedOpportunityFilters() ?? DEFAULT_FILTERS);
   const [sort, setSort] = useState<SortKey>("relevance");
 
   const items = useMemo(() => (state.status === "success" ? sortOpportunities(state.items, sort) : []), [state, sort]);

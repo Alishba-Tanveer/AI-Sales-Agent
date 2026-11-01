@@ -1,5 +1,7 @@
 "use client";
 
+import { userStore } from "@/features/auth/user-store";
+
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BadgeCheck, Loader2, LogOut, Save, ShieldCheck, SquarePen, TriangleAlert, Trash2, User } from "lucide-react";
@@ -86,7 +88,16 @@ function ProfileForm({ initial }: { initial: UserProfile }) {
     }
     if (!saved.avatar) return void toast("Photo removed");
     try {
-      setSaved(await removeAvatar());
+      const next = await removeAvatar();
+      setSaved(next);
+      const curUser = userStore.get();
+      if (curUser) {
+        userStore.set({
+          ...curUser,
+          avatar: null,
+          avatarUrl: null,
+        });
+      }
       toast("Photo removed");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not remove your photo.");
@@ -109,6 +120,16 @@ function ProfileForm({ initial }: { initial: UserProfile }) {
       setSaved(next);
       setName(next.name);
       setEmail(next.email);
+      const curUser = userStore.get();
+      if (curUser) {
+        userStore.set({
+          ...curUser,
+          name: next.name,
+          email: next.email,
+          avatar: next.avatar,
+          avatarUrl: next.avatar,
+        });
+      }
       toast.success("Profile saved");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not save your profile.");
