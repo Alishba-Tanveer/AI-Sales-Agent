@@ -15,6 +15,7 @@ export type TeamMember = {
   email: string;
   role: TeamRole;
   status: "Active" | InviteStatus;
+  avatar?: string | null;
   /** Why an invitation needs attention (Expired / Email failed); null otherwise. Only present on invitation rows. */
   reason?: string | null;
 };
@@ -31,6 +32,7 @@ export type RemovedMember = {
   name: string;
   email: string;
   role: TeamRole;
+  avatar?: string | null;
   reason: "ADMIN" | "SELF";
   canRestore: boolean;
   removedAt: string;

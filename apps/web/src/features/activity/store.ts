@@ -127,3 +127,9 @@ export function useRunningCount(): number {
   }, []);
   return s.status === "success" ? s.jobs.filter((j) => j.status === "running").length : 0;
 }
+
+/** Number of running discovery / opportunities tasks. */
+export function useRunningDiscoverCount(): number {
+  const s = useActivityState();
+  return s.status === "success" ? s.jobs.filter((j) => j.status === "running" && j.kind === "discover").length : 0;
+}

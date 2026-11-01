@@ -47,7 +47,7 @@ export function ProfileOptimizer() {
   const [analysis, setAnalysis] = useState<ProfileAnalysis | null>(null);
   const [done, setDone] = useState<Set<string>>(new Set());
   const [openKeys, setOpenKeys] = useState<Set<string>>(new Set()); // every suggestion starts closed
-  const [profileSectionOpen, setProfileSectionOpen] = useState(true);
+  const [profileSectionOpen, setProfileSectionOpen] = useState(false);
   const [guide, setGuide] = useState<ProfileSuggestion | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [rereadOpen, setRereadOpen] = useState(false);

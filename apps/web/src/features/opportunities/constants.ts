@@ -7,8 +7,6 @@ export const SOURCES: OpportunitySource[] = [
   { id: "remotive", label: "Remotive", group: "job_portal" },
   { id: "remoteok", label: "RemoteOK", group: "job_portal" },
   { id: "weworkremotely", label: "We Work Remotely", group: "job_portal" },
-  { id: "company_sites", label: "Company websites", group: "company_site" },
-  { id: "sam_gov", label: "SAM.gov contracts", group: "registry" },
 ];
 
 export const SOURCE_GROUP_LABEL: Record<SourceGroup, string> = {

@@ -137,7 +137,7 @@ export function TeamTab() {
                           {initials(m.name)}
                         </div>
                       ) : (
-                        <PersonAvatar name={m.name} id={m.id} />
+                        <PersonAvatar name={m.name} id={m.id} avatar={m.avatar} />
                       )}
                       <div className="flex min-w-0 flex-col">
                         <span className="[overflow-wrap:anywhere] text-sm font-medium text-foreground">{m.name}</span>
@@ -249,7 +249,7 @@ function RemovedRow({ m, canManage, onRestore }: { m: RemovedMember; canManage: 
   return (
     <li className={cn("flex items-center justify-between gap-3 px-4 py-3", CARD_ROW)}>
       <div className="flex min-w-0 items-center gap-3">
-        <PersonAvatar name={m.name} id={m.id} />
+        <PersonAvatar name={m.name} id={m.id} avatar={m.avatar} />
         <div className="flex min-w-0 flex-col">
           <span className="[overflow-wrap:anywhere] text-sm font-medium text-foreground">{m.name} <span className="text-xs font-normal text-muted-foreground">· {m.role}</span></span>
           <span className="[overflow-wrap:anywhere] text-xs text-muted-foreground">

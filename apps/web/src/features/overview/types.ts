@@ -54,4 +54,5 @@ export type OverviewData = {
 export type NavCounts = {
   approvals: number;
   activity: number;
+  opportunities?: number;
 };

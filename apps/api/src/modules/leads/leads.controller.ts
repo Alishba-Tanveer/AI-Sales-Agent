@@ -50,6 +50,11 @@ export const leadsController = {
     try { res.json(await leadsService.archive(org(req), String(req.params.id))); }
     catch (error) { next(error); }
   },
+  findContact: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json({ lead: await leadsService.findContact(org(req), String(req.params.id)) });
+    } catch (error) { next(error); }
+  },
   draftEmail: async (req: Request, res: Response, next: NextFunction) => {
     try {
       const input = draftEmailSchema.parse(req.body ?? {});

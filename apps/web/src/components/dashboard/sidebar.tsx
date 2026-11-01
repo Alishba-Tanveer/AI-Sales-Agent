@@ -17,7 +17,7 @@ import { logoutUser } from "@/features/auth/api";
 import { userStore } from "@/features/auth/user-store";
 import { can } from "@/lib/permissions";
 import { useRole } from "@/lib/use-role";
-import { useRunningCount } from "@/features/activity/store";
+import { useRunningCount, useRunningDiscoverCount } from "@/features/activity/store";
 import { useNavCounts } from "@/features/overview/hooks";
 import { NAV_SECTIONS, isNavActive, type NavItem } from "./nav-config";
 
@@ -82,6 +82,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   const counts = useNavCounts();
   // the Activity pill is the number of tasks running right now (live from the Activity feed, not a fixed count)
   const runningTasks = useRunningCount();
+  const runningDiscoverTasks = useRunningDiscoverCount();
   const user = userStore.get();
   // role is read after mount (localStorage) so the server render and the first client render match
   const role = useRole();
@@ -139,7 +140,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                       key={item.href}
                       item={item}
                       active={isNavActive(item, pathname, tab)}
-                      count={item.badge ? (item.badge.key === "activity" ? runningTasks : counts?.[item.badge.key]) : undefined}
+                      count={item.badge ? (item.badge.key === "activity" ? runningTasks : item.badge.key === "opportunities" ? (runningDiscoverTasks || (counts?.opportunities ?? 0)) : counts?.[item.badge.key]) : undefined}
                       onNavigate={onClose}
                     />
                   ))}
@@ -156,9 +157,17 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
               className="group flex w-full cursor-pointer items-center gap-2 rounded-lg border border-border bg-card p-1.5 text-left transition-all duration-200 outline-none hover:border-primary/40 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
             >
               <span className="relative">
-                <span className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                  <User className="size-[18px]" />
-                </span>
+                {user?.avatar || (user as any)?.avatarUrl ? (
+                  <img
+                    src={user?.avatar || (user as any)?.avatarUrl}
+                    alt={user?.name ?? "Account"}
+                    className="size-8 rounded-full object-cover border border-border"
+                  />
+                ) : (
+                  <span className="flex size-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                    {user?.name ? user.name.slice(0, 2).toUpperCase() : <User className="size-[18px]" />}
+                  </span>
+                )}
                 <span className="absolute right-0 bottom-0 size-2 rounded-full bg-success ring-2 ring-sidebar" />
               </span>
               <span className="flex min-w-0 flex-1 flex-col">

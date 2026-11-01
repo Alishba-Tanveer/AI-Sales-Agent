@@ -9,7 +9,7 @@ import { DEFAULT_FILTERS, KEYWORD_SUGGESTIONS, POSTED_OPTIONS, SOURCES, SOURCE_G
 import { ink, tint } from "../format";
 import type { PostedWithin, SearchFilters, SourceGroup } from "../types";
 
-const GROUPS: SourceGroup[] = ["job_portal", "company_site", "registry"];
+const GROUPS: SourceGroup[] = ["job_portal"];
 const MAX_KEYWORDS = 8;
 
 function Pill({ active, color, onClick, children }: { active: boolean; color: string; onClick: () => void; children: React.ReactNode }) {

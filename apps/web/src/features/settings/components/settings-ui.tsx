@@ -342,7 +342,14 @@ export function personTone(key: string): Tone {
 }
 
 /** Round avatar with the person's initials in their own color. */
-export function PersonAvatar({ name, id, className }: { name?: string | null; id: string; className?: string }) {
+export function PersonAvatar({ name, id, avatar, className }: { name?: string | null; id: string; avatar?: string | null; className?: string }) {
+  if (avatar) {
+    return (
+      <div className={cn("relative flex size-8 shrink-0 overflow-hidden rounded-full border border-border", ICON_POP, className)}>
+        <img src={avatar} alt={name || "Avatar"} className="size-full object-cover" />
+      </div>
+    );
+  }
   return (
     <div className={cn("flex size-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold", ICON_POP, TONES[personTone(id)].tile, className)}>
       {initials(name)}

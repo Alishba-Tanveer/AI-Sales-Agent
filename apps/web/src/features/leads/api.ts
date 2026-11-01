@@ -28,3 +28,5 @@ export const fetchLead = async (id: string) => (await api<{ lead: Lead }>(`/api/
 export const updateLead = async (id: string, patch: Partial<LeadInput>) => (await api<{ lead: Lead }>(`/api/leads/${id}`, { method: "PATCH", body: json(patch) })).lead;
 export const archiveLead = (id: string) => api<{ archived: boolean }>(`/api/leads/${id}`, { method: "DELETE" });
 export const draftEmail = async (id: string, instruction?: string) => (await api<{ draft: LeadCommunication }>(`/api/leads/${id}/draft-email`, { method: "POST", body: json({ instruction }) })).draft;
+
+export const findLeadContact = async (id: string) => (await api<{ lead: Lead }>(`/api/leads/${id}/find-contact`, { method: "POST" })).lead;

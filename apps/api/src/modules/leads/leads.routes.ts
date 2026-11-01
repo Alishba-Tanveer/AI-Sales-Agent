@@ -10,6 +10,7 @@ router.post("/import", leadsController.import);
 router.get("/:id", leadsController.get);
 router.patch("/:id", leadsController.update);
 router.delete("/:id", leadsController.archive);
+router.post("/:id/find-contact", leadsController.findContact);
 router.post("/:id/draft-email", leadsController.draftEmail);
 
 export const leadsRoutes = router;

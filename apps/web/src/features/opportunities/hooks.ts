@@ -13,24 +13,40 @@ export type OpportunitiesState =
 
 const errorText = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
 
+let cachedState: OpportunitiesState = { status: "idle" };
+let cachedFilters: SearchFilters | null = null;
+
+export function getCachedOpportunityFilters(): SearchFilters | null {
+  return cachedFilters;
+}
+
 export function useOpportunities() {
-  const [state, setState] = useState<OpportunitiesState>({ status: "idle" });
+  const [state, setState] = useState<OpportunitiesState>(cachedState);
   /** ids with a save / dismiss / restore in flight (their buttons are disabled) */
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
-  const lastFilters = useRef<SearchFilters | null>(null);
+  const lastFilters = useRef<SearchFilters | null>(cachedFilters);
   const version = useRef(0);
+
+  const updateState = useCallback((next: OpportunitiesState | ((prev: OpportunitiesState) => OpportunitiesState)) => {
+    setState((prev) => {
+      const resolved = typeof next === "function" ? next(prev) : next;
+      cachedState = resolved;
+      return resolved;
+    });
+  }, []);
 
   const run = useCallback(async (filters: SearchFilters) => {
     lastFilters.current = filters;
+    cachedFilters = filters;
     const mine = ++version.current; // a slower, older search must never overwrite a newer one
-    setState({ status: "loading" });
+    updateState({ status: "loading" });
     try {
       const result = await searchOpportunities(filters);
-      if (mine === version.current) setState({ status: "success", ...result });
+      if (mine === version.current) updateState({ status: "success", ...result });
     } catch (e) {
-      if (mine === version.current) setState({ status: "error", message: errorText(e, "Something went wrong while searching.") });
+      if (mine === version.current) updateState({ status: "error", message: errorText(e, "Something went wrong while searching.") });
     }
-  }, []);
+  }, [updateState]);
 
   /** Re-run the last search (Retry / Retry sources). */
   const retry = useCallback(() => {
@@ -38,7 +54,7 @@ export function useOpportunities() {
   }, [run]);
 
   const patch = (id: string, change: Partial<Opportunity>) =>
-    setState((s) => (s.status === "success" ? { ...s, items: s.items.map((o) => (o.id === id ? { ...o, ...change } : o)) } : s));
+    updateState((s) => (s.status === "success" ? { ...s, items: s.items.map((o) => (o.id === id ? { ...o, ...change } : o)) } : s));
 
   const track = async (o: Opportunity, task: () => Promise<void>) => {
     setBusy((b) => new Set(b).add(o.id));

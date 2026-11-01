@@ -2,11 +2,18 @@ import { prisma, LeadStage, type ActivityLog } from "@ai-sales-agent/database";
 
 export class AnalyticsService {
   async getNavCounts(organizationId: string) {
-    const [runningActivity, pendingScripts] = await Promise.all([
+    const [runningActivity, runningDiscover, pendingScripts] = await Promise.all([
       prisma.activityLog.count({
         where: {
           organizationId,
           status: "running",
+        },
+      }),
+      prisma.activityLog.count({
+        where: {
+          organizationId,
+          status: "running",
+          kind: "discover",
         },
       }),
       prisma.linkedinScript.count({
@@ -21,6 +28,7 @@ export class AnalyticsService {
       data: {
         approvals: pendingScripts,
         activity: runningActivity,
+        opportunities: runningDiscover,
       },
     };
   }
