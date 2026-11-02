@@ -1,79 +1,63 @@
-## Lead Management, Outreach & LinkedIn Integration Improvements
+## Analytics & Integrations
 
-This update improves lead discovery, contact management, email and LinkedIn outreach, reply tracking, and user experience across the AI Sales Agent platform.
+### Analytics (`/analytics`)
 
-### 1. Sidebar Profile Photo
-- Added support for displaying the user's profile photo in the application sidebar.
-- Profile photo updates immediately after saving or removing it from Settings.
-- Sidebar reflects the latest saved profile image.
+Implemented an Analytics dashboard that calculates performance metrics using data from existing application endpoints.
 
-### 2. Find Opportunities & Lead Discovery
-- Improved the Save as Lead functionality in Find Opportunities.
-- Backend attempts to discover contact information from job postings and company websites.
-- Searches for an email address or LinkedIn profile.
-- Added Tavily web-search fallback when `TAVILY_API_KEY` is configured.
-- Prevents lead creation when no usable contact information is found.
-- Displays an error when the company cannot be contacted.
+**Features:**
+- **Period filters:** Today, Last 7 Days, Last 30 Days, and All Time.
+- **Lead metrics:** Leads added, contacted, interested, won, and lost.
+- **Outreach metrics:** Emails sent, LinkedIn messages, replies, and reply rate.
+- **Agent activity:** Tasks run, completed tasks, failed tasks, and success rate.
+- **LinkedIn metrics:** Connection requests sent, new connections, posts published, and scripts awaiting approval.
+- **Period comparisons:** Displays percentage changes against the previous equivalent period.
+- **Charts:** Leads added over time and sales pipeline funnel.
+- **CSV export:** Export the currently calculated analytics data.
+- **Refresh:** Reload analytics data from the existing endpoints.
+- **Loading and error handling:** Includes loading skeletons, error states, empty states, and partial-failure handling.
 
-### 3. Find Contact Improvements
-- Improved contact discovery and LinkedIn profile validation.
-- Prevents LinkedIn search-result URLs from being incorrectly saved as actual personal profiles.
+**Implementation notes:**
+- Analytics calculations are performed on the frontend using existing API data.
+- Changing the selected period recalculates metrics without refetching data.
+- Metrics are based on leads added during the selected period, regardless of their current pipeline stage.
+- No dedicated analytics backend endpoint is currently required by this implementation.
+- Custom date-range filtering is not included.
 
-### 4. Email Outreach & Gmail Integration
-- Added validation for leads without email addresses.
-- Displays an appropriate message when a lead cannot be contacted through email.
-- Gmail compose actions now open the inbox's New Message interface.
-- Copies the lead's email address or prepared reply to the clipboard.
-- Supports manual completion of email composition in Gmail.
+### Integrations (`/integrations`)
 
-### 5. Job Search Persistence
-- Saves the most recently completed job search and its selected filters in browser storage.
-- Restores the previous search results and filters when returning to the page.
-- A new search replaces the previously saved search state.
+Implemented an Integrations page to display the application's available services and their current integration approach.
 
-### 6. Reply Gating & Contact History
-- Added channel-specific reply validation.
-- Email replies require a previously sent email.
-- LinkedIn replies require a previously sent LinkedIn message.
-- Prevents users from logging replies on channels that have not been used to contact the lead.
-- Backend enforces the same validation rules.
-- Leads manually moved to the Contacted stage can log replies through either channel.
-- Fixed detection of LinkedIn messages that do not contain a subject line.
+**Integration categories:**
+- **Gmail:** Manual integration.
+- **LinkedIn:** Manual integration.
+- **AI Provider:** Built-in functionality.
+- **Web Research:** Built-in functionality.
+- **Job Sources:** Built-in functionality.
+- **Video Generation:** Planned functionality.
 
-### 7. LinkedIn Outreach Workflow
-Introduced a guided LinkedIn outreach process:
+**Features:**
+- Displays integration availability and implementation status.
+- Gmail card displays the daily email sending limit and outreach strategy approval status.
+- AI provider card displays monthly spending and request information for the Owner.
+- Restricts sensitive integration information to Owner/Admin roles where applicable.
+- Provides clear descriptions of manual, built-in, and planned integrations.
 
-1. Connect on LinkedIn.
-2. Mark as connected.
-3. Draft a LinkedIn message.
-4. Copy the drafted message and open LinkedIn messaging.
-5. Confirm that the message was sent using the "I sent this" action.
+**Implementation notes:**
+- Integration statuses are descriptive and do not represent live connection health.
+- No dedicated integrations status API currently exists.
+- Connect, Disconnect, and Test Connection actions are not included because backend functionality for these operations is not available.
 
-Additional improvements:
-- Updates the lead's stage to Contacted after confirming that a LinkedIn message was sent.
-- Refreshes the stage badge immediately.
-- Uses a hidden timeline entry to record the connection action without introducing a database migration.
-- Updates LinkedIn chat links to open the person's messaging conversation rather than their profile.
+### UI and Data Handling
 
-### 8. Lead Details Page
-- Separated Email Outreach and LinkedIn Outreach into independent cards.
-- Displays each outreach card only when the corresponding contact information is available.
-- Displays a "No way to contact yet" message when neither contact method is available.
-- Added independent loading states for email and LinkedIn message drafting.
-- Removed Next Follow-up from the lead details interface.
+- Both pages follow the existing dashboard layout, theme, and shared component styles.
+- Analytics and Integrations use the existing frontend architecture.
+- Loading, empty, error, and partial-data states are handled within the pages.
+- Removed unused mock data files for Activity, Notifications, Opportunities, and Settings where they were no longer imported.
+- The Overview mock data remains available because the Overview page still supports the `NEXT_PUBLIC_USE_MOCK_DASHBOARD` configuration.
 
-### 9. Leads Table & Import Preview
-- Displays "Company not set" when company information is unavailable.
-- Applied consistent missing-company handling in the Leads table and import preview.
-- Removed the Next Follow-up column from the Leads table.
+### Future Improvements
 
-### 10. Settings UI Improvements
-- Added distinct icon colors for individual Settings tabs:
-- Repositioned the daily email limit field to the right side of the Sending Cadence heading.
-- Moved Save Strategy to the bottom-right corner.
-- Simplified the divider layout above the Save Strategy action.
-
-### 11. Approvals & Follow-ups
-- Removed Approvals and Follow-ups from the frontend interface.
-- Related backend functionality was also partially removed.
-- The remaining backend modules, API routes, and references should be reviewed to confirm complete removal where intended.
+- Add a dedicated Analytics API for server-side reporting.
+- Add custom date-range filtering.
+- Implement a backend Integrations status endpoint.
+- Add real connection, disconnection, testing, and synchronization functionality for supported integrations.
