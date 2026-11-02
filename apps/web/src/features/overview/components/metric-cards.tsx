@@ -55,7 +55,7 @@ export function MetricCards({ metrics }: { metrics: OverviewMetrics }) {
       <div className="flex items-center justify-end">
         <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">Period: Last 30 days</span>
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <MetricCard
           label="Total Leads"
           value={formatNumber(metrics.totalLeads)}
@@ -67,13 +67,6 @@ export function MetricCards({ metrics }: { metrics: OverviewMetrics }) {
           value={formatNumber(metrics.newThisWeek)}
           note={formatDelta(metrics.newThisWeekDelta, "vs previous week")}
           noteTone={deltaTone(metrics.newThisWeekDelta)}
-        />
-        <MetricCard
-          label="Pending Approvals"
-          value={formatNumber(metrics.pendingApprovals)}
-          valueTone={metrics.pendingApprovals > 0 ? "warning" : "default"}
-          note={metrics.pendingApprovals > 0 ? "Action required" : "All clear"}
-          noteTone={metrics.pendingApprovals > 0 ? "warning" : "muted"}
         />
         <MetricCard
           label="Replies"

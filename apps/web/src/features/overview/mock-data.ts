@@ -2,7 +2,7 @@ import type { NavCounts, OverviewData } from "./types";
 
 /**
  * MOCK DATA — mirrors the Stitch design.
- * The backend has no analytics/leads/approvals routes yet. Delete this file once
+ * The backend has no analytics/leads routes yet. Delete this file once
  * `GET /api/analytics/overview` and `GET /api/analytics/nav-counts` exist
  * (see features/overview/api.ts).
  */
@@ -16,7 +16,6 @@ export function buildMockOverview(): OverviewData {
       totalLeadsDelta: 114,
       newThisWeek: 86,
       newThisWeekDelta: 12,
-      pendingApprovals: 12,
       replies: 47,
       replyRate: 13.7,
     },
@@ -26,12 +25,6 @@ export function buildMockOverview(): OverviewData {
         kind: "reply",
         title: "Sarah Mitchell replied and is interested",
         subtitle: "BrightCart • Head of Operations • Replied 42m ago",
-      },
-      {
-        id: "a2",
-        kind: "approvals",
-        title: "12 items are waiting for your approval",
-        subtitle: "8 personalized emails, 4 LinkedIn outreach drafts",
       },
       {
         id: "a3",
@@ -64,7 +57,6 @@ export const emptyMockOverview: OverviewData = {
     totalLeadsDelta: 0,
     newThisWeek: 0,
     newThisWeekDelta: 0,
-    pendingApprovals: 0,
     replies: 0,
     replyRate: 0,
   },
@@ -73,4 +65,4 @@ export const emptyMockOverview: OverviewData = {
   activity: [],
 };
 
-export const mockNavCounts: NavCounts = { approvals: 12, activity: 2, opportunities: 0 };
+export const mockNavCounts: NavCounts = { activity: 2, opportunities: 0 };

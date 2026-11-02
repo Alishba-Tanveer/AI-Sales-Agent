@@ -1,10 +1,12 @@
 import { prisma, type Opportunity } from "@ai-sales-agent/database";
 import { OpportunitiesRepository } from "./opportunities.repository";
-import type { SearchOpportunitiesInput, SaveOpportunityInput } from "./opportunities.schema";
+import type { SearchOpportunitiesInput } from "./opportunities.schema";
 import { trackActivity } from "../activity/activity-logger";
 import { tavilySearch } from "../../integrations/tavily";
 import { env } from "../../config/env";
 import { AppError } from "../../utils/app-error";
+import { findCompanyContact } from "../../integrations/contact-finder";
+import { leadsService } from "../leads/leads.service";
 
 export type OpportunityType = "client_project" | "job_posting" | "freelance";
 export type OpportunityStatus = "open" | "saved" | "dismissed";
@@ -478,13 +480,42 @@ export class OpportunitiesService {
     });
   }
 
-  async saveOpportunityAsLead(organizationId: string, id: string, input: SaveOpportunityInput) {
+  /**
+   * Turns an opportunity into a lead, but only when the company can actually be contacted.
+   * The email / LinkedIn is read from the company's website (and the posting itself). If neither can be found nothing is
+   * created and the person is told why, so the pipeline never fills up with leads nobody can reach.
+   */
+  async saveOpportunityAsLead(organizationId: string, id: string) {
     const opp = await this.opportunitiesRepository.findById(organizationId, id);
     if (!opp) throw new AppError("Opportunity not found", 404);
 
-    await this.opportunitiesRepository.updateStatus(organizationId, id, "saved", input.leadId);
+    // already saved: hand back the lead that exists
+    if (opp.leadId) {
+      const existing = await prisma.lead.findFirst({ where: { id: opp.leadId, organizationId, archivedAt: null } });
+      if (existing) return { data: { id: opp.id, status: "saved" as const, leadId: existing.id } };
+    }
 
-    // Also create in-app notification for the workspace
+    const contact = await findCompanyContact({ company: opp.company, urls: [opp.url] });
+    if (!contact.email && !contact.linkedinUrl) {
+      throw new AppError(
+        `${opp.company} doesn't have an email or LinkedIn on its website, so it can't be contacted and wasn't added to Leads.`,
+        422,
+        { code: "NO_CONTACT" },
+      );
+    }
+
+    const lead = await leadsService.create(organizationId, {
+      name: opp.company,
+      company: opp.company,
+      source: `Find Opportunities: ${opp.sourceLabel}`,
+      email: contact.email ?? undefined,
+      linkedinUrl: contact.linkedinUrl ?? undefined,
+      websiteUrl: contact.websiteUrl ?? opp.url,
+      notes: `${opp.title}${opp.budget ? ` (${opp.budget})` : ""}\n\n${opp.signals}`,
+    });
+
+    await this.opportunitiesRepository.updateStatus(organizationId, id, "saved", lead.id);
+
     await prisma.inAppNotification.create({
       data: {
         organizationId,
@@ -492,17 +523,11 @@ export class OpportunitiesService {
         title: `Opportunity saved: ${opp.company}`,
         body: `"${opp.title}" from ${opp.sourceLabel} was saved to your Leads pipeline.`,
         read: false,
-        href: `/leads?search=${encodeURIComponent(opp.company)}`,
+        href: `/leads/${lead.id}`,
       },
     }).catch(() => {});
 
-    return {
-      data: {
-        id: opp.id,
-        status: "saved" as const,
-        leadId: input.leadId,
-      },
-    };
+    return { data: { id: opp.id, status: "saved" as const, leadId: lead.id } };
   }
 
   async setDismissed(organizationId: string, id: string, dismissed: boolean) {

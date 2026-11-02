@@ -3,7 +3,6 @@ export type SettingsTabId =
   | "business"
   | "team"
   | "outreach"
-  | "governance"
   | "notifications"
   | "usage";
 
@@ -71,14 +70,6 @@ export type OutreachSettings = {
   dailyCap: number;
   approved: boolean;
   approvedAt: string | null;
-};
-
-/** GET/PUT /api/settings/approval-rules */
-export type ApprovalRules = {
-  threshold: number;
-  replies: boolean;
-  followups: boolean;
-  linkedin: boolean;
 };
 
 /** GET /api/settings/usage */

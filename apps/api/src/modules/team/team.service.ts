@@ -838,7 +838,7 @@ export class TeamService {
       organizationId: invite.organizationId,
       type: "system",
       title: `Welcome to ${user.organization.name}`,
-      body: `You joined as ${formatRoleLabel(user.role)}. Start with your overview, leads and approvals.`,
+      body: `You joined as ${formatRoleLabel(user.role)}. Start with your overview and leads.`,
       href: "/overview",
       audience: { userId: user.id },
     });

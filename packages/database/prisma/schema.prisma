@@ -232,25 +232,27 @@ model LinkedinLead {
 }
 
 model Lead {
-  id             String              @id @default(cuid())
-  name           String
-  email          String?
-  company        String?
-  jobTitle       String?
-  source         String?
-  notes          String?
-  linkedinUrl    String?
-  websiteUrl     String?
-  nextFollowUpAt DateTime?
-  archivedAt     DateTime?
-  stage          LeadStage           @default(NEW)
-  organizationId String
-  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  communications LeadCommunication[]
-  linkedinLead   LinkedinLead?       @relation("LinkedinLeadToCrmLead")
-  opportunity    Opportunity?        @relation("OpportunityToLead")
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  id                  String              @id @default(cuid())
+  name                String
+  email               String?
+  company             String?
+  jobTitle            String?
+  source              String?
+  notes               String?
+  linkedinUrl         String?
+  websiteUrl          String?
+  nextFollowUpAt      DateTime?
+  // set when the person accepted your LinkedIn connection request (unlocks the first LinkedIn message)
+  linkedinConnectedAt DateTime?
+  archivedAt          DateTime?
+  stage               LeadStage           @default(NEW)
+  organizationId      String
+  organization        Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  communications      LeadCommunication[]
+  linkedinLead        LinkedinLead?       @relation("LinkedinLeadToCrmLead")
+  opportunity         Opportunity?        @relation("OpportunityToLead")
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
   @@index([organizationId, stage])
   @@index([organizationId, archivedAt])

@@ -2,14 +2,6 @@ import { prisma, Prisma } from "@ai-sales-agent/database";
 
 export const DEFAULT_NOTIFICATION_RULES = [
   {
-    id: "approvals",
-    title: "Pending Approvals Queue",
-    badge: { label: "Immediate", tone: "warning" as const },
-    description: "Notify when drafts enter the Approvals queue waiting for sign-off.",
-    email: true,
-    inApp: true,
-  },
-  {
     id: "interested",
     title: "Interested Leads (Positive Reply Intent)",
     badge: { label: "P0 Highest Priority", tone: "success" as const },

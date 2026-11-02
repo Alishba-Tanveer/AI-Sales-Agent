@@ -11,20 +11,6 @@ export const outreachSettingsSchema = z.object({
   postingFrequency: z.string().trim().min(1).max(50).optional(),
 });
 
-export const approvalRulesSchema = z.object({
-  threshold: z.coerce.number().int().min(70).max(99).optional(),
-  replies: z.boolean().optional(),
-  followups: z.boolean().optional(),
-  linkedin: z.boolean().optional(),
-  toggles: z
-    .object({
-      replies: z.boolean().optional(),
-      followups: z.boolean().optional(),
-      linkedin: z.boolean().optional(),
-    })
-    .optional(),
-});
-
 const notificationRuleItemSchema = z.object({
   id: z.string().trim().min(1),
   title: z.string().optional(),
@@ -60,6 +46,5 @@ export const updateAiLimitSchema = z.object({
 });
 
 export type OutreachSettingsInput = z.infer<typeof outreachSettingsSchema>;
-export type ApprovalRulesInput = z.infer<typeof approvalRulesSchema>;
 export type UpdateNotificationsInput = z.infer<typeof updateNotificationsSchema>;
 export type UpdateAiLimitInput = z.infer<typeof updateAiLimitSchema>;

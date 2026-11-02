@@ -860,8 +860,11 @@ function ImportDialog({ open, onOpenChange, onImport }: { open: boolean; onOpenC
   const fileRef = useRef<HTMLInputElement>(null);
   const parsed = useMemo(() => (text.trim() ? readImport(text) : null), [text]);
   // LinkedIn's own export is a list of people you are already connected with, so that is the natural place for it.
-  useEffect(() => { if (parsed?.linkedinExport && !destTouched) setDest("connected"); }, [parsed?.linkedinExport, destTouched]);
-  useEffect(() => { if (!open) { setText(""); setFileName(""); setDestTouched(false); } }, [open]);
+  // Both of these adjust state while rendering instead of inside an effect.
+  if (parsed?.linkedinExport && !destTouched && dest !== "connected") setDest("connected");
+  // Clear the import whenever the dialog closes.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) { setWasOpen(open); if (!open) { setText(""); setFileName(""); setDestTouched(false); } }
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     e.target.value = "";

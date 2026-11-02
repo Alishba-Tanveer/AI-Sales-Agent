@@ -5,13 +5,13 @@ import { userStore } from "./user-store";
  * because the role stored in the browser can be edited by the person using it.
  *
  *   Owner   one per workspace. Everything, including usage limits, ownership transfer and deleting the workspace.
- *   Admin   runs the workspace day to day: business details, outreach, approval rules, integrations, team.
- *   Member  works the pipeline: leads, drafts, replies, approvals. No workspace configuration.
+ *   Admin   runs the workspace day to day: business details, outreach, integrations, team.
+ *   Member  works the pipeline: leads, drafts, replies. No workspace configuration.
  */
 export type Role = "OWNER" | "ADMIN" | "MEMBER";
 
 export type Permission =
-  | "workspace.edit" // business details, outreach strategy, approval rules
+  | "workspace.edit" // business details, outreach strategy
   | "integrations.manage"
   | "team.manage" // invite, remove, change roles, restore removed accounts
   | "usage.manage" // usage limits, AI spend, billing

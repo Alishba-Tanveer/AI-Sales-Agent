@@ -3,6 +3,7 @@ import { api, tokenStore } from "@/lib/api";
 import type { SignupValues } from "./schemas";
 import { userStore } from "./user-store";
 import { resetSetupReminder } from "@/features/onboarding/status";
+import { clearSavedSearches } from "@/features/opportunities/storage";
 
 export type AuthUser = {
   id: string;
@@ -86,8 +87,9 @@ export async function logoutUser() {
   } finally {
     tokenStore.clear();
     userStore.clear();
+    clearSavedSearches();
     resetSetupReminder();
-  toast.dismiss();
+    toast.dismiss();
   }
 }
 

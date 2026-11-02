@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Compass, CloudOff, ListChecks, RefreshCw, Search, UserPlus, type LucideIcon } from "lucide-react";
+import { ArrowRight, Compass, CloudOff, Inbox, RefreshCw, Search, UserPlus, type LucideIcon } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "cn";
@@ -39,14 +39,13 @@ const EMPTY_STAGES: StageCount[] = (["new", "contacted", "interested", "won", "l
 const EMPTY_KPIS = [
   { label: "Total leads", color: "var(--primary)" },
   { label: "New this week", color: "#38BDF8" },
-  { label: "Pending approvals", color: "#FBBF24" },
   { label: "Replies", color: "#4ADE80" },
 ] as const;
 
 const FIRST_STEPS: { title: string; text: string; href: string; icon: LucideIcon }[] = [
   { title: "Find opportunities", text: "Tell the AI who you want to reach and run a discovery session. It looks for matching prospects for you.", href: "/find-opportunities", icon: Search },
   { title: "Add or import leads", text: "Already have people in mind? Add them one by one, or import a CSV you already have.", href: "/leads", icon: UserPlus },
-  { title: "Review approvals", text: "Every draft the AI writes waits here for your OK. Nothing is sent without you.", href: "/approvals", icon: ListChecks },
+  { title: "Reply from your inbox", text: "Log the replies you get, let the AI draft an answer, then copy it to Gmail or LinkedIn. Nothing is sent without you.", href: "/inbox", icon: Inbox },
 ];
 
 /**
@@ -57,7 +56,7 @@ export function OverviewEmpty() {
   return (
     <div className="flex w-full flex-col gap-6">
       <Reveal>
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Key metrics">
+        <section className="grid gap-4 sm:grid-cols-3" aria-label="Key metrics">
           {EMPTY_KPIS.map((kpi) => (
             <div
               key={kpi.label}

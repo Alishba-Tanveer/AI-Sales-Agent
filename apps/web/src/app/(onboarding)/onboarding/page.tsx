@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, ArrowRight, Bot, Building2, Check, ChevronDown, ClipboardCheck, Loader2, Pencil, Users, Wrench, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -84,7 +84,7 @@ function OnboardingForm({ initial }: { initial: Partial<OnboardingValues> }) {
   const [editing, setEditing] = useState(false); // true when a step was opened from "Edit" on the review page
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { register, control, trigger, getValues, watch, formState: { errors } } = useForm<OnboardingValues>({
+  const { register, control, trigger, getValues, formState: { errors } } = useForm<OnboardingValues>({
     resolver: zodResolver(onboardingSchema),
     mode: "onTouched",
     defaultValues: {
@@ -92,7 +92,8 @@ function OnboardingForm({ initial }: { initial: Partial<OnboardingValues> }) {
       ...initial, // pick up where the person left off (saved on the server)
     },
   });
-  const v = watch();
+  // useWatch subscribes to every field and can be memoized safely, unlike watch().
+  const v = useWatch({ control }) as OnboardingValues;
 
   // Next: required fields of the current step must be valid. Progress is saved so a refresh doesn't lose it.
   // While editing from the review page the same button reads "Save and review" and returns to the review.

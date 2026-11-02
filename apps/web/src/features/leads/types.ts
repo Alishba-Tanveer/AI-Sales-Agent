@@ -10,11 +10,14 @@ export type Lead = {
   linkedinUrl: string | null;
   websiteUrl: string | null;
   nextFollowUpAt: string | null;
+  linkedinConnectedAt: string | null;
   stage: LeadStage;
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
   linkedinLead?: { id: string } | null;
+  /** channels this lead has been messaged on (only set by the leads list) */
+  sentChannels?: ("EMAIL" | "LINKEDIN")[];
   communications?: LeadCommunication[];
 };
 

@@ -3,6 +3,9 @@ import { generateGeminiJson } from "../../integrations/ai";
 import { AppError } from "../../utils/app-error";
 import { trackActivity } from "../activity/activity-logger";
 
+/** Stages a lead only reaches after you have reached out to them. */
+const CONTACTED_STAGES = new Set<LeadStage>([LeadStage.CONTACTED, LeadStage.INTERESTED, LeadStage.WON, LeadStage.LOST]);
+
 export class InboxService {
   /**
    * One conversation per person. Every reply logged for the same lead belongs to that lead's single thread, so the list
@@ -38,6 +41,18 @@ export class InboxService {
   async recordInbound(organizationId: string, input: { leadId: string; channel: "EMAIL" | "LINKEDIN"; subject?: string; body: string; occurredAt?: string }) {
     const lead = await prisma.lead.findFirst({ where: { id: input.leadId, organizationId, archivedAt: null } });
     if (!lead) throw new AppError("Lead not found", 404);
+    // A reply can only come from someone you contacted on that same channel. Leads moved to Contacted by hand (no message
+    // sent through the app on any channel) are accepted on either channel.
+    const sent = await prisma.leadCommunication.findMany({
+      where: { organizationId, leadId: lead.id, direction: "OUTBOUND", status: "SENT" },
+      select: { channel: true },
+    });
+    const onChannel = sent.some((item) => item.channel === input.channel);
+    if (!onChannel && !(sent.length === 0 && CONTACTED_STAGES.has(lead.stage))) {
+      throw new AppError(input.channel === "LINKEDIN"
+        ? `You haven't messaged ${lead.name} on LinkedIn yet. Connect with them, draft and send a LinkedIn message from the lead page, then log their reply.`
+        : `You haven't emailed ${lead.name} yet. Draft and send an email from the lead page, then log their reply.`, 409);
+    }
     const message = await prisma.leadCommunication.create({ data: {
       organizationId,
       leadId: lead.id,
@@ -49,7 +64,7 @@ export class InboxService {
       ...(input.occurredAt ? { occurredAt: new Date(input.occurredAt) } : {}),
     } });
     if (!new Set<LeadStage>([LeadStage.WON, LeadStage.LOST, LeadStage.DO_NOT_CONTACT]).has(lead.stage)) {
-      await prisma.lead.update({ where: { id: lead.id }, data: { stage: LeadStage.INTERESTED, nextFollowUpAt: null } });
+      await prisma.lead.update({ where: { id: lead.id }, data: { stage: LeadStage.INTERESTED } });
     }
     return message;
   }

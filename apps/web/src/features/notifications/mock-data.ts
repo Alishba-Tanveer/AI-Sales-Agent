@@ -6,12 +6,10 @@ type Seed = [type: NotificationType, title: string, body: string, minutesAgo: nu
 
 const SEEDS: Seed[] = [
   ["reply", "Sarah Mitchell replied", "“Thanks for reaching out. Thursday works for a quick call, can you send a few times?”", 5, false, "/inbox"],
-  ["approval", "12 drafts are waiting for approval", "AI-written emails for your Healthcare segment need a review before they are sent.", 22, false, "/approvals"],
   ["failure", "Research failed for Tom Becker", "The company website blocked automated access. 2 of 3 retries were used.", 45, false, "/activity"],
   ["lead", "9 new leads found", "Discovery finished for the E-commerce segment. They were added as New.", 70, false, "/leads"],
-  ["reply", "Marcus Brody accepted your invite", "You are now connected on LinkedIn. A follow-up message is ready to review.", 190, true, "/linkedin?tab=connections"],
+  ["reply", "Marcus Brody accepted your invite", "You are now connected on LinkedIn. A message is ready to send.", 190, true, "/linkedin?tab=connections"],
   ["team", "Ahmed Khan joined your workspace", "He accepted the invitation and joined as a Member.", 26 * 60, true, "/settings?tab=team"],
-  ["approval", "Follow-up sequence #2 was approved", "3 messages are scheduled to go out between 9:00 and 11:00 AM tomorrow.", 29 * 60, true, "/follow-ups"],
   ["system", "Your weekly summary is ready", "42 emails sent, 13.7% reply rate and 5 meetings booked.", 32 * 60, true, "/analytics"],
   ["failure", "Gmail connection needs attention", "Reconnect your Gmail account so approved drafts can be sent.", 3 * 24 * 60, true, "/integrations"],
   ["lead", "Hyperion Logistics is now Interested", "Daniel Hughes asked for pricing. Open the lead to see the conversation.", 3 * 24 * 60 + 240, true, "/leads"],

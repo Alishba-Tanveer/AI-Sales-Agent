@@ -13,9 +13,7 @@ const PAGES: Target[] = [
   { path: "/overview", keys: ["overview", "dashboard", "home"] },
   { path: "/leads", keys: ["lead", "leads", "prospect", "prospects", "contact", "contacts"] },
   { path: "/find-opportunities", keys: ["opportunity", "opportunities", "find", "discover"] },
-  { path: "/approvals", keys: ["approval", "approvals", "approve", "review"] },
   { path: "/inbox", keys: ["inbox", "email", "emails", "message", "messages", "reply", "replies"] },
-  { path: "/follow-ups", keys: ["followup", "followups", "follow-up", "follow-ups"] },
   { path: "/activity", keys: ["activity", "activities", "log", "logs"] },
   { path: "/linkedin", keys: ["linkedin"] },
   { path: "/analytics", keys: ["analytic", "analytics", "report", "reports", "stats", "metrics"] },
@@ -28,7 +26,6 @@ const SETTINGS_TABS: Target[] = [
   { path: "business", keys: ["business", "company", "workspace"] },
   { path: "team", keys: ["team", "members", "member", "invite", "invitations", "roles", "role"] },
   { path: "outreach", keys: ["outreach", "strategy", "cadence", "targeting", "tone"] },
-  { path: "governance", keys: ["governance", "rules", "rule", "approval-rules", "approvalrules"] },
   { path: "notifications", keys: ["notification", "notifications", "notify", "alerts", "alert"] },
   { path: "usage", keys: ["usage", "limits", "limit", "billing", "plan", "spend"] },
 ];
@@ -54,10 +51,6 @@ export function resolveSearch(raw: string): string | null {
   if (!q) return null;
   const tokens = q.replace(/[>/,]+/g, " ").split(/\s+/).filter((t) => t && !FILLER.has(t));
   if (!tokens.length) return null;
-
-  // "follow up" / "follow-up" are two words
-  const joined = tokens.join("");
-  if (joined === "followup" || joined === "followups") return "/follow-ups";
 
   const pageOf = (t: string) => find(PAGES, t);
   const settingsToken = tokens.find((t) => pageOf(t)?.path === "/settings");

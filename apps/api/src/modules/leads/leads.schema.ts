@@ -26,4 +26,4 @@ export const listLeadsQuerySchema = z.object({
   includeArchived: z.string().optional().transform((value) => value === "true"),
 });
 
-export const draftEmailSchema = z.object({ instruction: optionalText(500).optional() });
+export const draftEmailSchema = z.object({ instruction: optionalText(500).optional(), channel: z.enum(["EMAIL", "LINKEDIN"]).optional() });

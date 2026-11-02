@@ -4,14 +4,13 @@
  *   /api/users/me           profile, avatar, delete account
  *   /api/auth/*             change password, sign out other sessions
  *   /api/team/*             members + invitations
- *   /api/settings/*         outreach, approval rules, notifications, usage
+ *   /api/settings/*         outreach, notifications, usage
  *
  * The company/ideal-customer fields live on /api/onboarding (see features/onboarding/api.ts).
  */
 import { api as baseApi, tokenStore } from "@/lib/api";
 import { userStore } from "@/features/auth/user-store";
 import type {
-  ApprovalRules,
   MessageTone,
   NotificationRule,
   OutreachSettings,
@@ -38,9 +37,11 @@ const unwrap = async <T,>(p: Promise<Res<T>>) => (await p).data;
 const isRemembered = () => typeof window !== "undefined" && localStorage.getItem("token") !== null;
 
 /** Keep the name/email shown in the sidebar in sync after the profile is saved. */
-function patchStoredUser(p: { name?: string; email?: string }) {
+function patchStoredUser(p: { name?: string; email?: string; avatar?: string | null }) {
+  const { avatar, ...rest } = p;
+  const patch = avatar === undefined ? rest : { ...rest, avatar, avatarUrl: avatar };
   const u = userStore.get();
-  if (u) userStore.set({ ...u, ...p }, isRemembered());
+  if (u) userStore.set({ ...u, ...patch }, isRemembered());
 }
 
 /* ---------------- Profile & security ---------------- */
@@ -51,7 +52,7 @@ export const getProfile = () => unwrap(api<Res<UserProfile>>("/api/users/me"));
 /** PATCH /api/users/me */
 export async function saveProfile(v: { name: string; email: string; roleTitle: string; timezone: string }) {
   const profile = await unwrap(api<Res<UserProfile>>("/api/users/me", { method: "PATCH", body: json(v) }));
-  patchStoredUser({ name: profile.name, email: profile.email });
+  patchStoredUser({ name: profile.name, email: profile.email, avatar: profile.avatar });
   return profile;
 }
 
@@ -63,11 +64,17 @@ export async function uploadAvatar(file: File) {
     r.onerror = () => reject(new Error("Could not read that image."));
     r.readAsDataURL(file);
   });
-  return unwrap(api<Res<UserProfile>>("/api/users/me/avatar", { method: "POST", body: json({ avatar: dataUrl }) }));
+  const profile = await unwrap(api<Res<UserProfile>>("/api/users/me/avatar", { method: "POST", body: json({ avatar: dataUrl }) }));
+  patchStoredUser({ avatar: profile.avatar });
+  return profile;
 }
 
 /** DELETE /api/users/me/avatar */
-export const removeAvatar = () => unwrap(api<Res<UserProfile>>("/api/users/me/avatar", { method: "DELETE" }));
+export async function removeAvatar() {
+  const profile = await unwrap(api<Res<UserProfile>>("/api/users/me/avatar", { method: "DELETE" }));
+  patchStoredUser({ avatar: null });
+  return profile;
+}
 
 /** POST /api/auth/change-password. Throws ApiError(400) when the current password is wrong. */
 export function changePassword(currentPassword: string, newPassword: string) {
@@ -130,10 +137,16 @@ export const transferOwnership = (id: string) =>
 export async function syncRole(): Promise<boolean> {
   const p = await getProfile();
   const u = userStore.get();
+  if (!u) return false;
   const role = (p.role ?? "").toUpperCase();
-  if (!u || !role || role === (u.role ?? "").toUpperCase()) return false;
-  userStore.set({ ...u, role }, isRemembered());
-  return true;
+  const roleChanged = !!role && role !== (u.role ?? "").toUpperCase();
+  // name and photo too: the sidebar reads them from the stored user, so a photo changed on another device shows up here
+  const avatar = p.avatar ?? null;
+  const profileChanged = (p.name && p.name !== u.name) || avatar !== (u.avatar ?? null);
+  if (roleChanged || profileChanged) {
+    userStore.set({ ...u, ...(roleChanged ? { role } : {}), name: p.name || u.name, avatar, avatarUrl: avatar }, isRemembered());
+  }
+  return roleChanged;
 }
 
 /** GET /api/team/members/removed (Owner/Admin): removed by an admin + deleted their own account, last 30 days */
@@ -172,15 +185,6 @@ export async function approveOutreach(v: OutreachInput) {
   const res = await api<Res<OutreachDto>>("/api/settings/outreach/approve", { method: "POST", body: outreachBody(v) });
   return { settings: fromOutreach(res.data), message: res.message };
 }
-
-/* ---------------- Approval rules ---------------- */
-
-/** GET /api/settings/approval-rules */
-export const getApprovalRules = () => unwrap(api<Res<ApprovalRules>>("/api/settings/approval-rules"));
-
-/** PUT /api/settings/approval-rules */
-export const saveApprovalRules = (v: ApprovalRules) =>
-  unwrap(api<Res<ApprovalRules>>("/api/settings/approval-rules", { method: "PUT", body: json(v) }));
 
 /* ---------------- Notifications ---------------- */
 

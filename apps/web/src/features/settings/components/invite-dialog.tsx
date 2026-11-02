@@ -62,7 +62,7 @@ export function InviteDialog({
               <UserPlus className="size-4 text-primary" />
               Invite team member
             </DialogTitle>
-            <DialogDescription>Collaborate on sequences and approvals.</DialogDescription>
+            <DialogDescription>Collaborate on leads and outreach.</DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-3.5">

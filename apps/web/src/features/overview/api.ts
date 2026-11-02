@@ -37,7 +37,7 @@ export async function getOverview(): Promise<OverviewData> {
 export async function getNavCounts(): Promise<NavCounts> {
   if (USE_MOCK) {
     await wait(300);
-    return mockMode() === "empty" ? { approvals: 0, activity: 0 } : mockNavCounts;
+    return mockMode() === "empty" ? { activity: 0 } : mockNavCounts;
   }
   const res = await api<{ data: NavCounts }>("/api/analytics/nav-counts");
   return res.data;

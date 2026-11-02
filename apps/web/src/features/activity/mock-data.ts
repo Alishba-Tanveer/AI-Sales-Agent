@@ -15,13 +15,13 @@ type Seed = {
 
 const OUTPUT: Record<JobKind, (lead: string | undefined, context: string) => string> = {
   research: (lead, ctx) => `Profile built for ${lead ?? ctx}: role, company size, recent news and 3 talking points saved to the lead.`,
-  draft: (lead) => `Draft written for ${lead ?? "the lead"} and sent to the Approvals queue for review.`,
+  draft: (lead) => `Draft written for ${lead ?? "the lead"} and saved for your review.`,
   sync: () => "Connections synced. 14 new connections found, 2 matched existing leads.",
   enrich: (_l, ctx) => `Company data for ${ctx.split(" Inc")[0]} enriched: industry, headcount, funding stage and website.`,
   invite: (lead) => `Connection invite with a personal note sent to ${lead ?? "the lead"}.`,
   analyze: (_l, ctx) => `Tech stack for ${ctx} detected. Fit score updated.`,
   discover: () => "Discovery run finished. 9 new prospects added to Leads as New.",
-  followup: (lead) => `Follow-up #2 scheduled for ${lead ?? "the lead"} and queued for approval.`,
+  followup: (lead) => `Follow-up #2 scheduled for ${lead ?? "the lead"} and saved for your review.`,
   lead: (lead) => `${lead ?? "A new contact"} was added to Leads.`,
 };
 

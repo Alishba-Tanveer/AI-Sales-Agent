@@ -20,6 +20,9 @@ function legacyRowAllowedForRole(n: InAppNotification, role: string): boolean {
   return true;
 }
 
+/** The Approvals and Follow-ups pages were removed, so older notifications that point to them are left out. */
+const removedPage = (n: InAppNotification) => /^\/(approvals|follow-ups)(\/|\?|$)/.test(n.href ?? "");
+
 function toDto(n: InAppNotification, read = n.read) {
   return {
     id: n.id,
@@ -43,7 +46,7 @@ export class NotificationsService {
 
   async listNotifications(viewer: Viewer, query?: ListNotificationsQuery) {
     const items = await this.notificationsRepository.list(viewer.organizationId, viewer.userId, query);
-    const visible = items.filter((n) => decodeType(n.type).userId !== null || legacyRowAllowedForRole(n, viewer.role));
+    const visible = items.filter((n) => !removedPage(n)).filter((n) => decodeType(n.type).userId !== null || legacyRowAllowedForRole(n, viewer.role));
     return {
       data: visible.map((n) => toDto(n)),
       unreadCount: visible.filter((n) => !n.read).length,

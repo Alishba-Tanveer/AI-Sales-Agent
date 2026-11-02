@@ -14,9 +14,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { logoutUser } from "@/features/auth/api";
-import { userStore } from "@/features/auth/user-store";
 import { can } from "@/lib/permissions";
 import { useRole } from "@/lib/use-role";
+import { useStoredUser } from "@/lib/use-stored-user";
 import { useRunningCount, useRunningDiscoverCount } from "@/features/activity/store";
 import { useNavCounts } from "@/features/overview/hooks";
 import { NAV_SECTIONS, isNavActive, type NavItem } from "./nav-config";
@@ -83,7 +83,8 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   // the Activity pill is the number of tasks running right now (live from the Activity feed, not a fixed count)
   const runningTasks = useRunningCount();
   const runningDiscoverTasks = useRunningDiscoverCount();
-  const user = userStore.get();
+  // reactive: a photo or name saved in Settings appears here immediately
+  const user = useStoredUser();
   // role is read after mount (localStorage) so the server render and the first client render match
   const role = useRole();
 
@@ -157,9 +158,10 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
               className="group flex w-full cursor-pointer items-center gap-2 rounded-lg border border-border bg-card p-1.5 text-left transition-all duration-200 outline-none hover:border-primary/40 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
             >
               <span className="relative">
-                {user?.avatar || (user as any)?.avatarUrl ? (
+                {user?.avatar || user?.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={user?.avatar || (user as any)?.avatarUrl}
+                    src={(user.avatar || user.avatarUrl) ?? undefined}
                     alt={user?.name ?? "Account"}
                     className="size-8 rounded-full object-cover border border-border"
                   />

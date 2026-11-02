@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CircleAlert, Clock, PartyPopper, User, type LucideIcon } from "lucide-react";
+import { ArrowRight, CircleAlert, PartyPopper, User, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,13 +15,6 @@ const kindConfig: Record<
     label: "Take over",
     href: "/inbox",
     actionCls: "border border-border bg-secondary text-secondary-foreground hover:bg-muted",
-  },
-  approvals: {
-    icon: Clock,
-    iconCls: "bg-warning-soft text-warning",
-    label: "Review",
-    href: "/approvals",
-    actionCls: "bg-primary text-primary-foreground hover:bg-primary/85",
   },
   failure: {
     icon: CircleAlert,
