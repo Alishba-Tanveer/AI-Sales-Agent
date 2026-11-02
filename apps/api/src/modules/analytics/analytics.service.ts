@@ -2,7 +2,7 @@ import { prisma, LeadStage, type ActivityLog } from "@ai-sales-agent/database";
 
 export class AnalyticsService {
   async getNavCounts(organizationId: string) {
-    const [runningActivity, runningDiscover, pendingScripts] = await Promise.all([
+    const [runningActivity, runningDiscover] = await Promise.all([
       prisma.activityLog.count({
         where: {
           organizationId,
@@ -16,17 +16,10 @@ export class AnalyticsService {
           kind: "discover",
         },
       }),
-      prisma.linkedinScript.count({
-        where: {
-          organizationId,
-          status: "needs_approval",
-        },
-      }),
     ]);
 
     return {
       data: {
-        approvals: pendingScripts,
         activity: runningActivity,
         opportunities: runningDiscover,
       },
@@ -39,7 +32,6 @@ export class AnalyticsService {
     const [
       totalLeads,
       newThisWeek,
-      pendingScripts,
       recentActivity,
       failedJobsCount,
       stageGroups,
@@ -47,9 +39,6 @@ export class AnalyticsService {
       prisma.lead.count({ where: { organizationId } }),
       prisma.lead.count({
         where: { organizationId, createdAt: { gte: oneWeekAgo } },
-      }),
-      prisma.linkedinScript.count({
-        where: { organizationId, status: "needs_approval" },
       }),
       prisma.activityLog.findMany({
         where: { organizationId },
@@ -81,19 +70,10 @@ export class AnalyticsService {
 
     const attention: Array<{
       id: string;
-      kind: "reply" | "approvals" | "failure";
+      kind: "reply" | "failure";
       title: string;
       subtitle: string;
     }> = [];
-
-    if (pendingScripts > 0) {
-      attention.push({
-        id: "att-approvals",
-        kind: "approvals",
-        title: `${pendingScripts} draft(s) waiting for your approval`,
-        subtitle: "Review queued video scripts and outreach in Approvals",
-      });
-    }
 
     if (failedJobsCount > 0) {
       attention.push({
@@ -141,7 +121,6 @@ export class AnalyticsService {
           totalLeadsDelta: newThisWeek,
           newThisWeek,
           newThisWeekDelta: newThisWeek,
-          pendingApprovals: pendingScripts,
           replies: repliesCount,
           replyRate,
         },

@@ -16,7 +16,7 @@ The backend enforces every permission; the UI only hides things.
 
 | Action | Owner | Admin | Member |
 |---|---|---|---|
-| Business details, outreach strategy, approval rules, integrations | yes | yes | no |
+| Business details, outreach strategy, integrations | yes | yes | no |
 | Invite / remove / change roles, restore removed accounts | yes | yes (never the Owner) | no |
 | Usage limits, AI spend | yes | no | no |
 | Transfer ownership | yes | no | no |

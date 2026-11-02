@@ -1,6 +1,6 @@
 import {
-  Activity, BarChart3, Bell, Building2, CircleUser, Clock, Compass, Inbox, LayoutGrid, ListChecks, Megaphone,
-  Network, Newspaper, Puzzle, Search, Settings, ShieldCheck, SlidersHorizontal, User, Users,
+  Activity, BarChart3, Bell, Building2, CircleUser, Compass, Inbox, LayoutGrid, Megaphone,
+  Network, Newspaper, Puzzle, Search, Settings, SlidersHorizontal, User, Users,
   type LucideIcon,
 } from "lucide-react";
 import type { AppRole } from "@/lib/permissions";
@@ -31,9 +31,7 @@ const DESTINATIONS: Destination[] = [
   { label: "Overview", group: "Page", href: "/overview", icon: LayoutGrid, keywords: ["dashboard", "home", "metrics"] },
   { label: "Leads", group: "Page", href: "/leads", icon: Users, keywords: ["lead", "prospects", "contacts", "pipeline"] },
   { label: "Find Opportunities", group: "Page", href: "/find-opportunities", icon: Compass, keywords: ["opportunities", "opportunity", "find", "discover", "jobs"] },
-  { label: "Approvals", group: "Page", href: "/approvals", icon: ListChecks, keywords: ["approval", "approve", "review", "drafts"] },
   { label: "Inbox", group: "Page", href: "/inbox", icon: Inbox, keywords: ["email", "emails", "messages", "replies", "reply"] },
-  { label: "Follow-ups", group: "Page", href: "/follow-ups", icon: Clock, keywords: ["followup", "followups", "follow up", "reminders"] },
   { label: "Activity", group: "Page", href: "/activity", icon: Activity, keywords: ["log", "logs", "history", "events"] },
   { label: "Analytics", group: "Page", href: "/analytics", icon: BarChart3, keywords: ["reports", "report", "stats", "metrics", "charts"] },
   { label: "Integrations", group: "Page", href: "/integrations", icon: Puzzle, keywords: ["connect", "apps", "gmail", "email accounts"], allow: ownerOrAdmin },
@@ -43,7 +41,6 @@ const DESTINATIONS: Destination[] = [
   { label: "Business", group: "Settings", href: "/settings?tab=business", icon: Building2, keywords: ["company", "workspace", "icp", "industry"], allow: ownerOrAdmin },
   { label: "Team", group: "Settings", href: "/settings?tab=team", icon: Users, keywords: ["members", "member", "invite", "invitations", "roles", "role", "admin", "owner", "remove", "restore"] },
   { label: "Outreach Strategy", group: "Settings", href: "/settings?tab=outreach", icon: Megaphone, keywords: ["outreach", "strategy", "cadence", "targeting", "tone", "daily cap"], allow: ownerOrAdmin },
-  { label: "Approval Rules", group: "Settings", href: "/settings?tab=governance", icon: ShieldCheck, keywords: ["governance", "rules", "rule", "threshold", "approval"], allow: ownerOrAdmin },
   { label: "Notifications", group: "Settings", href: "/settings?tab=notifications", icon: Bell, keywords: ["notification", "notify", "alerts", "alert", "email alerts"] },
   { label: "Usage and Limits", group: "Settings", href: "/settings?tab=usage", icon: SlidersHorizontal, keywords: ["usage", "limits", "limit", "billing", "plan", "spend", "ai spend"], allow: ownerOnly },
 

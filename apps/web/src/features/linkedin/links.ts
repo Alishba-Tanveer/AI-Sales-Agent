@@ -19,6 +19,9 @@ export function normalizeLinkedInProfileUrl(value: string): string | null {
   return m ? `https://www.linkedin.com/in/${m[1]}` : null;
 }
 
+/** The person's chat in LinkedIn messaging (their existing conversation if there is one), or the messaging page when there is no profile link. */
+export const linkedinChatUrl = (value?: string | null) => (value ? linkedinMessageUrl(value) : null) ?? "https://www.linkedin.com/messaging/";
+
 /** Open LinkedIn's compose window with a profile's public username prefilled. */
 export function linkedinMessageUrl(value: string): string | null {
   const profileUrl = normalizeLinkedInProfileUrl(value);
@@ -27,6 +30,18 @@ export function linkedinMessageUrl(value: string): string | null {
   return username
     ? `https://www.linkedin.com/messaging/compose/?recipient=${encodeURIComponent(username)}`
     : null;
+}
+
+/**
+ * Where to send someone to message a lead on LinkedIn. LinkedIn has no link that opens a chat from a public username
+ * (its compose link needs an internal member id), so the reliable page is the person's own profile, which has the
+ * Message button. Company pages are opened as they are.
+ */
+export function linkedinOpenUrl(value: string): string | null {
+  const profile = normalizeLinkedInProfileUrl(value);
+  if (profile) return profile;
+  const m = value.trim().match(/^(?:https?:\/\/)?(?:[a-z0-9-]+\.)?linkedin\.com\/company\/([^/?#\s]+)/i);
+  return m ? `https://www.linkedin.com/company/${m[1]}` : null;
 }
 
 export const isLinkedInProfileUrl = (value: string) => normalizeLinkedInProfileUrl(value) !== null;

@@ -8,7 +8,6 @@ export type OverviewMetrics = {
   newThisWeek: number;
   /** change vs. previous week (can be negative) */
   newThisWeekDelta: number;
-  pendingApprovals: number;
   replies: number;
   /** percentage, e.g. 13.7 */
   replyRate: number;
@@ -16,7 +15,7 @@ export type OverviewMetrics = {
 
 export type AttentionItem = {
   id: string;
-  kind: "reply" | "approvals" | "failure";
+  kind: "reply" | "failure";
   title: string;
   subtitle: string;
 };
@@ -52,7 +51,6 @@ export type OverviewData = {
  * Proposed backend contract:  GET /api/analytics/nav-counts  ->  { data: NavCounts }
  */
 export type NavCounts = {
-  approvals: number;
   activity: number;
   opportunities?: number;
 };

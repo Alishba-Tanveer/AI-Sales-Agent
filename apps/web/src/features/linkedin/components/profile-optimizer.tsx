@@ -18,7 +18,7 @@ import { useRole } from "@/lib/use-role";
 import { analyzeProfile, fetchSavedAudit, importProfilePdf, setSuggestionDone } from "../api";
 import { copyText, editTarget, normalizeLinkedInProfileUrl } from "../links";
 import type { ProfileAnalysis, ProfileSections, ProfileSuggestion, SuggestionKey } from "../types";
-import { ConfirmDialog, HowItWorksDialog, IconTile, LinkButton, PageHeader, StepStrip, fmtDate } from "./linkedin-ui";
+import { ConfirmDialog, HowItWorksDialog, IconTile, LinkButton, PageHeader, StepStrip } from "./linkedin-ui";
 
 const SECTION_ICON: Record<SuggestionKey, LucideIcon> = {
   headline: UserRoundPen, about: Info, experience: Target, skills: Check, featured: Link2,

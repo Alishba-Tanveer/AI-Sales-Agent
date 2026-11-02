@@ -79,7 +79,7 @@ function Panel({ onClose }: { onClose: () => void }) {
                 <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground tabular-nums">{unread} new</span>
               )}
             </SheetTitle>
-            <SheetDescription>Replies, approvals and anything that needs you.</SheetDescription>
+            <SheetDescription>Replies, new leads and anything that needs you.</SheetDescription>
           </div>
           <SheetClose
             aria-label="Close notifications"
@@ -206,7 +206,7 @@ function Empty({ filter }: { filter: Filter }) {
       </div>
       <h3 className="text-base font-medium text-foreground">{filter === "unread" ? "No unread notifications" : "You're all caught up"}</h3>
       <p className="mt-1 max-w-xs text-sm text-muted-foreground">
-        {filter === "unread" ? "Everything has been read. Switch to All to see earlier notifications." : "New replies, approvals and failures will show up here."}
+        {filter === "unread" ? "Everything has been read. Switch to All to see earlier notifications." : "New replies, leads and failures will show up here."}
       </p>
     </div>
   );

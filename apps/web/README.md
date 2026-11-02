@@ -1,124 +1,79 @@
-## Find Opportunities – Frontend Implementation
+## Lead Management, Outreach & LinkedIn Integration Improvements
 
-**Status:** Frontend implemented and browser testing completed
-**Backend:** Pending implementation by the backend team
+This update improves lead discovery, contact management, email and LinkedIn outreach, reply tracking, and user experience across the AI Sales Agent platform.
 
-### Overview
+### 1. Sidebar Profile Photo
+- Added support for displaying the user's profile photo in the application sidebar.
+- Profile photo updates immediately after saving or removing it from Settings.
+- Sidebar reflects the latest saved profile image.
 
-Implemented the Find Opportunities page frontend to help users discover relevant job openings, business opportunities and potential leads from external sources.
+### 2. Find Opportunities & Lead Discovery
+- Improved the Save as Lead functionality in Find Opportunities.
+- Backend attempts to discover contact information from job postings and company websites.
+- Searches for an email address or LinkedIn profile.
+- Added Tavily web-search fallback when `TAVILY_API_KEY` is configured.
+- Prevents lead creation when no usable contact information is found.
+- Displays an error when the company cannot be contacted.
 
-The page follows the existing project architecture, component patterns and theme styling.
+### 3. Find Contact Improvements
+- Improved contact discovery and LinkedIn profile validation.
+- Prevents LinkedIn search-result URLs from being incorrectly saved as actual personal profiles.
 
-### Features Implemented
+### 4. Email Outreach & Gmail Integration
+- Added validation for leads without email addresses.
+- Displays an appropriate message when a lead cannot be contacted through email.
+- Gmail compose actions now open the inbox's New Message interface.
+- Copies the lead's email address or prepared reply to the clipboard.
+- Supports manual completion of email composition in Gmail.
 
-- **Search Filters**
-  - Keyword-based search
-  - Multiple source selection
-  - Opportunity type filtering
-  - Minimum match score
-  - Posted date range
+### 5. Job Search Persistence
+- Saves the most recently completed job search and its selected filters in browser storage.
+- Restores the previous search results and filters when returning to the page.
+- A new search replaces the previously saved search state.
 
-- **Opportunity Results**
-  - Opportunity cards with match scores
-  - Extracted intent signals
-  - Budget information
-  - Company and source information
-  - Top Match indicator for opportunities scoring 85 or higher
+### 6. Reply Gating & Contact History
+- Added channel-specific reply validation.
+- Email replies require a previously sent email.
+- LinkedIn replies require a previously sent LinkedIn message.
+- Prevents users from logging replies on channels that have not been used to contact the lead.
+- Backend enforces the same validation rules.
+- Leads manually moved to the Contacted stage can log replies through either channel.
+- Fixed detection of LinkedIn messages that do not contain a subject line.
 
-- **Opportunity Actions**
-  - Save as Lead using the existing Leads API
-  - Dismiss opportunities
-  - Restore dismissed opportunities
-  - Open original opportunity sources
+### 7. LinkedIn Outreach Workflow
+Introduced a guided LinkedIn outreach process:
 
-- **Additional Functionality**
-  - Opportunity sorting
-  - CSV export
-  - Live results count
-  - Loading state
-  - Error state with retry
-  - Empty results state
-  - Partial source failure notification and retry option
+1. Connect on LinkedIn.
+2. Mark as connected.
+3. Draft a LinkedIn message.
+4. Copy the drafted message and open LinkedIn messaging.
+5. Confirm that the message was sent using the "I sent this" action.
 
-### UI and Design Improvements
+Additional improvements:
+- Updates the lead's stage to Contacted after confirming that a LinkedIn message was sent.
+- Refreshes the stage badge immediately.
+- Uses a hidden timeline entry to record the connection action without introducing a database migration.
+- Updates LinkedIn chat links to open the person's messaging conversation rather than their profile.
 
-- Improved spacing between the filter panel and results section.
-- Made filter panels and opportunity cards more compact.
-- Removed the header banner and decorative icon.
-- Removed gradients throughout the page.
-- Standardized buttons using the existing Button component.
-- Replaced heavily colored source pills with a simple checkbox list.
-- Applied alternating theme colors to opportunity cards.
-- Used neutral styling for opportunity types and source labels.
-- Kept match scores visually consistent.
-- Added a Top Match label for opportunities scoring 85 or above.
+### 8. Lead Details Page
+- Separated Email Outreach and LinkedIn Outreach into independent cards.
+- Displays each outreach card only when the corresponding contact information is available.
+- Displays a "No way to contact yet" message when neither contact method is available.
+- Added independent loading states for email and LinkedIn message drafting.
+- Removed Next Follow-up from the lead details interface.
 
-### Technical Implementation
+### 9. Leads Table & Import Preview
+- Displays "Company not set" when company information is unavailable.
+- Applied consistent missing-company handling in the Leads table and import preview.
+- Removed the Next Follow-up column from the Leads table.
 
-Created the Opportunities feature following the existing frontend architecture.
+### 10. Settings UI Improvements
+- Added distinct icon colors for individual Settings tabs:
+- Repositioned the daily email limit field to the right side of the Sending Cadence heading.
+- Moved Save Strategy to the bottom-right corner.
+- Simplified the divider layout above the Save Strategy action.
 
-Location:
-
-`apps/web/src/features/opportunities/`
-
-Main files include:
-
-- `api.ts` – API service and mock-mode configuration.
-- `types.ts` – TypeScript types and interfaces.
-- `hooks.ts` – Opportunities feature hooks.
-- `constants.ts` – Feature constants and configuration.
-- `format.ts` – Formatting utilities.
-- `mock-data.ts` – Mock opportunity records.
-- `components/` – Opportunities page components.
-
-Page:
-
-`apps/web/src/app/(dashboard)/find-opportunities/page.tsx`
-
-### Testing and Verification
-
-The following checks were completed:
-
-| Check | Result |
-|---|---|
-| Prisma Client generation | Passed |
-| Frontend TypeScript check | Passed |
-| Next.js production build | Passed |
-| Find Opportunities page loading | Tested |
-| Filters and source selection | Tested |
-| Opportunity search using mock data | Tested |
-| Sorting | Tested |
-| Save as Lead | Tested |
-| Dismiss and Restore | Tested |
-| CSV export | Tested |
-
-**Commands used:**
-
-```bash
-npm run db:generate
-
-npx tsc --project apps/web/tsconfig.json --noEmit
-
-npm run build -w apps/web
-
-npm run dev
-```
-
-### Mock Data and Backend Integration
-
-The Opportunities frontend currently uses mock data for search results.
-Real backend integration is pending and will be handled by the backend team.
-The frontend API service includes comments documenting the expected backend endpoints.
-The mock configuration should remain enabled until the backend endpoints are implemented and verified.
-
-### Pending Work
-
-- Integrate the frontend with the real Opportunities backend.
-- Connect external opportunity sources.
-- Implement real opportunity search and filtering.
-- Connect backend match scoring and intent extraction.
-- Implement persistent dismiss and restore functionality.
-- Test real search results and source failure handling.
-- Verify end-to-end integration with the existing Leads module.
-
-**Current Status:** Find Opportunities frontend implementation and initial browser testing completed. Awaiting backend integration.
+### 11. Approvals & Follow-ups
+- Removed Approvals and Follow-ups from the frontend interface.
+- Related backend functionality was also partially removed.
+- The remaining backend modules, API routes, and references should be reviewed to confirm complete removal where intended.

@@ -5,7 +5,6 @@ import {
 import { notify } from "../../utils/notify";
 import type {
   OutreachSettingsInput,
-  ApprovalRulesInput,
   UpdateNotificationsInput,
   UpdateAiLimitInput,
 } from "./settings.schema";
@@ -25,26 +24,6 @@ export class SettingsService {
       postingFrequency: s.postingFrequency,
       approved: s.outreachApproved,
       approvedAt: s.outreachApprovedAt,
-    };
-  }
-
-  private formatApprovalRules(
-    s: Awaited<ReturnType<SettingsRepository["getOrCreate"]>>
-  ) {
-    return {
-      threshold: s.approvalThreshold,
-      newEmails: true,
-      videoScripts: true,
-      replies: s.requireApprovalReplies,
-      followups: s.requireApprovalFollowups,
-      linkedin: s.requireApprovalLinkedin,
-      toggles: {
-        newEmails: true,
-        videoScripts: true,
-        replies: s.requireApprovalReplies,
-        followups: s.requireApprovalFollowups,
-        linkedin: s.requireApprovalLinkedin,
-      },
     };
   }
 
@@ -125,48 +104,13 @@ export class SettingsService {
       organizationId,
       type: "system",
       title: "Outreach strategy was approved",
-      body: "The AI can now write and queue emails using this strategy. New drafts will appear in Approvals.",
-      href: "/approvals",
+      body: "The AI can now write and queue emails using this strategy.",
+      href: "/settings?tab=outreach",
       audience: "ALL",
       exceptUserId: actorId,
     });
 
     return this.formatOutreach(updated);
-  }
-
-  async getApprovalRules(organizationId: string) {
-    const s = await this.settingsRepository.getOrCreate(organizationId);
-    return this.formatApprovalRules(s);
-  }
-
-  async saveApprovalRules(organizationId: string, input: ApprovalRulesInput, actorId?: string) {
-    const replies = input.replies ?? input.toggles?.replies;
-    const followups = input.followups ?? input.toggles?.followups;
-    const linkedin = input.linkedin ?? input.toggles?.linkedin;
-
-    const updated = await this.settingsRepository.update(organizationId, {
-      ...(input.threshold !== undefined
-        ? { approvalThreshold: input.threshold }
-        : {}),
-      ...(replies !== undefined ? { requireApprovalReplies: replies } : {}),
-      ...(followups !== undefined ? { requireApprovalFollowups: followups } : {}),
-      ...(linkedin !== undefined ? { requireApprovalLinkedin: linkedin } : {}),
-      requireApprovalNewEmails: true,
-      requireApprovalVideoScripts: true,
-    });
-
-    // Members review drafts, so a change to what needs approval concerns them too.
-    await notify({
-      organizationId,
-      type: "approval",
-      title: "Approval rules were changed",
-      body: "What needs a human review before sending was updated. Check Approvals for how this affects your queue.",
-      href: "/approvals",
-      audience: "ALL",
-      exceptUserId: actorId,
-    });
-
-    return this.formatApprovalRules(updated);
   }
 
   async getNotifications(organizationId: string) {

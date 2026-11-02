@@ -1,9 +1,9 @@
-import type { Opportunity, SearchFilters, SearchResult } from "./types";
+import type { Opportunity, SearchResult } from "./types";
 
 export function buildMockOpportunities(): Opportunity[] {
   return [];
 }
 
-export function filterMock(_all: Opportunity[], _f: SearchFilters): SearchResult {
+export function filterMock(): SearchResult {
   return { items: [], failures: [] };
 }

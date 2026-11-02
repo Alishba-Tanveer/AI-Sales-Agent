@@ -1,5 +1,4 @@
-import { env } from "../../config/env";
-import { tavilySearch } from "../../integrations/tavily";
+import { findCompanyContact } from "../../integrations/contact-finder";
 import { LeadStage, Prisma, prisma } from "@ai-sales-agent/database";
 import { generateGeminiJson } from "../../integrations/ai";
 import { AppError } from "../../utils/app-error";
@@ -28,7 +27,13 @@ export class LeadsService {
       prisma.lead.groupBy({ by: ["stage"], where: { organizationId, archivedAt: null }, _count: { _all: true } }),
     ]);
     const counts = Object.fromEntries(stageGroups.map((item) => [item.stage, item._count._all]));
-    return { leads, total, counts };
+    // which channels each lead has actually been messaged on (decides where a reply can be logged)
+    const sent = leads.length ? await prisma.leadCommunication.groupBy({
+      by: ["leadId", "channel"],
+      where: { organizationId, leadId: { in: leads.map((lead) => lead.id) }, direction: "OUTBOUND", status: "SENT"},
+    }) : [];
+    const withChannels = leads.map((lead) => ({ ...lead, sentChannels: sent.filter((item) => item.leadId === lead.id).map((item) => item.channel) }));
+    return { leads: withChannels, total, counts };
   }
 
   async get(organizationId: string, id: string) {
@@ -118,28 +123,44 @@ export class LeadsService {
     return { archived: true };
   }
 
-  async draftEmail(organizationId: string, id: string, instruction?: string) {
+  async draftEmail(organizationId: string, id: string, instruction?: string, channel: "EMAIL" | "LINKEDIN" = "EMAIL") {
     const [lead, organization] = await Promise.all([
       prisma.lead.findFirst({ where: { id, organizationId } }),
       prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true, description: true, services: true, differentiation: true } }),
     ]);
     if (!lead) throw new AppError("Lead not found", 404);
     if (lead.stage === LeadStage.DO_NOT_CONTACT) throw new AppError("This lead is marked Do Not Contact.", 409);
+    const isLinkedIn = channel === "LINKEDIN";
+    if (isLinkedIn && !lead.linkedinUrl) throw new AppError("Add a LinkedIn profile link to this lead to draft a LinkedIn message.", 422);
+    if (isLinkedIn && lead.stage === LeadStage.NEW && !lead.linkedinConnectedAt) {
+      throw new AppError(`Connect with ${lead.name} on LinkedIn first, mark them as connected, then draft your message.`, 409);
+    }
     return trackActivity({
-      organizationId, agent: "General Agent", kind: "draft", title: `Draft email: ${lead.name}`, leadName: lead.name, context: lead.company ?? "",
+      organizationId, agent: "General Agent", kind: "draft", title: `Draft ${isLinkedIn ? "LinkedIn message" : "email"}: ${lead.name}`, leadName: lead.name, context: lead.company ?? "",
       run: async () => {
         const draft = await generateGeminiJson<{ subject: string; body: string }>({
-          system: "Write a short, respectful first-touch B2B sales email. Return JSON with subject and body. Do not invent facts about the recipient or their company. Include one clear, low-pressure question. Keep the body under 120 words.",
+          system: isLinkedIn
+            ? "Write a short, friendly first-touch LinkedIn message for B2B outreach direct message to someone you just connected with. Return JSON with subject (a short label, not shown to the recipient) and body. Do not invent facts about the recipient or their company. No signature, no links. Include one clear, low-pressure question. Keep the body under 70 words."
+            : "Write a short, respectful first-touch B2B sales email. Return JSON with subject and body. Do not invent facts about the recipient or their company. Include one clear, low-pressure question. Keep the body under 120 words.",
           prompt: JSON.stringify({ sender: organization, recipient: { name: lead.name, role: lead.jobTitle, company: lead.company }, context: lead.notes, instruction: instruction?.trim() || "Introduce the sender's offer and ask if a short conversation would be useful." }),
         });
-        if (!draft.subject?.trim() || !draft.body?.trim()) throw new AppError("The draft provider returned an incomplete email.", 502);
+        if (!draft.body?.trim() || (!isLinkedIn && !draft.subject?.trim())) throw new AppError("The draft provider returned an incomplete message.", 502);
         return prisma.leadCommunication.create({ data: {
-          organizationId, leadId: id, channel: "EMAIL", direction: "OUTBOUND", status: "DRAFT",
-          subject: draft.subject.trim().slice(0, 240), body: draft.body.trim().slice(0, 10_000),
+          organizationId, leadId: id, channel, direction: "OUTBOUND", status: "DRAFT",
+          subject: isLinkedIn ? null : draft.subject.trim().slice(0, 240), body: draft.body.trim().slice(0, 10_000),
         } });
       },
-      output: (draft) => `Email draft saved for ${lead.name} for manual review.`,
+      output: () => `${isLinkedIn ? "LinkedIn message" : "Email"} draft saved for ${lead.name} for manual review.`,
     });
+  }
+
+  /** Records that the lead accepted your LinkedIn connection request, which unlocks drafting the first LinkedIn message. */
+  async markLinkedInConnected(organizationId: string, id: string) {
+    const lead = await prisma.lead.findFirst({ where: { id, organizationId, archivedAt: null } });
+    if (!lead) throw new AppError("Lead not found", 404);
+    if (lead.stage === LeadStage.DO_NOT_CONTACT) throw new AppError("This lead is marked Do Not Contact.", 409);
+    if (lead.linkedinConnectedAt) return lead;
+    return prisma.lead.update({ where: { id }, data: { linkedinConnectedAt: new Date() } });
   }
 
   async findContact(organizationId: string, id: string) {
@@ -154,93 +175,21 @@ export class LeadsService {
       leadName: lead.name,
       context: lead.company ?? "",
       run: async () => {
-        let foundEmail = lead.email;
-        let foundLinkedin = lead.linkedinUrl;
-
-        const websiteUrl = lead.websiteUrl;
-        const companyName = lead.company || lead.name;
-
-        // 1. If we have a websiteUrl, scrape domain/contact pages directly
-        if (websiteUrl && (!foundEmail || !foundLinkedin)) {
-          try {
-            const parsed = new URL(websiteUrl);
-            const targetUrls: string[] = [websiteUrl];
-            if (!parsed.hostname.includes("arbeitnow") && !parsed.hostname.includes("jobicy") && !parsed.hostname.includes("remoteok") && !parsed.hostname.includes("remotive")) {
-              targetUrls.push(`${parsed.origin}/contact`, `${parsed.origin}/about`, `${parsed.origin}/impressum`);
-            }
-
-            for (const u of targetUrls) {
-              if (foundEmail && foundLinkedin) break;
-              try {
-                const res = await fetch(u, {
-                  signal: AbortSignal.timeout(5_000),
-                  headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
-                });
-                if (res.ok) {
-                  const text = await res.text();
-                  if (!foundEmail) {
-                    const emailMatches = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
-                    if (emailMatches) {
-                      const cleanEmail = emailMatches.find(
-                        (e) => !e.endsWith(".png") && !e.endsWith(".jpg") && !e.includes("sentry") && !e.includes("wixpress") && !e.includes("example.com")
-                      );
-                      if (cleanEmail) foundEmail = cleanEmail.toLowerCase();
-                    }
-                  }
-                  if (!foundLinkedin) {
-                    const liMatch = text.match(/https?:\/\/(?:www\.)?linkedin\.com\/(?:company|in)\/[a-zA-Z0-9_-]+/i);
-                    if (liMatch) foundLinkedin = liMatch[0];
-                  }
-                }
-              } catch {}
-            }
-          } catch {}
-        }
-
-        // 2. If Tavily is configured and we still need email or LinkedIn, perform a web search
-        if ((!foundEmail || !foundLinkedin) && env.TAVILY_API_KEY) {
-          try {
-            const tavilyRes = await tavilySearch({
-              query: `${companyName} official contact email OR linkedin`,
-              maxResults: 5,
-            });
-            for (const item of tavilyRes) {
-              if (!foundEmail) {
-                const emailMatches = item.content.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
-                if (emailMatches) {
-                  const cleanEmail = emailMatches.find(
-                    (e) => !e.endsWith(".png") && !e.endsWith(".jpg") && !e.includes("sentry") && !e.includes("example.com")
-                  );
-                  if (cleanEmail) foundEmail = cleanEmail.toLowerCase();
-                }
-              }
-              if (!foundLinkedin) {
-                if (item.url.includes("linkedin.com/company/") || item.url.includes("linkedin.com/in/")) {
-                  foundLinkedin = item.url;
-                } else {
-                  const liMatch = item.content.match(/https?:\/\/(?:www\.)?linkedin\.com\/(?:company|in)\/[a-zA-Z0-9_-]+/i);
-                  if (liMatch) foundLinkedin = liMatch[0];
-                }
-              }
-            }
-          } catch {}
-        }
-
-        // 3. Fallback: Provide direct LinkedIn search URL if no direct profile exists
-        if (!foundLinkedin && companyName) {
-          foundLinkedin = `https://www.linkedin.com/search/results/all/?keywords=${encodeURIComponent(companyName)}`;
-        }
-
-        // 4. Update the lead in DB
-        const updated = await prisma.lead.update({
+        // Reads the lead's website and, when that is not enough, a web search. Only real finds are saved:
+        // no LinkedIn "search link" is stored as if it were a profile.
+        const found = await findCompanyContact({
+          company: lead.company || lead.name,
+          urls: [lead.websiteUrl],
+          known: { email: lead.email, linkedinUrl: lead.linkedinUrl },
+        });
+        return prisma.lead.update({
           where: { id },
           data: {
-            email: foundEmail ?? lead.email,
-            linkedinUrl: foundLinkedin ?? lead.linkedinUrl,
+            email: found.email ?? lead.email,
+            linkedinUrl: found.linkedinUrl ?? lead.linkedinUrl,
+            ...(!lead.websiteUrl && found.websiteUrl ? { websiteUrl: found.websiteUrl } : {}),
           },
         });
-
-        return updated;
       },
       output: (l) => `Contact search for ${l.company || l.name}: Email: ${l.email || "not found"}, LinkedIn: ${l.linkedinUrl ? "found" : "not found"}.`,
     });

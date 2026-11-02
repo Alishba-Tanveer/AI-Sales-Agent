@@ -12,5 +12,6 @@ router.patch("/:id", leadsController.update);
 router.delete("/:id", leadsController.archive);
 router.post("/:id/find-contact", leadsController.findContact);
 router.post("/:id/draft-email", leadsController.draftEmail);
+router.post("/:id/linkedin-connected", leadsController.markLinkedInConnected);
 
 export const leadsRoutes = router;

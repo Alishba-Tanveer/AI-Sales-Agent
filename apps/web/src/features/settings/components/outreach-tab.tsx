@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarClock, History, MailCheck, Gauge, Brain, Target, BadgeCheck, type LucideIcon } from "lucide-react";
+import { MailCheck, Gauge, Brain, Target, BadgeCheck, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { Textarea } from "@/components/ui/textarea";
@@ -52,18 +52,16 @@ function OutreachForm({ initial }: { initial: OutreachSettings }) {
   const [companySize, setCompanySize] = useState(saved.companySize ?? "");
   const [customerDescription, setCustomerDescription] = useState(saved.customerDescription ?? "");
   const [tone, setTone] = useState<MessageTone>(initial.tone);
-  const [followUps, setFollowUps] = useState(initial.followUps);
-  const [gapDays, setGapDays] = useState(initial.gapDays);
+  // follow-up settings are no longer shown; the saved values are sent back unchanged
+  const { followUps, gapDays } = initial;
   const [dailyCap, setDailyCap] = useState(initial.dailyCap);
-  const [approved, setApproved] = useState(initial.approved);
   const [approving, setApproving] = useState(false);
 
   const approve = async () => {
     setApproving(true);
     try {
       const res = await approveOutreach({ tone, followUps, gapDays, dailyCap });
-      setApproved(res.settings.approved);
-      toast.success(res.message ?? "Outreach strategy saved and approved");
+      toast.success(res.message ?? "Outreach strategy saved");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not save your outreach strategy.");
     } finally {
@@ -150,20 +148,15 @@ function OutreachForm({ initial }: { initial: OutreachSettings }) {
         tone="primary"
         title="Sending Cadence & Deliverability Controls"
         description="Limits that keep your sending volume under control and protect your domain reputation."
+        aside={
+          <div className="w-full sm:w-72">
+            <ThrottleCard title="Daily Sending Cap / Mailbox" icon={MailCheck} unit="emails a day" note="The most emails one mailbox sends in a day">
+              <NumberField label="Daily sending cap per mailbox" value={dailyCap} min={10} max={100} onChange={setDailyCap} />
+            </ThrottleCard>
+          </div>
+        }
       >
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <ThrottleCard title="Max Follow-ups per Lead" icon={History} unit="follow-ups" note="The most follow-up messages one lead can get">
-            <NumberField label="Max follow-ups per lead" value={followUps} min={1} max={7} onChange={setFollowUps} />
-          </ThrottleCard>
-          <ThrottleCard title="Interval Between Touches" icon={CalendarClock} unit="days" note="How long to wait between messages to the same lead">
-            <NumberField label="Interval between touches" value={gapDays} min={1} max={14} onChange={setGapDays} />
-          </ThrottleCard>
-          <ThrottleCard title="Daily Sending Cap / Mailbox" icon={MailCheck} unit="emails a day" note="The most emails one mailbox sends in a day">
-            <NumberField label="Daily sending cap per mailbox" value={dailyCap} min={10} max={100} onChange={setDailyCap} />
-          </ThrottleCard>
-        </div>
-
-        <SaveButton icon={BadgeCheck} label={approving ? "Saving…" : approved ? "Update Approved Strategy" : "Save and Approve Strategy"} busy={approving} onClick={approve} />
+        <SaveButton borderless icon={BadgeCheck} label={approving ? "Saving…" : "Save Strategy"} busy={approving} onClick={approve} />
       </SectionCard>
     </div>
   );

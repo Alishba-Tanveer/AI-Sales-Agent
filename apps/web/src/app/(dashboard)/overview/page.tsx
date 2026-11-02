@@ -63,13 +63,13 @@ export default function OverviewPage() {
                 <p className="mt-1 text-sm text-muted-foreground">Here is what needs you today.</p>
               </div>
               <Link
-                href="/approvals"
+                href="/leads"
                 className={cn(
                   buttonVariants(),
                   "group h-auto gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 hover:bg-primary/85 hover:shadow-lg hover:shadow-primary/25 motion-safe:hover:-translate-y-0.5",
                 )}
               >
-                Review Approvals
+                View Leads
                 <ArrowRight className="size-[18px] transition-transform duration-200 group-hover:translate-x-1" />
               </Link>
             </header>

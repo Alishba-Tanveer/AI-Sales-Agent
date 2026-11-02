@@ -1,5 +1,4 @@
 import { api } from "@/lib/api";
-import { createLead } from "@/features/leads/api";
 import type { Opportunity, SearchFilters, SearchResult } from "./types";
 
 /** POST /api/opportunities/search -> opportunities matching the filters + any sources that failed */
@@ -12,22 +11,15 @@ export async function searchOpportunities(filters: SearchFilters): Promise<Searc
 }
 
 /**
- * Save as Lead. Creates a lead in the shared pipeline (stage New) and marks the opportunity saved.
- * A posting has a company, not a person, so the company becomes the lead name until enrichment finds a contact.
+ * Save as Lead. The server reads the company's website for an email or LinkedIn and only creates the lead when it finds
+ * at least one. Otherwise it answers 422 with a message the page shows ("... can't be contacted and wasn't added to Leads").
  */
 export async function saveOpportunityAsLead(o: Opportunity): Promise<{ leadId: string }> {
-  const lead = await createLead({
-    name: o.company,
-    company: o.company,
-    source: `Find Opportunities: ${o.sourceLabel}`,
-    websiteUrl: o.url,
-    notes: `${o.title}${o.budget ? ` (${o.budget})` : ""}\n\n${o.signals}`,
-  });
-  await api(`/api/opportunities/${o.id}/saved`, {
+  const res = await api<{ data: { leadId: string } }>(`/api/opportunities/${o.id}/saved`, {
     method: "POST",
-    body: JSON.stringify({ leadId: lead.id }),
+    body: JSON.stringify({}),
   });
-  return { leadId: lead.id };
+  return { leadId: res.data.leadId };
 }
 
 /** POST /api/opportunities/:id/dismiss and /restore */

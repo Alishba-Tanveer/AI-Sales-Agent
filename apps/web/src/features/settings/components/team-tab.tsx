@@ -21,7 +21,7 @@ import { CARD_HOVER, CARD_LIFT, CARD_ROW, ICON_POP, PersonAvatar, TONES, initial
 
 const ROLES: { role: TeamRole; icon: typeof Shield; tone: string; text: string }[] = [
   { role: "Owner", icon: Shield, tone: "text-primary", text: "Full control over billing, security, tenant configurations, deletions, and member permissions." },
-  { role: "Admin", icon: ShieldCheck, tone: "text-success", text: "Manage outreach settings, approval workflows, ICP targets, integrations, and leads." },
+  { role: "Admin", icon: ShieldCheck, tone: "text-success", text: "Manage outreach settings, ICP targets, integrations, and leads." },
   { role: "Member", icon: Users, tone: "text-warning", text: "Review drafts, manage inbox replies, qualify opportunities, and approve outbound messages." },
 ];
 

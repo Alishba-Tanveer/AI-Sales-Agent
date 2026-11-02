@@ -1,14 +1,13 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Bell, Building2, Megaphone, ShieldCheck, SlidersHorizontal, User, Users, type LucideIcon } from "lucide-react";
+import { Bell, Building2, Megaphone, SlidersHorizontal, User, Users, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { Reveal } from "@/features/overview/components/reveal";
 import { can, type AppRole } from "@/lib/permissions";
 import { useRole } from "@/lib/use-role";
 import { HOVER_BUTTONS, ICON_POP, TAB_HOVER, TONES, type Tone } from "./settings-ui";
 import type { SettingsTabId } from "../types";
-import { ApprovalRulesTab } from "./approval-rules-tab";
 import { BusinessTab } from "./business-tab";
 import { NotificationsTab } from "./notifications-tab";
 import { OutreachTab } from "./outreach-tab";
@@ -22,11 +21,10 @@ type TabDef = { id: SettingsTabId; label: string; icon: LucideIcon; tone: Tone; 
 const TABS: TabDef[] = [
   { id: "profile", label: "Profile", icon: User, tone: "primary" },
   { id: "business", label: "Business", icon: Building2, tone: "success", allow: can.editWorkspaceSettings },
-  { id: "team", label: "Team", icon: Users, tone: "primary" },
-  { id: "outreach", label: "Outreach Strategy", icon: Megaphone, tone: "success", allow: can.editWorkspaceSettings },
-  { id: "governance", label: "Approval Rules", icon: ShieldCheck, tone: "warning", allow: can.editWorkspaceSettings },
-  { id: "notifications", label: "Notifications", icon: Bell, tone: "primary" },
-  { id: "usage", label: "Usage and Limits", icon: SlidersHorizontal, tone: "success", allow: can.manageUsageAndBilling },
+  { id: "team", label: "Team", icon: Users, tone: "info" },
+  { id: "outreach", label: "Outreach Strategy", icon: Megaphone, tone: "warning", allow: can.editWorkspaceSettings },
+  { id: "notifications", label: "Notifications", icon: Bell, tone: "pink" },
+  { id: "usage", label: "Usage and Limits", icon: SlidersHorizontal, tone: "violet", allow: can.manageUsageAndBilling },
 ];
 
 const isTab = (v: string | null, tabs: TabDef[]): v is SettingsTabId => tabs.some((t) => t.id === v);
@@ -49,7 +47,7 @@ export function SettingsPage() {
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Settings</h1>
           <p className="text-sm text-muted-foreground">
-            Manage your personal account, company profile, outreach parameters, and governance rules.
+            Manage your personal account, company profile, and outreach parameters.
           </p>
         </header>
       </Reveal>
@@ -86,7 +84,6 @@ export function SettingsPage() {
           {tab === "business" && <BusinessTab />}
           {tab === "team" && <TeamTab />}
           {tab === "outreach" && <OutreachTab />}
-          {tab === "governance" && <ApprovalRulesTab />}
           {tab === "notifications" && <NotificationsTab />}
           {tab === "usage" && <UsageTab onOpenOutreach={() => go("outreach")} />}
         </div>

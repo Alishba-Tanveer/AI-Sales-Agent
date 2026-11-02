@@ -12,9 +12,8 @@ export const searchOpportunitiesSchema = z.object({
   postedWithin: postedWithinSchema.default("30d"),
 });
 
-export const saveOpportunitySchema = z.object({
-  leadId: z.string().min(1, "leadId is required"),
-});
+/** Saving needs no input: the server finds the contact itself from the company's website. */
+export const saveOpportunitySchema = z.object({}).passthrough();
 
 export type SearchOpportunitiesInput = z.infer<typeof searchOpportunitiesSchema>;
 export type SaveOpportunityInput = z.infer<typeof saveOpportunitySchema>;

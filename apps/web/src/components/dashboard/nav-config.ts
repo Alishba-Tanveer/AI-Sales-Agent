@@ -2,11 +2,9 @@ import {
   Activity,
   BarChart3,
   CircleUser,
-  Clock,
   Compass,
   Inbox,
   LayoutGrid,
-  ListChecks,
   Network,
   Newspaper,
   Puzzle,
@@ -15,7 +13,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-export type NavBadgeKey = "approvals" | "activity" | "opportunities";
+export type NavBadgeKey = "activity" | "opportunities";
 
 export type NavItem = {
   label: string;
@@ -38,9 +36,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "Overview", href: "/overview", icon: LayoutGrid },
       { label: "Leads", href: "/leads", icon: Users },
       { label: "Find Opportunities", href: "/find-opportunities", icon: Compass, badge: { key: "opportunities", tone: "warning" } },
-      { label: "Approvals", href: "/approvals", icon: ListChecks, badge: { key: "approvals", tone: "warning" } },
       { label: "Inbox", href: "/inbox", icon: Inbox },
-      { label: "Follow-ups", href: "/follow-ups", icon: Clock },
       { label: "Activity", href: "/activity", icon: Activity, badge: { key: "activity", tone: "destructive" } },
     ],
   },

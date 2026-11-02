@@ -23,7 +23,9 @@ export const userStore = {
       return null;
     }
   },
-  set(user: AuthUser, remember = true) {
+  /** Without `remember`, the user stays where it already lives (so a profile edit never changes the remember-me choice). */
+  set(user: AuthUser, remember?: boolean) {
+    if (remember === undefined) remember = localStorage.getItem(KEY) !== null || sessionStorage.getItem(KEY) === null;
     localStorage.removeItem(KEY);
     sessionStorage.removeItem(KEY);
     (remember ? localStorage : sessionStorage).setItem(KEY, JSON.stringify(user));

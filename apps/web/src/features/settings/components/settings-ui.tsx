@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Loader2, Plus, Save, X, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
@@ -197,10 +198,10 @@ export function Switch({
 }
 
 /** `busy` = a save is in flight: the button is disabled and shows a spinner. */
-export function SaveButton({ onClick, label = "Save Changes", icon, busy }: { onClick: () => void; label?: string; icon?: LucideIcon; busy?: boolean }) {
+export function SaveButton({ onClick, label = "Save Changes", icon, busy, borderless }: { onClick: () => void; label?: string; icon?: LucideIcon; busy?: boolean; /** no divider above (when the card has nothing between its header and the button) */ borderless?: boolean }) {
   const Icon = busy ? Loader2 : (icon ?? Save);
   return (
-    <div className="flex items-center justify-end border-t border-border pt-4">
+    <div className={cn("flex items-center justify-end", !borderless && "border-t border-border pt-4")}>
       <Button type="button" onClick={onClick} disabled={busy} className="h-9 gap-1.5 px-5 text-sm font-semibold">
         <Icon className={cn("size-[18px]", busy && "animate-spin")} />
         {label}
@@ -346,7 +347,7 @@ export function PersonAvatar({ name, id, avatar, className }: { name?: string | 
   if (avatar) {
     return (
       <div className={cn("relative flex size-8 shrink-0 overflow-hidden rounded-full border border-border", ICON_POP, className)}>
-        <img src={avatar} alt={name || "Avatar"} className="size-full object-cover" />
+        <Image src={avatar} alt={name || "Avatar"} fill sizes="32px" unoptimized className="object-cover" />
       </div>
     );
   }

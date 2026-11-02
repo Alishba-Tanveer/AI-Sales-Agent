@@ -2,7 +2,6 @@ import type { Request, Response, NextFunction } from "express";
 import { SettingsService } from "./settings.service";
 import {
   outreachSettingsSchema,
-  approvalRulesSchema,
   updateNotificationsSchema,
   updateAiLimitSchema,
 } from "./settings.schema";
@@ -63,43 +62,7 @@ export class SettingsController {
         req.user.userId
       );
       res.status(200).json({
-        message: "Outreach strategy saved and approved",
-        data,
-      });
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  getApprovalRules = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      if (!req.user?.organizationId) {
-        throw new AppError("Authentication required", 401);
-      }
-      const data = await this.settingsService.getApprovalRules(req.user.organizationId);
-      res.status(200).json({ data });
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  saveApprovalRules = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      if (!req.user?.organizationId) {
-        throw new AppError("Authentication required", 401);
-      }
-      const parseResult = approvalRulesSchema.safeParse(req.body);
-      if (!parseResult.success) {
-        const errorMessages = parseResult.error.issues.map((i) => i.message).join(", ");
-        throw new AppError(errorMessages, 400);
-      }
-      const data = await this.settingsService.saveApprovalRules(
-        req.user.organizationId,
-        parseResult.data,
-        req.user.userId
-      );
-      res.status(200).json({
-        message: "Approval rules saved",
+        message: "Outreach strategy saved",
         data,
       });
     } catch (err) {

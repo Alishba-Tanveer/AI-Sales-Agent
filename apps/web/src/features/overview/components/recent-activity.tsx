@@ -34,7 +34,7 @@ export function RecentActivity({ items }: { items: ActivityItem[] }) {
             <Activity className="size-5 text-muted-foreground" />
           </div>
           <p className="text-sm font-medium text-foreground">No activity yet</p>
-          <p className="max-w-xs text-xs text-muted-foreground">Drafts, replies and approvals show up here as the agent works.</p>
+          <p className="max-w-xs text-xs text-muted-foreground">Drafts, replies and new leads show up here as the agent works.</p>
         </div>
       ) : (
       <ul className="divide-y divide-border">

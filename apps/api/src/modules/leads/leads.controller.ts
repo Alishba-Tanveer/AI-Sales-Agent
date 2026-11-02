@@ -55,10 +55,14 @@ export const leadsController = {
       res.json({ lead: await leadsService.findContact(org(req), String(req.params.id)) });
     } catch (error) { next(error); }
   },
+  markLinkedInConnected: async (req: Request, res: Response, next: NextFunction) => {
+    try { res.status(201).json({ lead: await leadsService.markLinkedInConnected(org(req), String(req.params.id)) }); }
+    catch (error) { next(error); }
+  },
   draftEmail: async (req: Request, res: Response, next: NextFunction) => {
     try {
       const input = draftEmailSchema.parse(req.body ?? {});
-      res.status(201).json({ draft: await leadsService.draftEmail(org(req), String(req.params.id), input.instruction) });
+      res.status(201).json({ draft: await leadsService.draftEmail(org(req), String(req.params.id), input.instruction, input.channel ?? "EMAIL") });
     } catch (error) { next(error); }
   },
 };

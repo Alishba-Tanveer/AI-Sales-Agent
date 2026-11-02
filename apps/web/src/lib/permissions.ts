@@ -9,7 +9,7 @@ export type AppRole = "OWNER" | "ADMIN" | "MEMBER";
  *   Action                                         Owner  Admin  Member
  *   View leads, inbox, activity, analytics          yes    yes    yes
  *   Review and approve drafts and replies           yes    yes    yes
- *   Edit outreach, approval rules, business / ICP   yes    yes    -
+ *   Edit outreach, business / ICP   yes    yes    -
  *   Connect integrations                            yes    yes    -
  *   Invite / remove people, change roles            yes    yes (not Owners)  -
  *   Restore removed accounts                        yes    yes    -
@@ -25,7 +25,7 @@ const isOwner = (r: AppRole) => r === "OWNER";
 const isOwnerOrAdmin = (r: AppRole) => r === "OWNER" || r === "ADMIN";
 
 export const can = {
-  editWorkspaceSettings: isOwnerOrAdmin, // business, outreach strategy, approval rules
+  editWorkspaceSettings: isOwnerOrAdmin, // business, outreach strategy
   connectIntegrations: isOwnerOrAdmin,
   manageTeam: isOwnerOrAdmin, // invite, remove, change roles, restore
   manageUsageAndBilling: isOwner,
