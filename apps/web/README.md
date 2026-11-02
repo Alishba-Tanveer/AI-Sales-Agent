@@ -52,8 +52,8 @@ Implemented an Integrations page to display the application's available services
 - Both pages follow the existing dashboard layout, theme, and shared component styles.
 - Analytics and Integrations use the existing frontend architecture.
 - Loading, empty, error, and partial-data states are handled within the pages.
-- Removed unused mock data files for Activity, Notifications, Opportunities, and Settings where they were no longer imported.
-- The Overview mock data remains available because the Overview page still supports the `NEXT_PUBLIC_USE_MOCK_DASHBOARD` configuration.
+- All mock data files across features (Activity, Notifications, Opportunities, Overview, and Settings) have been deleted.
+- The Overview page and all dashboard features run 100% on live backend APIs.
 
 ### Future Improvements
 
