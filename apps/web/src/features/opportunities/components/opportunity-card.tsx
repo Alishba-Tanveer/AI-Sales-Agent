@@ -1,5 +1,6 @@
+import { memo } from "react";
 import Link from "next/link";
-import { Briefcase, Building2, Check, CircleCheck, ExternalLink, Info, Landmark, Loader2, Sparkles, MapPin, RotateCcw, UserPlus, Wallet, X, type LucideIcon } from "lucide-react";
+import { Briefcase, Building2, Check, CircleCheck, ExternalLink, Info, Landmark, Loader2, Sparkles, MapPin, RotateCcw, Trash2, UserPlus, Wallet, X, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { SOURCES, TOP_MATCH, TYPE_META } from "../constants";
@@ -10,7 +11,7 @@ const GROUP_ICON: Record<SourceGroup, LucideIcon> = { job_portal: Briefcase, com
 
 const chip = "inline-flex h-5 items-center gap-1 rounded-full border px-2 text-[11px] font-medium";
 
-export function OpportunityCard({
+export const OpportunityCard = memo(function OpportunityCard({
   item,
   accent,
   now,
@@ -18,6 +19,7 @@ export function OpportunityCard({
   onSave,
   onDismiss,
   onRestore,
+  onDelete,
 }: {
   item: Opportunity;
   /** Theme colour of this card (stripe + avatar). Chosen by the page so neighbours differ. */
@@ -27,6 +29,8 @@ export function OpportunityCard({
   onSave: (o: Opportunity) => void;
   onDismiss: (o: Opportunity) => void;
   onRestore: (o: Opportunity) => void;
+  /** deletes the result for the whole team straight away (no confirmation) */
+  onDelete: (o: Opportunity) => void;
 }) {
   const dismissed = item.status === "dismissed";
   const saved = item.status === "saved";
@@ -39,7 +43,7 @@ export function OpportunityCard({
       aria-label={item.title}
       className={cn(
         "relative flex flex-col gap-3 overflow-hidden rounded-xl border border-border bg-card p-4 pl-5 transition-all",
-        dismissed ? "opacity-60" : "hover:-translate-y-px hover:shadow-lg hover:shadow-black/10",
+        dismissed ? "opacity-60 hover:opacity-90" : "hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5",
       )}
     >
       <span className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: accent }} aria-hidden />
@@ -161,11 +165,23 @@ export function OpportunityCard({
             </>
           )}
         </div>
-        <a href={item.url} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "text-muted-foreground")}>
-          Open source
-          <ExternalLink className="size-3.5" />
-        </a>
+        <div className="flex items-center gap-1">
+          <a href={item.url} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "text-muted-foreground")}>
+            Open source
+            <ExternalLink className="size-3.5" />
+          </a>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onDelete(item)}
+            aria-label={`Delete ${item.title}`}
+            title="Delete for the whole team"
+            className="inline-flex size-8 items-center justify-center rounded-lg text-destructive outline-none transition-colors hover:bg-destructive-soft focus-visible:ring-2 focus-visible:ring-destructive/40 disabled:pointer-events-none disabled:opacity-50"
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </div>
       </div>
     </article>
   );
-}
+});

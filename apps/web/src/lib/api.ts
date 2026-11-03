@@ -8,6 +8,16 @@ export class ApiError extends Error {
 
 export const TOKEN_STORE_EVENT = "token-store-change";
 
+/**
+ * Fired when a write request (POST / PUT / PATCH / DELETE) starts and when it ends. Server-side, many of these create an
+ * Activity entry that stays "running" until the request finishes, so the Activity counter listens and refreshes at once
+ * instead of waiting for its next poll.
+ */
+export const API_MUTATION_EVENT = "api-mutation";
+const announce = (phase: "start" | "end") => {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(API_MUTATION_EVENT, { detail: { phase } }));
+};
+
 const notifyTokenChange = () => {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(TOKEN_STORE_EVENT));
@@ -46,6 +56,17 @@ export function hasValidSession() {
 export async function api<T>(path: string, init: RequestInit & { keepSessionOn401?: boolean } = {}): Promise<T> {
   const { keepSessionOn401, ...fetchInit } = init;
   const token = tokenStore.get();
+  const method = (fetchInit.method ?? "GET").toUpperCase();
+  const announces = method !== "GET" && !path.startsWith("/api/auth/") && !path.startsWith("/api/activity");
+  if (announces) announce("start");
+  try {
+    return await request<T>(path, fetchInit, token, keepSessionOn401);
+  } finally {
+    if (announces) announce("end");
+  }
+}
+
+async function request<T>(path: string, fetchInit: RequestInit, token: string | null, keepSessionOn401?: boolean): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, {

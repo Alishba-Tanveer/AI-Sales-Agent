@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Download, ShieldCheck } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, Download, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OptionSelect } from "@/components/ui/option-select";
 import { Reveal } from "@/features/overview/components/reveal";
 import { useNow } from "@/lib/use-now";
-import { DEFAULT_FILTERS } from "../constants";
+import { DEFAULT_FILTERS, PAGE_SIZE } from "../constants";
 import { accentAt, exportOpportunitiesCsv, sortOpportunities } from "../format";
 import { useOpportunities, getCachedOpportunityFilters } from "../hooks";
 import type { SearchFilters, SortKey } from "../types";
@@ -21,14 +21,22 @@ const SORT_OPTIONS = [
 ];
 
 export function OpportunitiesPage() {
-  const now = useNow();
-  const { state, run, retry, busy, save, dismiss, restore } = useOpportunities();
+  // "x minutes ago" labels only need minute precision. A stable value lets the memoised cards skip the 1-second clock ticks.
+  const now = Math.floor(useNow() / 60_000) * 60_000;
+  const { state, run, retry, busy, save, dismiss, restore, remove } = useOpportunities();
   const [filters, setFilters] = useState<SearchFilters>(() => getCachedOpportunityFilters() ?? DEFAULT_FILTERS);
   const [sort, setSort] = useState<SortKey>("relevance");
+  /** only this many cards are drawn; "Show more" adds PAGE_SIZE at a time */
+  const [visible, setVisible] = useState(PAGE_SIZE);
 
   const items = useMemo(() => (state.status === "success" ? sortOpportunities(state.items, sort) : []), [state, sort]);
   // dismissed cards stay visible (faded, with Restore) but do not count as "found"
   const active = items.filter((o) => o.status !== "dismissed").length;
+  const shown = items.slice(0, visible);
+  const remaining = items.length - shown.length;
+
+  // a new search or a different sort order starts again from the first 10
+  useEffect(() => setVisible(PAGE_SIZE), [state.status, sort]);
 
   const reset = () => setFilters(DEFAULT_FILTERS);
   const search = () => void run(filters);
@@ -72,7 +80,9 @@ export function OpportunitiesPage() {
                         <span className="size-2 rounded-full bg-primary" aria-hidden />
                         <p className="text-sm font-semibold text-foreground">
                           Found {active} {active === 1 ? "opportunity" : "opportunities"}
-                          <span className="ml-2 text-xs font-normal text-muted-foreground">matching your filters</span>
+                          <span className="ml-2 text-xs font-normal text-muted-foreground">
+                            {remaining > 0 ? `showing ${shown.length} of ${items.length} · ` : ""}shared with your team
+                          </span>
                         </p>
                       </div>
                       <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -87,10 +97,20 @@ export function OpportunitiesPage() {
                     <p className="px-1 text-xs text-muted-foreground">Automated outreach respects each site’s published contact rules. Nothing is sent from this page.</p>
 
                     <div className="flex flex-col gap-3">
-                      {items.map((o, i) => (
-                        <OpportunityCard key={o.id} item={o} accent={accentAt(i)} now={now} busy={busy.has(o.id)} onSave={save} onDismiss={dismiss} onRestore={restore} />
+                      {shown.map((o, i) => (
+                        <OpportunityCard key={o.id} item={o} accent={accentAt(i)} now={now} busy={busy.has(o.id)} onSave={save} onDismiss={dismiss} onRestore={restore} onDelete={remove} />
                       ))}
                     </div>
+
+                    {remaining > 0 && (
+                      <div className="flex justify-center pt-1">
+                        <Button variant="outline" size="lg" onClick={() => setVisible((v) => v + PAGE_SIZE)}>
+                          <ChevronDown />
+                          Show {Math.min(PAGE_SIZE, remaining)} more
+                          <span className="text-xs font-normal text-muted-foreground">({remaining} left)</span>
+                        </Button>
+                      </div>
+                    )}
                   </>
                 )}
               </>

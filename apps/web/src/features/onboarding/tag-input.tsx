@@ -19,7 +19,7 @@ export function TagInput({ value, onChange, placeholder, max = 10, suggestions =
         {value.map((t) => (
           <span key={t} className="flex h-7 items-center gap-1 rounded-md border border-[#818CF8]/35 bg-[#818CF8]/10 pl-2.5 pr-1.5 text-[13px] text-[#C7D2FE]">
             {t}
-            <button type="button" aria-label={`Remove ${t}`} onClick={() => onChange(value.filter((v) => v !== t))}><X size={14} /></button>
+            <button type="button" className="rounded transition-colors hover:text-[#F87171]" aria-label={`Remove ${t}`} onClick={() => onChange(value.filter((v) => v !== t))}><X size={14} /></button>
           </span>
         ))}
         <input

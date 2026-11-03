@@ -1,48 +1,63 @@
+/*
+ * Light mode: same hues as before, just stronger. A cool blue-grey page makes the white cards stand out, borders are
+ * visible, the brand blue is vivid, and every status colour (green, amber, red) is a bold, saturated shade of itself.
+ * No gradients anywhere.
+ */
 :root {
   color-scheme: light;
   --radius: 0.75rem;
 
   /* Page and surfaces */
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #eef2f9;
+  --foreground: #0b1220;
   --card: #ffffff;
-  --card-foreground: #0f172a;
+  --card-foreground: #0b1220;
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
+  --popover-foreground: #0b1220;
 
   /* Brand */
-  --primary: #2563eb;
+  --primary: #2150e8;
   --primary-foreground: #ffffff;
-  --primary-soft: #dbeafe;
+  --primary-soft: #d9e4ff;
 
   /* Neutral areas */
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #f1f5f9;
-  --accent-foreground: #0f172a;
+  --secondary: #e3e9f5;
+  --secondary-foreground: #0b1220;
+  --muted: #e3e9f5;
+  --muted-foreground: #4b5a75;
+  --accent: #e3e9f5;
+  --accent-foreground: #0b1220;
 
   /* Lines and focus */
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #2563eb;
+  --border: #ced7e8;
+  --input: #bcc7dd;
+  --ring: #2150e8;
 
   /* Status colors */
-  --success: #15803d;
-  --success-soft: #dcfce7;
+  --success: #0f8a3c;
+  --success-soft: #cdf3da;
   --warning: #b45309;
-  --warning-soft: #fef3c7;
-  --destructive: #b91c1c;
+  --warning-soft: #ffe7b3;
+  --destructive: #d21f1f;
   --destructive-foreground: #ffffff;
-  --destructive-soft: #fee2e2;
+  --destructive-soft: #ffd8d8;
+
+  /* Extra accents (sidebar counters, notification types) */
+  --info: #0369a1;
+  --info-soft: #cdeafc;
+  --violet: #6d28d9;
+  --violet-soft: #e4d9ff;
+  --pink: #be185d;
+  --pink-soft: #fcd9e9;
+  --teal: #0f766e;
+  --teal-soft: #c6f1ea;
 
   /* Sidebar */
   --sidebar: #ffffff;
-  --sidebar-foreground: #334155;
-  --sidebar-border: #e2e8f0;
-  --sidebar-accent: #eff6ff;
-  --sidebar-accent-foreground: #1d4ed8;
+  --sidebar-foreground: #26344d;
+  --sidebar-border: #ced7e8;
+  --sidebar-accent: #dbe5ff;
+  --sidebar-accent-foreground: #1740c4;
 }
 
 .dark {
@@ -82,6 +97,16 @@
   --destructive: #f87171;
   --destructive-foreground: #1a0b0b;
   --destructive-soft: #331618;
+
+  /* Extra accents (sidebar counters, notification types) */
+  --info: #38bdf8;
+  --info-soft: #0c2a3d;
+  --violet: #a78bfa;
+  --violet-soft: #231a45;
+  --pink: #f472b6;
+  --pink-soft: #3a1530;
+  --teal: #2dd4bf;
+  --teal-soft: #0c2e2b;
 
   /* Sidebar */
   --sidebar: #0d111b;
@@ -123,6 +148,15 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-destructive-soft: var(--destructive-soft);
+
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-violet: var(--violet);
+  --color-violet-soft: var(--violet-soft);
+  --color-pink: var(--pink);
+  --color-pink-soft: var(--pink-soft);
+  --color-teal: var(--teal);
+  --color-teal-soft: var(--teal-soft);
 
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);

@@ -47,5 +47,8 @@ export const DEFAULT_FILTERS: SearchFilters = {
   postedWithin: "30d",
 };
 
+/** How many result cards are drawn at once. "Show more" reveals the next batch. Keeps the page fast. */
+export const PAGE_SIZE = 10;
+
 /** Opportunities scoring at least this get a "Top match" label. */
 export const TOP_MATCH = 85;

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Download, RefreshCw, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Reveal } from "@/features/overview/components/reveal";
-import { HOVER_BUTTONS } from "@/features/settings/components/settings-ui";
+import { HOVER_BUTTONS, TONES } from "@/features/settings/components/settings-ui";
 import { cn } from "cn";
 import { buildAnalytics, toCsv } from "../compute";
 import { useAnalytics } from "../hooks";
@@ -45,7 +45,7 @@ function Notice({ raw, cut, onRetry }: { raw: RawAnalytics; cut: boolean; onRetr
 
 export function AnalyticsPage() {
   const { state, reload } = useAnalytics();
-  const [period, setPeriod] = useState<PeriodId>("30d");
+  const [period, setPeriod] = useState<PeriodId>("7d");
   const view = useMemo(() => (state.status === "ready" ? buildAnalytics(state.raw, period, state.loadedAt) : null), [state, period]);
 
   const byId = (id: string) => view?.groups.find((g) => g.id === id);
@@ -69,10 +69,10 @@ export function AnalyticsPage() {
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <PeriodTabs value={period} onChange={setPeriod} />
-                <Button variant="outline" onClick={() => downloadCsv(view)} className="gap-2" disabled={view.empty}>
+                <Button variant="default" onClick={() => downloadCsv(view)} className={cn("gap-2", TONES.pink.btn)} disabled={view.empty}>
                   <Download className="size-4" /> Export
                 </Button>
-                <Button variant="ghost" size="icon" onClick={reload} aria-label="Refresh analytics">
+                <Button variant="outline" size="icon" onClick={reload} aria-label="Refresh analytics" className={TONES.success.btn}>
                   <RefreshCw className="size-4" />
                 </Button>
               </div>

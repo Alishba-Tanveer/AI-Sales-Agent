@@ -115,7 +115,7 @@ export function FilterPanel({ filters, onChange, onSearch, searching }: { filter
   const canSearch = filters.sourceIds.length > 0 && filters.types.length > 0 && !searching;
 
   return (
-    <aside aria-label="Search filters" className="w-full shrink-0 overflow-hidden rounded-xl border border-border bg-card lg:sticky lg:top-20 lg:w-[280px]">
+    <aside aria-label="Search filters" className="w-full shrink-0 overflow-hidden rounded-xl border border-border bg-card transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 lg:sticky lg:top-20 lg:w-[280px]">
       <div className="flex flex-col gap-4 p-4">
         <Section icon={Tags} color="#A78BFA" title="Keywords" hint={`${filters.keywords.length}/${MAX_KEYWORDS}`}>
           <KeywordInput value={filters.keywords} onChange={(keywords) => onChange({ ...filters, keywords })} />

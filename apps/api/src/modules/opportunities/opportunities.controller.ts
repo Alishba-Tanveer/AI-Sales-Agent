@@ -85,6 +85,21 @@ export class OpportunitiesController {
     }
   };
 
+  remove = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user?.organizationId) {
+        throw new AppError("Authentication required", 401);
+      }
+
+      const id = String(req.params.id);
+      const result = await this.opportunitiesService.deleteOpportunity(req.user.organizationId, id);
+
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  };
+
   list = async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user?.organizationId) {

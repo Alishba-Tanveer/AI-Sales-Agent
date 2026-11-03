@@ -15,6 +15,7 @@ router.post("/search", opportunitiesController.search);
 router.post("/:id/saved", opportunitiesController.saveAsLead);
 router.post("/:id/dismiss", opportunitiesController.dismiss);
 router.post("/:id/restore", opportunitiesController.restore);
+router.delete("/:id", opportunitiesController.remove);
 router.get("/", opportunitiesController.list);
 
 export const opportunitiesRoutes = router;

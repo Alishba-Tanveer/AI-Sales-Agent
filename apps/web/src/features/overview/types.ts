@@ -51,6 +51,16 @@ export type OverviewData = {
  * Proposed backend contract:  GET /api/analytics/nav-counts  ->  { data: NavCounts }
  */
 export type NavCounts = {
+  /** tasks running right now */
   activity: number;
+  /** discovery searches running right now */
   opportunities?: number;
+  /** new leads nobody has contacted yet */
+  leads?: number;
+  /** people whose latest message is a reply you have not answered */
+  inbox?: number;
+  /** LinkedIn posts waiting for your approval */
+  content?: number;
+  /** suggested LinkedIn connections waiting for your review */
+  connections?: number;
 };

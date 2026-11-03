@@ -23,15 +23,14 @@ const TABS: { id: ActivityTab; label: string }[] = [
   { id: "completed", label: "Completed" },
 ];
 
-const COLUMNS: { label: string; width: string; align?: "center" | "right" }[] = [
-  { label: "Task", width: "w-[26%]" },
-  { label: "Related lead", width: "w-[19%]" },
-  { label: "Agent", width: "w-[12%]" },
-  { label: "Status", width: "w-[11%]" },
-  { label: "Started", width: "w-[13%]" },
-  { label: "Duration", width: "w-[8%]", align: "center" },
-  { label: "Retries", width: "w-[6%]", align: "center" },
-  { label: "", width: "w-[5%]", align: "right" },
+const COLUMNS: { label: string; align?: "center" | "right" }[] = [
+  // Started, Duration and Retries live in "View details" so the table stays easy to scan.
+  // The four data columns are exactly the same width; the last one only holds the "..." menu.
+  { label: "Task" },
+  { label: "Related lead" },
+  { label: "Agent" },
+  { label: "Status" },
+  { label: "", align: "right" },
 ];
 
 export function ActivityPage() {
@@ -99,12 +98,19 @@ export function ActivityPage() {
               })}
             </div>
 
-            <section id="activity-panel" role="tabpanel" aria-labelledby={`activity-tab-${tab}`} className="overflow-hidden rounded-xl border border-border bg-card">
+            <section id="activity-panel" role="tabpanel" aria-labelledby={`activity-tab-${tab}`} className="overflow-hidden rounded-xl border border-border bg-card transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5">
               {filtered.length === 0 ? (
                 <ActivityEmpty tab={tab} />
               ) : (
                 <>
-                  <Table className="min-w-[960px] table-fixed">
+                  <Table className="w-full table-fixed">
+                    <colgroup>
+                      <col style={{ width: "36%" }} />
+                      <col style={{ width: "calc((64% - 48px) / 3)" }} />
+                      <col style={{ width: "calc((64% - 48px) / 3)" }} />
+                      <col style={{ width: "calc((64% - 48px) / 3)" }} />
+                      <col style={{ width: "48px" }} />
+                    </colgroup>
                     <TableHeader className="bg-muted/60">
                       <TableRow className="h-11 border-border hover:bg-transparent">
                         {COLUMNS.map((c, i) => (
@@ -112,7 +118,6 @@ export function ActivityPage() {
                             key={i}
                             className={cn(
                               "px-4 text-xs font-semibold tracking-wider text-muted-foreground uppercase",
-                              c.width,
                               c.align === "center" && "text-center",
                               c.align === "right" && "text-right",
                             )}

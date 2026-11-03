@@ -19,12 +19,22 @@ import { useRole } from "@/lib/use-role";
 import { useStoredUser } from "@/lib/use-stored-user";
 import { useRunningCount, useRunningDiscoverCount } from "@/features/activity/store";
 import { useNavCounts } from "@/features/overview/hooks";
-import { NAV_SECTIONS, isNavActive, type NavItem } from "./nav-config";
+import { NAV_SECTIONS, isNavActive, type NavBadgeTone, type NavItem } from "./nav-config";
 
-const pillTone = {
-  warning: "border-warning/30 bg-warning-soft text-warning",
-  destructive: "border-destructive/30 bg-destructive-soft text-destructive",
-} as const;
+/**
+ * Solid pill colours taken from the theme (the fallbacks only matter if a variable is missing). Written as inline styles
+ * rather than Tailwind classes so a pill can never end up grey. Text uses --primary-foreground, which is white in light
+ * mode and dark in dark mode, matching how light / dark the theme colours themselves are in each mode.
+ */
+const pillColor: Record<NavBadgeTone, string> = {
+  primary: "var(--primary, #818cf8)",
+  warning: "var(--warning, #fbbf24)",
+  violet: "var(--violet, #a78bfa)",
+  info: "var(--info, #38bdf8)",
+  pink: "var(--pink, #f472b6)",
+  teal: "var(--teal, #2dd4bf)",
+  destructive: "var(--destructive, #f87171)",
+};
 
 function NavLink({
   item,
@@ -63,10 +73,8 @@ function NavLink({
       </span>
       {item.badge && count ? (
         <span
-          className={cn(
-            "rounded border px-1.5 py-0.5 text-[10px] font-semibold",
-            pillTone[item.badge.tone],
-          )}
+          className="min-w-5 rounded-full px-1.5 py-0.5 text-center text-[10px] leading-none font-bold tabular-nums shadow-sm"
+          style={{ backgroundColor: pillColor[item.badge.tone], color: "var(--primary-foreground, #0b0f19)" }}
         >
           {count}
         </span>
@@ -116,7 +124,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
           <Link
             href="/overview"
             onClick={onClose}
-            className="group flex items-center gap-2 border-b border-sidebar-border px-4 py-4"
+            className="group flex items-center gap-2 border-b border-sidebar-border px-4 py-4 transition-colors hover:bg-muted/60"
           >
             <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Bot className="size-[18px]" />

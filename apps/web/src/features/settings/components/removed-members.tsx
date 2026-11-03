@@ -61,7 +61,7 @@ export function RemovedMembers({ onRestored }: { onRestored: () => void }) {
           No removed accounts right now.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="overflow-hidden rounded-xl border border-border bg-card transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5">
           <Table className="min-w-[720px]">
             <TableHeader className="bg-background">
               <TableRow className="hover:bg-transparent">
