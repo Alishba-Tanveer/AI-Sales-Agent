@@ -14,6 +14,14 @@ function getAuthHeader(): string {
   return "Basic " + Buffer.from(key).toString("base64");
 }
 
+/** Thrown when the D-ID account has no credits left (HTTP 402). */
+export class DIdCreditsError extends Error {
+  constructor() {
+    super("Video generation is unavailable: the D-ID account has run out of credits. Please top up your D-ID plan and try again.");
+    this.name = "DIdCreditsError";
+  }
+}
+
 export interface CreateTalkOptions {
   text: string;
   sourceUrl?: string;
@@ -68,6 +76,9 @@ export async function createAvatarTalk(options: CreateTalkOptions): Promise<Talk
 
   if (!res.ok) {
     const errorBody = await res.text();
+    if (res.status === 402 || /InsufficientCredits/i.test(errorBody)) {
+      throw new DIdCreditsError();
+    }
     throw new Error(`D-ID talk creation failed (${res.status}): ${errorBody}`);
   }
 

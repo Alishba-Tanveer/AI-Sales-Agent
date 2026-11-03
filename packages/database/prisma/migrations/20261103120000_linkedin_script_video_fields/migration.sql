@@ -1,0 +1,4 @@
+ALTER TABLE "LinkedinScript"
+  ADD COLUMN IF NOT EXISTS "videoUrl" TEXT,
+  ADD COLUMN IF NOT EXISTS "videoId" TEXT,
+  ADD COLUMN IF NOT EXISTS "videoStatus" TEXT DEFAULT 'idle';

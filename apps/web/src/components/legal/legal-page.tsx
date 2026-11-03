@@ -1,84 +1,55 @@
-import Link from "next/link";
-import { Bot } from "lucide-react";
 import type { ReactNode } from "react";
+import { Brand } from "@/components/auth/auth-shell";
+import { Backdrop } from "@/components/auth/backdrop";
+import { BackButton } from "@/components/legal/back-button";
 
-/** Edit these once and both legal pages update. */
 export const LEGAL = {
   product: "AI Sales Agent",
-  company: "AI Sales Agent",
-  contactEmail: "support@aisalesagent.app",
   updated: "November 3, 2026",
 } as const;
 
-export type LegalSection = { id: string; title: string; body: ReactNode };
+export type LegalSection = { title: string; body: ReactNode };
 
-/** Shared layout for the Terms of Service and Privacy Policy. Uses theme tokens, so it follows light and dark mode. */
-export function LegalPage({ title, intro, sections, other }: {
-  title: string;
-  intro: string;
-  sections: LegalSection[];
-  other: { href: string; label: string };
-}) {
+// Layout lives in plain CSS (not Tailwind classes) so the width and the two columns always apply:
+// - card is 70% of the screen width, centered (full width on phones)
+// - sections flow into two columns that the browser balances to the same height
+const css = `
+.legal-card{width:100%}
+.legal-cols{column-count:1}
+.legal-cols section{break-inside:avoid;margin-bottom:20px}
+@media (min-width:768px){
+  .legal-card{width:70vw}
+  .legal-cols{column-count:2;column-gap:56px;column-fill:balance}
+}
+`;
+
+/** Simple read-only page for the Terms of Service and Privacy Policy, on the same gradient backdrop as sign up. */
+export function LegalPage({ title, sections }: { title: string; sections: LegalSection[] }) {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border bg-card">
-        <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-5">
-          <Link href="/" className="flex items-center gap-2 font-semibold transition-opacity hover:opacity-80">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Bot className="size-[18px]" />
-            </span>
-            {LEGAL.product}
-          </Link>
-          <nav className="flex items-center gap-1 text-sm">
-            <Link href={other.href} className="rounded-lg px-3 py-1.5 font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-              {other.label}
-            </Link>
-            <Link href="/signup" className="rounded-lg bg-primary px-3 py-1.5 font-medium text-primary-foreground transition-colors hover:bg-primary/85">
-              Back to sign up
-            </Link>
-          </nav>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-4xl px-5 py-10 lg:py-14">
-        <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Last updated {LEGAL.updated}</p>
-        <p className="mt-6 text-[15px] leading-relaxed text-muted-foreground">{intro}</p>
-
-        <div className="mt-8 grid gap-8 lg:grid-cols-[220px_1fr]">
-          <aside className="hidden lg:block">
-            <nav aria-label="On this page" className="sticky top-6 flex flex-col gap-0.5 rounded-xl border border-border bg-card p-2 text-sm">
-              {sections.map((s, i) => (
-                <a key={s.id} href={`#${s.id}`} className="rounded-lg px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary">
-                  {i + 1}. {s.title}
-                </a>
-              ))}
-            </nav>
-          </aside>
-          <div className="flex flex-col gap-8">
-            {sections.map((s, i) => (
-              <section key={s.id} id={s.id} className="scroll-mt-6">
-                <h2 className="text-lg font-semibold">
-                  {i + 1}. {s.title}
-                </h2>
-                <div className="mt-2 space-y-3 text-[15px] leading-relaxed text-muted-foreground [&_a]:font-medium [&_a]:text-primary [&_a:hover]:underline [&_li]:ml-5 [&_li]:list-disc [&_strong]:text-foreground">
-                  {s.body}
-                </div>
-              </section>
-            ))}
+    <main className="relative isolate flex min-h-screen flex-col items-center justify-center p-4">
+      <style>{css}</style>
+      <Backdrop />
+      <Brand />
+      <div className="legal-card relative overflow-hidden rounded-xl border border-[#232A3B] bg-[#111623] p-6 shadow-2xl">
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-[#818CF8] to-[#C084FC]" />
+        <div className="flex items-start justify-between gap-4 border-b border-[#232A3B] pb-4">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight text-[#E5E7EB]">{title}</h1>
+            <p className="mt-0.5 text-[11px] text-[#94A3B8]">Last updated {LEGAL.updated}</p>
           </div>
+          <BackButton />
         </div>
-      </main>
-
-      <footer className="border-t border-border bg-card">
-        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-2 px-5 py-5 text-xs text-muted-foreground">
-          <span>&copy; {new Date().getFullYear()} {LEGAL.company}</span>
-          <span className="flex gap-4">
-            <Link href="/terms" className="transition-colors hover:text-foreground">Terms of Service</Link>
-            <Link href="/privacy" className="transition-colors hover:text-foreground">Privacy Policy</Link>
-          </span>
+        <div className="legal-cols mt-5">
+          {sections.map((s, i) => (
+            <section key={s.title}>
+              <h2 className="text-[13px] font-semibold text-[#E5E7EB]">{i + 1}. {s.title}</h2>
+              <div className="mt-1 space-y-1.5 text-xs leading-relaxed text-[#94A3B8] [&_strong]:text-[#E5E7EB]">
+                {s.body}
+              </div>
+            </section>
+          ))}
         </div>
-      </footer>
-    </div>
+      </div>
+    </main>
   );
 }

@@ -1,4 +1,4 @@
-import { createAvatarTalk, getAvatarTalk, pollAvatarTalkUntilDone, isDIdConfigured } from "../../integrations/did";
+import { createAvatarTalk, getAvatarTalk, pollAvatarTalkUntilDone, isDIdConfigured, DIdCreditsError } from "../../integrations/did";
 import { Prisma, Role, prisma } from "@ai-sales-agent/database";
 import { AppError } from "../../utils/app-error";
 import {
@@ -846,7 +846,7 @@ export class LinkedinService {
         videoStatus: "failed",
         status: script.status === "creating_video" ? "needs_approval" : script.status,
       });
-      throw new AppError(msg, 502);
+      throw new AppError(msg, err instanceof DIdCreditsError ? 402 : 502);
     }
   }
 
