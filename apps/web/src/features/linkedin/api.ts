@@ -130,8 +130,16 @@ export const updateScript = (id: string, patch: Partial<Pick<ContentScript, "hoo
   unwrap(api<Res<ContentScript>>(`/api/linkedin/content/scripts/${id}`, { method: "PATCH", body: json(patch) }));
 
 /** POST /api/linkedin/content/scripts/:id/approve  (the backend schedules the reminder at your saved time) */
-export const approveScript = (id: string) =>
-  unwrap(api<Res<ContentScript>>(`/api/linkedin/content/scripts/${id}/approve`, { method: "POST", body: json({}) }));
+export const approveScript = (id: string, generateVideo?: boolean) =>
+  unwrap(api<Res<ContentScript>>(`/api/linkedin/content/scripts/${id}/approve`, { method: "POST", body: json({ generateVideo }) }));
+
+/** POST /api/linkedin/content/scripts/:id/generate-video (creates AI avatar video via D-ID) */
+export const generateScriptVideo = (id: string, options?: { voiceId?: string; sourceUrl?: string }) =>
+  unwrap(api<Res<ContentScript>>(`/api/linkedin/content/scripts/${id}/generate-video`, { method: "POST", body: json(options ?? {}) }));
+
+/** GET /api/linkedin/content/scripts/:id/video-status */
+export const fetchScriptVideoStatus = (id: string) =>
+  unwrap(api<Res<ContentScript>>(`/api/linkedin/content/scripts/${id}/video-status`));
 
 /** POST /api/linkedin/content/scripts/:id/regenerate  ->  next draft */
 export const regenerateScript = (id: string) =>

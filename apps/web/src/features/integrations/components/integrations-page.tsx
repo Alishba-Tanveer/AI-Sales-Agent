@@ -223,9 +223,19 @@ export function IntegrationsPage() {
           </Reveal>
 
           <Reveal delay={300} className="grid">
-            <IntegrationCard icon={Video} tone="success" title="Video generation" subtitle="Turns an approved script into a video." status="planned">
-              <Row label="Status">Planned for later</Row>
-              <Row label="Today">Approved scripts are posted as text</Row>
+            <IntegrationCard icon={Video} tone="success" title="D-ID Video Generation"
+              subtitle="Turns an approved script into a photorealistic AI avatar video."
+              status="builtin"
+              actions={
+                <Link href="/linkedin?tab=content" className={linkBtn(true)}>
+                  Content Engine
+                </Link>
+              }
+            >
+              <Row label="Provider">D-ID Avatar API</Row>
+              <Row label="Status"><Pill tone="success">Active</Pill></Row>
+              <Row label="Does">Creates talking head avatar videos from LinkedIn scripts</Row>
+              <Row label="Credentials">Configured with D_DI_KEY_AVATAR</Row>
             </IntegrationCard>
           </Reveal>
         </div>

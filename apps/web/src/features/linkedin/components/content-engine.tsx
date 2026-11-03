@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CARD_HOVER, CARD_INNER, CARD_LIFT, HOVER_BUTTONS, Field, Pill, TONES, inputCls } from "@/features/settings/components/settings-ui";
-import { approveScript, checkPostStatus, createScript, fetchContent, markScriptPosted, regenerateScript, removeScript, saveContentSettings, updateScript, refreshNicheNews } from "../api";
+import { approveScript, checkPostStatus, createScript, fetchContent, generateScriptVideo, fetchScriptVideoStatus, markScriptPosted, regenerateScript, removeScript, saveContentSettings, updateScript, refreshNicheNews } from "../api";
 import { ACTIVITY_URL, composeUrl, copyText, normalizeWebUrl, scriptCaption } from "../links";
 import { downloadCaption, downloadPostImage, downloadScript } from "../post-assets";
 import type { ContentScript, ContentSettings } from "../types";
@@ -75,6 +75,42 @@ export function ContentEngine() {
   const replace = (next: ContentScript) => setScripts((cur) => (cur ?? []).map((s) => (s.id === next.id ? next : s)));
   const remove = (id: string) => setScripts((cur) => (cur ?? []).filter((s) => s.id !== id));
   const nextPending = (excludeId: string) => pending.find((s) => s.id !== excludeId)?.id ?? null;
+
+
+  const createVideo = async (s: ContentScript) => {
+    try {
+      const generating = await generateScriptVideo(s.id);
+      replace(generating);
+      setSelectedId(nextPending(s.id));
+      setTab("scheduled");
+      toast.success("AI avatar video generation started. Rendering via D-ID…");
+    } catch (e) {
+      toast.error(errMsg(e, "Could not start AI video generation."));
+    }
+  };
+
+  useEffect(() => {
+    const creating = (scripts ?? []).filter((s) => s.status === "creating_video" || s.videoStatus === "creating");
+    if (creating.length === 0) return;
+
+    const timer = setInterval(async () => {
+      for (const s of creating) {
+        try {
+          const latest = await fetchScriptVideoStatus(s.id);
+          if (latest.videoStatus === "ready" || latest.status === "ready" || latest.videoStatus === "failed") {
+            replace(latest);
+            if (latest.videoUrl) {
+              toast.success(`AI Avatar video ready for "${latest.title}"!`);
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }, 3500);
+
+    return () => clearInterval(timer);
+  }, [scripts]);
 
   const approve = async (s: ContentScript) => {
     try {
@@ -161,7 +197,7 @@ export function ContentEngine() {
       <div className={cn("flex flex-col gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between", CARD_HOVER)}>
         <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
           <span className="flex items-center gap-1.5"><Clock className="size-4 text-sky-700 dark:text-sky-400" /> Post reminder daily at <b className="font-semibold text-foreground">{fmtTime(remindAt)}</b></span>
-          <span className="flex items-center gap-1.5"><Video className="size-4 text-muted-foreground" /> Free-stack workflow: approve the script, then record your own video.</span>
+          <span className="flex items-center gap-1.5"><Video className="size-4 text-muted-foreground" /> D-ID Video AI: Create talking avatar videos from your scripts, or record yourself.</span>
         </p>
         {canEditWorkspace && <Button variant="ghost" size="sm" onClick={() => setAvatarOpen(true)}><Settings2 /> Reminder</Button>}
       </div>
@@ -251,7 +287,7 @@ export function ContentEngine() {
             </section>
 
             {selected ? (
-              <ReviewPanel key={selected.id} s={selected} onApprove={approve} onDismiss={(s) => setConfirm({ kind: "dismiss", s })} onRegenerate={regenerate} onSave={(patch) => saveEdits(selected.id, patch)} />
+              <ReviewPanel key={selected.id} s={selected} onApprove={approve} onCreateVideo={createVideo} onDismiss={(s) => setConfirm({ kind: "dismiss", s })} onRegenerate={regenerate} onSave={(patch) => saveEdits(selected.id, patch)} />
             ) : (
               <Empty title="Select a script" text="Pick a script on the left to review it." className="flex flex-col justify-center" />
             )}
@@ -263,20 +299,52 @@ export function ContentEngine() {
         ) : (
           <ul className="grid gap-4 md:grid-cols-2">
             {scheduled.map((s) => {
-              const ready = s.status === "ready";
+              const isCreating = s.status === "creating_video" || s.videoStatus === "creating";
+              const hasVideo = Boolean(s.videoUrl);
+              const ready = s.status === "ready" && !isCreating;
               return (
                 <li key={s.id} className={cn("flex flex-col gap-3 rounded-xl border border-border bg-card p-5", CARD_LIFT)}>
                   <div className="flex items-center justify-between gap-2">
-                    {ready ? <Pill tone="success"><CheckCircle2 className="size-3" /> Ready to post</Pill> : <Pill tone="primary"><Loader2 className="size-3 animate-spin" /> Waiting for your recording</Pill>}
+                    {isCreating ? (
+                      <Pill tone="primary"><Loader2 className="size-3 animate-spin" /> Generating AI Video (D-ID)…</Pill>
+                    ) : hasVideo ? (
+                      <Pill tone="success"><CheckCircle2 className="size-3" /> AI Video Ready</Pill>
+                    ) : ready ? (
+                      <Pill tone="success"><CheckCircle2 className="size-3" /> Ready to post</Pill>
+                    ) : (
+                      <Pill tone="primary"><Loader2 className="size-3 animate-spin" /> Waiting for recording</Pill>
+                    )}
                     <span className="flex items-center gap-1 text-xs text-muted-foreground"><CalendarClock className="size-3.5" /> Remind me {fmtDate(s.scheduledFor, true)}</span>
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-foreground">{s.title}</p>
                     <p className="mt-1 [overflow-wrap:anywhere] text-xs text-muted-foreground">{s.hook}</p>
                   </div>
+                  {hasVideo && (
+                    <div className="relative overflow-hidden rounded-lg border border-border bg-black aspect-video max-h-52 flex items-center justify-center">
+                      <video src={s.videoUrl} preload="metadata" className="size-full object-contain" />
+                      <button
+                        type="button"
+                        onClick={() => setPreviewing(s)}
+                        className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/20 transition-colors text-white"
+                        aria-label="Play video"
+                      >
+                        <span className="flex size-11 items-center justify-center rounded-full bg-white/90 text-black shadow-lg">
+                          <Play className="size-5 fill-black ml-0.5" />
+                        </span>
+                      </button>
+                    </div>
+                  )}
                   <div className="mt-auto flex flex-wrap gap-2 border-t border-border pt-4">
-                    <Button size="lg" disabled={!ready} onClick={() => setPosting(s)}><Send /> {ready ? "Post on LinkedIn" : "Record video"}</Button>
-                    <Button variant="outline" size="lg" disabled={!ready} onClick={() => setPreviewing(s)}><Play /> Preview</Button>
+                    <Button size="lg" disabled={isCreating} onClick={() => setPosting(s)}><Send /> Post on LinkedIn</Button>
+                    <Button variant="outline" size="lg" disabled={isCreating} onClick={() => setPreviewing(s)}>
+                      <Play /> {hasVideo ? "Watch Video" : "Preview"}
+                    </Button>
+                    {!hasVideo && !isCreating && (
+                      <Button variant="outline" size="lg" onClick={() => createVideo(s)}>
+                        <Sparkles className="size-3.5" /> Generate AI Video
+                      </Button>
+                    )}
                     <Button variant="ghost" size="lg" className="ml-auto text-destructive hover:text-destructive" aria-label={`Delete ${s.title}`} title="Delete this content" onClick={() => setConfirm({ kind: "cancel", s })}><Trash2 className="size-4"/>Delete</Button>
                   </div>
                 </li>
@@ -361,21 +429,22 @@ function Empty({ title, text, className }: { title: string; text: string; classN
 }
 
 function ReviewPanel({
-  s, onApprove, onDismiss, onRegenerate, onSave,
+  s, onApprove, onCreateVideo, onDismiss, onRegenerate, onSave,
 }: {
   s: ContentScript;
   onApprove: (s: ContentScript) => Promise<void>;
+  onCreateVideo: (s: ContentScript) => Promise<void>;
   onDismiss: (s: ContentScript) => void;
   onRegenerate: (s: ContentScript) => Promise<void>;
   onSave: (patch: Pick<ContentScript, "hook" | "points" | "cta">) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
-  const [busy, setBusy] = useState<"approve" | "redo" | "save" | null>(null);
+  const [busy, setBusy] = useState<"approve" | "video" | "redo" | "save" | null>(null);
   const [hook, setHook] = useState(s.hook);
   const [points, setPoints] = useState(s.points.join("\n"));
   const [cta, setCta] = useState(s.cta);
 
-  const run = async (kind: "approve" | "redo", fn: () => Promise<void>) => {
+  const run = async (kind: "approve" | "video" | "redo", fn: () => Promise<void>) => {
     setBusy(kind);
     try {
       await fn();
@@ -442,9 +511,14 @@ function ReviewPanel({
       <p className="text-xs text-muted-foreground">About {s.seconds} seconds · {s.words} words</p>
 
       <div className="mt-auto flex flex-col gap-2 border-t border-border pt-4">
-        <Button size="lg" className="h-10 bg-success text-background hover:bg-success/85" onClick={() => run("approve", () => onApprove(s))} disabled={editing || busy !== null}>
-          {busy === "approve" ? <Loader2 className="animate-spin" /> : <Video />} Approve script &amp; record video
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Button size="lg" className="h-10 bg-primary text-primary-foreground hover:bg-primary/90 font-medium" onClick={() => run("video", () => onCreateVideo(s))} disabled={editing || busy !== null}>
+            {busy === "video" ? <Loader2 className="animate-spin" /> : <Sparkles />} Create AI Avatar Video (D-ID)
+          </Button>
+          <Button size="lg" variant="outline" className="h-10 text-muted-foreground hover:text-foreground" onClick={() => run("approve", () => onApprove(s))} disabled={editing || busy !== null}>
+            {busy === "approve" ? <Loader2 className="animate-spin" /> : <Video />} Approve script &amp; record yourself
+          </Button>
+        </div>
         <div className="grid grid-cols-3 gap-2">
           <Button variant="outline" size="lg" onClick={() => (editing ? setEditing(false) : startEdit())} disabled={busy !== null}><Pencil /> Edit</Button>
           <Button variant="outline" size="lg" onClick={() => run("redo", () => onRegenerate(s))} disabled={editing || busy !== null}>{busy === "redo" ? <Loader2 className="animate-spin" /> : <RefreshCw />} Redo</Button>
@@ -511,17 +585,27 @@ function ReminderDialog({ open, onOpenChange, time, onSave }: { open:boolean; on
 function PreviewDialog({ s, onClose, onPost }: { s: ContentScript | null; onClose: () => void; onPost: (s: ContentScript) => void }) {
   return (
     <Dialog open={!!s} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         {s && (
           <>
             <DialogHeader>
               <DialogTitle className="pr-6 text-base">{s.title}</DialogTitle>
-              <DialogDescription>About {s.seconds} seconds · ready for you to record</DialogDescription>
+              <DialogDescription>
+                {s.videoUrl ? "AI Avatar video generated with D-ID" : `About ${s.seconds} seconds · ready for you to record`}
+              </DialogDescription>
             </DialogHeader>
-            <div className="mx-auto flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-xl border border-border bg-background text-center">
-              <span className="flex size-12 items-center justify-center rounded-full border border-primary/30 bg-primary-soft text-primary"><Play className="size-5" /></span>
-              <p className="px-6 text-xs text-muted-foreground">Record this script yourself using your camera or phone, then upload it in LinkedIn.</p>
-            </div>
+
+            {s.videoUrl ? (
+              <div className="mx-auto flex aspect-video w-full overflow-hidden rounded-xl border border-border bg-black">
+                <video src={s.videoUrl} controls autoPlay className="size-full rounded-xl object-contain" />
+              </div>
+            ) : (
+              <div className="mx-auto flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-xl border border-border bg-background text-center">
+                <span className="flex size-12 items-center justify-center rounded-full border border-primary/30 bg-primary-soft text-primary"><Play className="size-5" /></span>
+                <p className="px-6 text-xs text-muted-foreground">Record this script yourself using your camera or phone, or generate a photorealistic talking video avatar with D-ID.</p>
+              </div>
+            )}
+
             <div className={cn("rounded-lg border border-border bg-background p-3", CARD_INNER)}>
               <p className="mb-1.5 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Caption</p>
               <p className="text-sm whitespace-pre-line text-foreground">{scriptCaption(s)}</p>
@@ -544,17 +628,35 @@ function DownloadRow({ s }: { s: ContentScript }) {
   return (
     <div className="grid gap-2">
       <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Download to post yourself</p>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="flex flex-wrap gap-2">
+        {s.videoUrl && (
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            onClick={() => {
+              const a = document.createElement("a");
+              a.href = s.videoUrl!;
+              a.download = "linkedin-avatar-video.mp4";
+              a.target = "_blank";
+              a.rel = "noopener noreferrer";
+              a.click();
+            }}
+          >
+            <Download className="size-3.5" /> Video MP4
+          </Button>
+        )}
         <Button type="button" variant="outline" size="sm" onClick={run("Caption", () => downloadCaption(s))}><Download /> Caption</Button>
         <Button type="button" variant="outline" size="sm" onClick={run("Script", () => downloadScript(s))}><FileText /> Script</Button>
         <Button type="button" variant="outline" size="sm" onClick={run("Image", () => downloadPostImage(s))}><ImageIcon /> Image</Button>
       </div>
-      <p className="text-xs text-muted-foreground">Caption and image make a text or photo post. Read the script on camera for a video post.</p>
+      <p className="text-xs text-muted-foreground">
+        {s.videoUrl ? "Download your AI avatar video and caption to upload directly to LinkedIn." : "Caption and image make a text or photo post. Read the script on camera for a video post."}
+      </p>
     </div>
   );
 }
 
-/** LinkedIn can't be posted to by apps. This popup copies the caption and opens LinkedIn's own "Start a post" box. */
 function PostGuideDialog({ s, onClose, onPosted }: { s: ContentScript | null; onClose: () => void; onPosted: (s: ContentScript, url?: string) => Promise<void> }) {
   return (
     <Dialog open={!!s} onOpenChange={(o) => !o && onClose()}>

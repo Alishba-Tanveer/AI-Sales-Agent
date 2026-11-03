@@ -201,6 +201,9 @@ model LinkedinScript {
   postedAt       String?
   postUrl        String?
   postDeleted    Boolean      @default(false)
+  videoUrl       String?
+  videoId        String?
+  videoStatus    String?      @default("idle")
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 

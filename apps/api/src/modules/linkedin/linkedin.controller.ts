@@ -739,6 +739,41 @@ export class LinkedinController {
     }
   }
 
+
+  async generateVideo(req: Request, res: Response, next: NextFunction) {
+    try {
+      const script = await linkedinService.generateVideoForScript(
+        req.user!.organizationId,
+        String(req.params.id),
+        req.body,
+      );
+      res.status(200).json({
+        success: true,
+        message: "AI video generation started with D-ID avatar.",
+        data: script,
+        ...script,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getVideoStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const script = await linkedinService.getVideoStatus(
+        req.user!.organizationId,
+        String(req.params.id),
+      );
+      res.status(200).json({
+        success: true,
+        data: script,
+        ...script,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
 }
 
 export const linkedinController = new LinkedinController();
