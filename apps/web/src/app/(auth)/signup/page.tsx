@@ -66,7 +66,7 @@ export default function SignupPage() {
         <div>
           <label className="flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-[#94A3B8]">
             <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#818CF8]" {...register("terms")} />
-            <span>I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#818CF8] hover:underline">Terms of Service</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#818CF8] hover:underline">Privacy Policy</a>, and acknowledge human approval requirements.</span>
+            <span>I agree to the <a href="/terms" className="text-[#818CF8] hover:underline">Terms of Service</a> and <a href="/privacy" className="text-[#818CF8] hover:underline">Privacy Policy</a>, and acknowledge human approval requirements.</span>
           </label>
           <FieldError message={errors.terms?.message} />
         </div>
