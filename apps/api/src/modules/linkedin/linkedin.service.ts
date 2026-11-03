@@ -1,3 +1,4 @@
+import { createAvatarTalk, getAvatarTalk, pollAvatarTalkUntilDone, isDIdConfigured } from "../../integrations/did";
 import { Prisma, Role, prisma } from "@ai-sales-agent/database";
 import { AppError } from "../../utils/app-error";
 import {
@@ -466,6 +467,9 @@ export class LinkedinService {
     postedAt: string | null;
     postUrl: string | null;
     postDeleted: boolean;
+    videoUrl?: string | null;
+    videoId?: string | null;
+    videoStatus?: string | null;
   }) {
     return {
       id: row.id,
@@ -484,6 +488,9 @@ export class LinkedinService {
       ...(row.postedAt ? { postedAt: row.postedAt } : {}),
       ...(row.postUrl ? { postUrl: row.postUrl } : {}),
       ...(row.postDeleted ? { postDeleted: row.postDeleted } : {}),
+      ...(row.videoUrl ? { videoUrl: row.videoUrl } : {}),
+      ...(row.videoId ? { videoId: row.videoId } : {}),
+      ...(row.videoStatus ? { videoStatus: row.videoStatus as "idle" | "creating" | "ready" | "failed" } : {}),
     };
   }
 
@@ -765,6 +772,7 @@ export class LinkedinService {
       scheduledAt?: string;
       remindAt?: string;
       readyImmediately?: boolean;
+      generateVideo?: boolean;
     },
   ) {
     const [existing, config] = await Promise.all([
@@ -781,11 +789,125 @@ export class LinkedinService {
       input?.scheduledFor || input?.scheduledAt || `${tomorrow}T${remindAt}:00`;
 
     const updated = await linkedinRepository.updateScript(organizationId, id, {
-      status: "ready",
+      status: input?.generateVideo ? "creating_video" : "ready",
       scheduledFor,
     });
 
+    if (input?.generateVideo) {
+      return this.generateVideoForScript(organizationId, id);
+    }
+
     return this.formatScript(updated);
+  }
+
+
+  async generateVideoForScript(
+    organizationId: string,
+    id: string,
+    options?: { voiceId?: string; sourceUrl?: string }
+  ) {
+    const script = await linkedinRepository.findScriptById(organizationId, id);
+    if (!script) {
+      throw new AppError("Content script not found", 404);
+    }
+
+    if (!isDIdConfigured()) {
+      throw new AppError("D-ID avatar video generation is not configured. Please check D_DI_KEY_AVATAR in .env.", 400);
+    }
+
+    const spokenText = `${script.hook}. ${script.points.join(". ")}. ${script.cta}`;
+
+    await linkedinRepository.updateScript(organizationId, id, {
+      status: "creating_video",
+      videoStatus: "creating",
+    });
+
+    try {
+      const talk = await createAvatarTalk({
+        text: spokenText,
+        sourceUrl: options?.sourceUrl,
+        voiceId: options?.voiceId,
+      });
+
+      const updated = await linkedinRepository.updateScript(organizationId, id, {
+        videoId: talk.id,
+        videoStatus: "creating",
+        status: "creating_video",
+      });
+
+      this.pollAndFinalizeVideo(organizationId, id, talk.id).catch((err) => {
+        console.error("Error finalizing D-ID video in background", { scriptId: id, talkId: talk.id, err });
+      });
+
+      return this.formatScript(updated);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Video generation failed";
+      await linkedinRepository.updateScript(organizationId, id, {
+        videoStatus: "failed",
+        status: script.status === "creating_video" ? "needs_approval" : script.status,
+      });
+      throw new AppError(msg, 502);
+    }
+  }
+
+  async pollAndFinalizeVideo(organizationId: string, scriptId: string, talkId: string) {
+    try {
+      const result = await pollAvatarTalkUntilDone(talkId, 60000);
+      if (result.status === "done" && result.resultUrl) {
+        await linkedinRepository.updateScript(organizationId, scriptId, {
+          videoUrl: result.resultUrl,
+          videoStatus: "ready",
+          status: "ready",
+        });
+
+        const script = await linkedinRepository.findScriptById(organizationId, scriptId);
+
+        await notify({
+          organizationId,
+          type: "system",
+          title: "AI Avatar Video Ready",
+          audience: "ALL",
+          body: `Your video for "${script?.title || "your script"}" is rendered and ready to watch or post.`,
+          href: "/linkedin?tab=content",
+        });
+      } else if (result.status === "error") {
+        await linkedinRepository.updateScript(organizationId, scriptId, {
+          videoStatus: "failed",
+        });
+      }
+    } catch (err) {
+      console.error("Failed while finalizing D-ID video in background", { scriptId, talkId, err });
+    }
+  }
+
+  async getVideoStatus(organizationId: string, id: string) {
+    const script = await linkedinRepository.findScriptById(organizationId, id);
+    if (!script) {
+      throw new AppError("Content script not found", 404);
+    }
+
+    if (script.videoId && (script.videoStatus === "creating" || !script.videoUrl)) {
+      try {
+        const talk = await getAvatarTalk(script.videoId);
+        if (talk.status === "done" && talk.resultUrl) {
+          const updated = await linkedinRepository.updateScript(organizationId, id, {
+            videoUrl: talk.resultUrl,
+            videoStatus: "ready",
+            status: "ready",
+          });
+          return this.formatScript(updated);
+        } else if (talk.status === "error") {
+          const updated = await linkedinRepository.updateScript(organizationId, id, {
+            videoStatus: "failed",
+          });
+          return this.formatScript(updated);
+        }
+      } catch (e) {
+        console.warn("Could not check D-ID video status", e);
+      }
+    }
+
+    return this.formatScript(script);
   }
 
   async bulkApproveScripts(

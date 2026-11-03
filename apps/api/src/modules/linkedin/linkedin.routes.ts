@@ -103,6 +103,20 @@ router.post("/content/scripts/:id/dismiss", (req, res, next) =>
 router.post("/content/scripts/:id/cancel", (req, res, next) =>
   linkedinController.deleteScript(req, res, next),
 );
+
+router.post("/content/scripts/:id/generate-video", (req, res, next) =>
+  linkedinController.generateVideo(req, res, next),
+);
+router.get("/content/scripts/:id/video-status", (req, res, next) =>
+  linkedinController.getVideoStatus(req, res, next),
+);
+router.post("/content/:id/generate-video", (req, res, next) =>
+  linkedinController.generateVideo(req, res, next),
+);
+router.get("/content/:id/video-status", (req, res, next) =>
+  linkedinController.getVideoStatus(req, res, next),
+);
+
 router.post("/content/scripts/:id/mark-posted", (req, res, next) =>
   linkedinController.markScriptPosted(req, res, next),
 );

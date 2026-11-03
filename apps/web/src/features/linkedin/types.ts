@@ -65,6 +65,9 @@ export type ContentScript = {
   postUrl?: string;
   /** set when we find the post was removed from LinkedIn */
   postDeleted?: boolean;
+  videoUrl?: string;
+  videoId?: string;
+  videoStatus?: "idle" | "creating" | "ready" | "failed";
 };
 
 export type NewTopic = { topic: string };
