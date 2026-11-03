@@ -183,7 +183,7 @@ export function Switch({
       onClick={() => onChange?.(!checked)}
       className={cn(
         "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
-        checked ? "bg-primary" : "bg-border",
+        checked ? "bg-primary hover:bg-primary/85" : "bg-border hover:bg-input",
         disabled ? "cursor-not-allowed opacity-75" : "cursor-pointer",
       )}
     >

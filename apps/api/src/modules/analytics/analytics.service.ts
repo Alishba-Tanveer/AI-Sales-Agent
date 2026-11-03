@@ -1,27 +1,45 @@
 import { prisma, LeadStage, type ActivityLog } from "@ai-sales-agent/database";
 
 export class AnalyticsService {
+  /**
+   * Numbers for the sidebar pills. Every number means "needs you or is running right now", never a total:
+   * activity / opportunities = tasks running, leads = new leads nobody has contacted, inbox = people whose last message
+   * is a reply you have not answered, content = posts waiting for approval, connections = suggested LinkedIn contacts to review.
+   */
   async getNavCounts(organizationId: string) {
-    const [runningActivity, runningDiscover] = await Promise.all([
-      prisma.activityLog.count({
-        where: {
-          organizationId,
-          status: "running",
-        },
+    const [runningActivity, runningDiscover, newLeads, inbound, outbound, contentToApprove, connectionsToReview] = await Promise.all([
+      prisma.activityLog.count({ where: { organizationId, status: "running" } }),
+      prisma.activityLog.count({ where: { organizationId, status: "running", kind: "discover" } }),
+      prisma.lead.count({ where: { organizationId, stage: LeadStage.NEW, archivedAt: null } }),
+      prisma.leadCommunication.groupBy({
+        by: ["leadId"],
+        where: { organizationId, direction: "INBOUND", status: "RECEIVED", lead: { is: { archivedAt: null } } },
+        _max: { occurredAt: true },
       }),
-      prisma.activityLog.count({
-        where: {
-          organizationId,
-          status: "running",
-          kind: "discover",
-        },
+      prisma.leadCommunication.groupBy({
+        by: ["leadId"],
+        where: { organizationId, direction: "OUTBOUND", status: "SENT" },
+        _max: { occurredAt: true },
       }),
+      prisma.linkedinScript.count({ where: { organizationId, status: "needs_approval" } }),
+      prisma.linkedinLead.count({ where: { organizationId, status: "suggested" } }),
     ]);
+
+    const lastSent = new Map<string, number>();
+    for (const row of outbound) if (row._max.occurredAt) lastSent.set(row.leadId, row._max.occurredAt.getTime());
+    const awaitingReply = inbound.filter((row) => {
+      const received = row._max.occurredAt?.getTime() ?? 0;
+      return received > (lastSent.get(row.leadId) ?? 0);
+    }).length;
 
     return {
       data: {
         activity: runningActivity,
         opportunities: runningDiscover,
+        leads: newLeads,
+        inbox: awaitingReply,
+        content: contentToApprove,
+        connections: connectionsToReview,
       },
     };
   }

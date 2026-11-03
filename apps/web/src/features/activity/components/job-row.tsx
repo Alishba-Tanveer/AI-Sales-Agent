@@ -1,17 +1,15 @@
 "use client";
 
 import { Ban, ExternalLink, FileText, MoreHorizontal, RotateCw } from "lucide-react";
-import { cn } from "cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { formatDuration, retriesLabel, startedLabel } from "../format";
 import type { ActivityJob } from "../types";
 import { JobIcon, StatusPill } from "./job-ui";
 
 type Props = {
   job: ActivityJob;
   /** ms, from the shared clock (0 until it has started) */
-  now: number;
+  now?: number;
   busy: boolean;
   onRetry: (job: ActivityJob) => void;
   onCancel: (job: ActivityJob) => void;
@@ -19,27 +17,22 @@ type Props = {
   onOpenLead: (job: ActivityJob) => void;
 };
 
-export function JobRow({ job, now, busy, onRetry, onCancel, onView, onOpenLead }: Props) {
+export function JobRow({ job, busy, onRetry, onCancel, onView, onOpenLead }: Props) {
   const canRetry = job.status === "failed" || job.status === "cancelled";
   const canCancel = job.status === "running" || job.status === "queued";
   const hasLead = !!job.lead.name;
-  const startMs = job.startedAt ? new Date(job.startedAt).getTime() : null;
-
-  // finished jobs show their fixed duration; running ones count up from the start time
-  const duration = job.durationSec !== null ? formatDuration(job.durationSec) : startMs !== null && now > 0 ? formatDuration((now - startMs) / 1000) : "-";
-  const started = now > 0 ? startedLabel(job, now) : "—";
 
   return (
     <TableRow className="h-14 border-border">
       <TableCell className="overflow-hidden px-4 py-2 font-medium text-foreground" title={job.title}>
-        <div className="flex items-center gap-2 overflow-hidden">
+        <div className="flex min-w-0 items-center gap-2 overflow-hidden">
           <JobIcon job={job} />
-          <span className="[overflow-wrap:anywhere]">{job.title}</span>
+          <span className="min-w-0 whitespace-normal break-words">{job.title}</span>
         </div>
       </TableCell>
 
       <TableCell className="overflow-hidden px-4 py-2 text-foreground" title={hasLead ? `${job.lead.name} · ${job.lead.context}` : job.lead.context}>
-        <span className="block [overflow-wrap:anywhere]">
+        <span className="block whitespace-normal [overflow-wrap:anywhere]">
           {hasLead ? (
             <>
               <span>{job.lead.name}</span>
@@ -52,26 +45,14 @@ export function JobRow({ job, now, busy, onRetry, onCancel, onView, onOpenLead }
       </TableCell>
 
       <TableCell className="overflow-hidden px-4 py-2 text-muted-foreground" title={job.agent}>
-        <span className="block [overflow-wrap:anywhere]">{job.agent}</span>
+        <span className="block whitespace-normal [overflow-wrap:anywhere]">{job.agent}</span>
       </TableCell>
 
       <TableCell className="px-4 py-2">
         <StatusPill status={job.status} />
       </TableCell>
 
-      <TableCell className="overflow-hidden px-4 py-2 text-muted-foreground" title={job.startedAt ? new Date(job.startedAt).toLocaleString() : undefined}>
-        <span className="block [overflow-wrap:anywhere]">{started}</span>
-      </TableCell>
-
-      <TableCell className={cn("px-4 py-2 text-center font-mono text-xs tabular-nums", job.status === "running" ? "text-primary" : "text-muted-foreground")}>
-        {duration}
-      </TableCell>
-
-      <TableCell className={cn("px-4 py-2 text-center font-mono text-xs tabular-nums", job.retries > 0 ? "text-warning" : "text-muted-foreground")}>
-        {retriesLabel(job)}
-      </TableCell>
-
-      <TableCell className="px-4 py-2 text-right">
+      <TableCell className="px-2 py-2 text-right">
         <DropdownMenu>
           <DropdownMenuTrigger
             disabled={busy}

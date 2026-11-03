@@ -15,8 +15,40 @@
     @apply bg-background text-foreground;
   }
 
+  /* One hover feel everywhere: anything clickable shows a hand and eases between states */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"],
+  [role="menuitem"],
+  a[href],
+  summary,
+  label[for],
+  select {
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+  button,
+  a[href],
+  [role="tab"],
+  [role="menuitem"] {
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
   select option {
     background-color: var(--background);
     color: var(--foreground);
+  }
+}
+
+/* Light mode only: cards get a soft shadow so they lift off the tinted page (flat colour, no gradients) */
+@layer components {
+  :root:not(.dark) .bg-card,
+  :root:not(.dark) [data-slot="card"] {
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.07), 0 2px 6px rgb(15 23 42 / 0.04);
   }
 }

@@ -1,17 +1,13 @@
 import { userStore } from "@/features/auth/user-store";
-import type { Opportunity, SearchFilters, SourceFailure } from "./types";
+import type { SearchFilters } from "./types";
 
 /**
- * The last finished search is kept in this browser, so reloading the page (or coming back later) shows the same results
- * until the person runs a new search. One entry per signed-in user.
+ * Only the filters the person last used are remembered in this browser (so the panel is how they left it).
+ * The RESULTS are not kept here: they live on the server and are shared by the whole workspace.
  */
-const PREFIX = "opportunities:last-search:";
-
-export type SavedSearch = {
-  filters: SearchFilters;
-  items: Opportunity[];
-  failures: SourceFailure[];
-};
+const PREFIX = "opportunities:last-filters:";
+/** older versions kept the whole result list here, which only the person who searched could see; it is removed */
+const LEGACY_PREFIX = "opportunities:last-search:";
 
 const currentKey = () => {
   const id = userStore.get()?.id;
@@ -20,37 +16,38 @@ const currentKey = () => {
 
 export const currentSearchOwner = () => userStore.get()?.id ?? null;
 
-export function loadSavedSearch(): SavedSearch | null {
+export function loadSavedFilters(): SearchFilters | null {
   if (typeof window === "undefined") return null;
   const key = currentKey();
   if (!key) return null;
   try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith(LEGACY_PREFIX)) localStorage.removeItem(k);
     const raw = localStorage.getItem(key);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<SavedSearch>;
-    if (!parsed || !parsed.filters || !Array.isArray(parsed.items)) return null;
-    return { filters: parsed.filters, items: parsed.items, failures: Array.isArray(parsed.failures) ? parsed.failures : [] };
+    const parsed = JSON.parse(raw) as Partial<SearchFilters>;
+    if (!parsed || !Array.isArray(parsed.keywords) || !Array.isArray(parsed.sourceIds) || !Array.isArray(parsed.types)) return null;
+    return parsed as SearchFilters;
   } catch {
     return null;
   }
 }
 
-export function saveSearch(search: SavedSearch) {
+export function saveFilters(filters: SearchFilters) {
   if (typeof window === "undefined") return;
   const key = currentKey();
   if (!key) return;
   try {
-    localStorage.setItem(key, JSON.stringify(search));
+    localStorage.setItem(key, JSON.stringify(filters));
   } catch {
-    // storage full or blocked: the results still show for this visit, they just won't survive a reload
+    // storage full or blocked: the filters just won't be remembered
   }
 }
 
-/** Called on sign-out so the next person on this browser does not see someone else's results. */
+/** Called on sign-out so the next person on this browser does not inherit someone else's filters. */
 export function clearSavedSearches() {
   if (typeof window === "undefined") return;
   try {
-    for (const key of Object.keys(localStorage)) if (key.startsWith(PREFIX)) localStorage.removeItem(key);
+    for (const key of Object.keys(localStorage)) if (key.startsWith(PREFIX) || key.startsWith(LEGACY_PREFIX)) localStorage.removeItem(key);
   } catch {
     /* ignore */
   }

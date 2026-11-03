@@ -139,7 +139,7 @@ function AcceptInvite() {
         <div>
           <label className="flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-[#94A3B8]">
             <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#818CF8]" checked={terms} onChange={(e) => setTerms(e.target.checked)} />
-            <span>I agree to the <a href="#" className="text-[#818CF8] hover:underline">Terms of Service</a> and <a href="#" className="text-[#818CF8] hover:underline">Privacy Policy</a>.</span>
+            <span>I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#818CF8] hover:underline">Terms of Service</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#818CF8] hover:underline">Privacy Policy</a>.</span>
           </label>
           <FieldError message={errors.terms} />
         </div>

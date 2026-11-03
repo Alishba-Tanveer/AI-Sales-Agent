@@ -10,11 +10,13 @@ import { gmailInboxUrl } from "@/features/inbox/gmail";
 import { SOURCES } from "@/features/opportunities/constants";
 import { Reveal } from "@/features/overview/components/reveal";
 import { getOutreach, getUsage } from "@/features/settings/api";
-import { HOVER_BUTTONS, Pill } from "@/features/settings/components/settings-ui";
+import { HOVER_BUTTONS, Pill, TONES, type Tone } from "@/features/settings/components/settings-ui";
 import { useLoad } from "@/features/settings/use-load";
 import { IntegrationCard, Row } from "./integrations-ui";
 
-const linkBtn = (primary = false) => cn(buttonVariants({ variant: primary ? "default" : "outline" }), "h-8 gap-1.5 px-3 text-[13px]");
+/** Filled primary button, or an outline button tinted with its card's theme colour. */
+const linkBtn = (primary = false, tone?: Tone) =>
+  cn(buttonVariants({ variant: primary ? "default" : "outline" }), "h-8 gap-1.5 px-3 text-[13px]", !primary && tone && TONES[tone].btn);
 const money = (n: number) => `$${n.toFixed(2)}`;
 
 function Meter({ value, max }: { value: number; max: number }) {
@@ -114,7 +116,7 @@ export function IntegrationsPage() {
               status="manual"
               actions={
                 <>
-                  <a href={gmailInboxUrl} target="_blank" rel="noopener noreferrer" className={linkBtn()}>
+                  <a href={gmailInboxUrl} target="_blank" rel="noopener noreferrer" className={linkBtn(false, "info")}>
                     Open Gmail <ExternalLink className="size-3.5" />
                   </a>
                   <Link href="/inbox" className={linkBtn(true)}>
@@ -139,7 +141,7 @@ export function IntegrationsPage() {
               status="builtin"
               actions={
                 isOwner ? (
-                  <Link href="/settings?tab=usage" className={linkBtn()}>
+                  <Link href="/settings?tab=usage" className={linkBtn(false, "violet")}>
                     Usage and limits
                   </Link>
                 ) : undefined
@@ -160,7 +162,7 @@ export function IntegrationsPage() {
               subtitle="Tavily search. Looks things up on the public web."
               status="builtin"
               actions={
-                <Link href="/linkedin?tab=connections" className={linkBtn()}>
+                <Link href="/linkedin?tab=connections" className={linkBtn(false, "primary")}>
                   Find buyers
                 </Link>
               }
@@ -178,7 +180,7 @@ export function IntegrationsPage() {
               subtitle="Public job boards used by Find Opportunities."
               status="builtin"
               actions={
-                <Link href="/find-opportunities" className={linkBtn()}>
+                <Link href="/find-opportunities" className={linkBtn(false, "warning")}>
                   Find Opportunities
                 </Link>
               }
@@ -205,7 +207,7 @@ export function IntegrationsPage() {
               status="manual"
               actions={
                 <>
-                  <a href="https://www.linkedin.com" target="_blank" rel="noopener noreferrer" className={linkBtn()}>
+                  <a href="https://www.linkedin.com" target="_blank" rel="noopener noreferrer" className={linkBtn(false, "pink")}>
                     Open LinkedIn <ExternalLink className="size-3.5" />
                   </a>
                   <Link href="/linkedin" className={linkBtn(true)}>

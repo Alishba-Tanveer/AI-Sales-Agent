@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { USER_STORE_EVENT, userStore } from "@/features/auth/user-store";
+import { API_MUTATION_EVENT } from "@/lib/api";
 import { listActivity } from "./api";
 import type { ActivityJob } from "./types";
 
@@ -28,7 +29,16 @@ const set = (next: ActivityState) => {
 const subscribe = (cb: () => void) => {
   ensureAuthListener();
   listeners.add(cb);
-  if (!pollTimer) pollTimer = setInterval(() => activityStore.refresh(), 15_000);
+  if (!pollTimer) {
+    // checks every 4s, but only asks the server when something is running (so a finished task clears the counter
+    // quickly) or, when idle, about every 16s
+    let tick = 0;
+    pollTimer = setInterval(() => {
+      tick += 1;
+      const running = state.status === "success" && state.jobs.some((j) => j.status === "running");
+      if (running || tick % 4 === 0) activityStore.refresh();
+    }, 4_000);
+  }
   return () => {
     listeners.delete(cb);
     if (listeners.size === 0 && pollTimer) {
@@ -61,6 +71,16 @@ function ensureAuthListener() {
   if (typeof window === "undefined" || authListenerReady) return;
   authListenerReady = true;
   window.addEventListener(USER_STORE_EVENT, onSessionChanged);
+  // a write request started or ended: it may have created / finished a running task, so look right away
+  window.addEventListener(API_MUTATION_EVENT, (event) => {
+    const phase = (event as CustomEvent<{ phase: "start" | "end" }>).detail?.phase;
+    if (phase === "start") {
+      setTimeout(() => activityStore.refresh(), 700);
+      setTimeout(() => activityStore.refresh(), 2_500);
+    } else {
+      activityStore.refresh();
+    }
+  });
   window.addEventListener("storage", (event) => {
     if (event.key === "user" || event.key === null) onSessionChanged();
   });

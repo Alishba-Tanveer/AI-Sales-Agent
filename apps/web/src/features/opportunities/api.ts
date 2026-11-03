@@ -10,6 +10,17 @@ export async function searchOpportunities(filters: SearchFilters): Promise<Searc
   return res.data;
 }
 
+/** GET /api/opportunities -> every result the whole team has found so far (shared by the workspace), best match first */
+export async function listOpportunities(): Promise<Opportunity[]> {
+  const res = await api<{ data: Opportunity[] }>("/api/opportunities");
+  return res.data;
+}
+
+/** DELETE /api/opportunities/:id -> removes the result for the whole team. A lead already created from it stays in Leads. */
+export async function deleteOpportunity(o: Opportunity): Promise<void> {
+  await api(`/api/opportunities/${o.id}`, { method: "DELETE" });
+}
+
 /**
  * Save as Lead. The server reads the company's website for an email or LinkedIn and only creates the lead when it finds
  * at least one. Otherwise it answers 422 with a message the page shows ("... can't be contacted and wasn't added to Leads").

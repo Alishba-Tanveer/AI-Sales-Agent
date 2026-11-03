@@ -6,6 +6,8 @@ export class OpportunitiesRepository {
     sourceIds?: string[];
     minRelevance?: number;
     since?: Date;
+    /** hard cap on rows returned (default 100) so a huge table can never be sent to the browser at once */
+    take?: number;
   }) {
     const where: Prisma.OpportunityWhereInput = {
       organizationId,
@@ -17,7 +19,8 @@ export class OpportunitiesRepository {
 
     return prisma.opportunity.findMany({
       where,
-      orderBy: [{ relevance: "desc" }, { postedAt: "desc" }],
+      orderBy: [{ relevance: "desc" }, { postedAt: "desc" }, { id: "asc" }],
+      take: Math.min(Math.max(options?.take ?? 100, 1), 100),
     });
   }
 
@@ -76,7 +79,8 @@ export class OpportunitiesRepository {
           type: data.type,
           sourceId: data.sourceId,
           sourceLabel: data.sourceLabel,
-          relevance: Math.max(existing.relevance, data.relevance),
+          // always the freshly computed score; keeping the old maximum would preserve stale / inflated values
+          relevance: data.relevance,
           signals: data.signals,
           budget: data.budget ?? existing.budget,
           location: data.location ?? existing.location,
@@ -106,6 +110,24 @@ export class OpportunitiesRepository {
         leadId: data.leadId ?? null,
       },
     });
+  }
+
+  /**
+   * Removes results nobody has acted on (status "open") that the latest search did not return.
+   * Saved and dismissed results are never touched.
+   */
+  async deleteOpenExcept(organizationId: string, keepIds: string[]) {
+    return prisma.opportunity.deleteMany({
+      where: {
+        organizationId,
+        status: "open",
+        ...(keepIds.length ? { id: { notIn: keepIds } } : {}),
+      },
+    });
+  }
+
+  async deleteById(organizationId: string, id: string) {
+    return prisma.opportunity.deleteMany({ where: { id, organizationId } });
   }
 
   async updateStatus(organizationId: string, id: string, status: "open" | "saved" | "dismissed", leadId?: string | null) {

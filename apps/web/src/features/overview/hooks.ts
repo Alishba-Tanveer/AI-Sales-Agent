@@ -56,11 +56,19 @@ export function useNavCounts() {
 
   useEffect(() => {
     let cancelled = false;
-    getNavCounts()
-      .then((c) => !cancelled && setCounts(c))
-      .catch(() => {});
+    const load = () =>
+      getNavCounts()
+        .then((c) => !cancelled && setCounts(c))
+        .catch(() => {});
+    void load();
+    // keep the pills fresh: poll, and refresh when the tab is shown again
+    const timer = setInterval(load, 30_000);
+    const onVisible = () => document.visibilityState === "visible" && void load();
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 

@@ -399,7 +399,7 @@ export function Connections() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-full border text-xs font-semibold", TONES[avatarTone(l.id, visible[i - 1]?.id)].tile)}>{initials(l.name)}</span>
-                          <button type="button" onClick={() => setDetail(l)} className="min-w-0 cursor-pointer rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                          <button type="button" onClick={() => setDetail(l)} className="min-w-0 cursor-pointer rounded text-left outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring">
                             <p className="[overflow-wrap:anywhere] font-medium text-foreground hover:text-primary">{l.name}</p>
                             {subtitle(l) && <p className="[overflow-wrap:anywhere] text-xs text-muted-foreground">{subtitle(l)}</p>}
                           </button>
@@ -548,7 +548,7 @@ function StatTile({ icon, tone, label, value, unit }: { icon: LucideIcon; tone: 
 function Check3({ checked, onChange, label }: { checked: boolean; onChange: () => void; label: string }) {
   return (
     <button type="button" role="checkbox" aria-checked={checked} aria-label={label} onClick={onChange}
-      className={cn("flex size-4.5 cursor-pointer items-center justify-center rounded border transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring", checked ? "border-primary bg-primary text-primary-foreground" : "border-input")}>
+      className={cn("flex size-4.5 cursor-pointer items-center justify-center rounded border transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring", checked ? "border-primary bg-primary text-primary-foreground hover:bg-primary/85" : "border-input hover:border-primary/60")}>
       {checked && <Check className="size-3" />}
     </button>
   );

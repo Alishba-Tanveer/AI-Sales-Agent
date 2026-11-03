@@ -413,7 +413,7 @@ function SuggestionCard({
           onClick={onToggleOpen}
           aria-expanded={open}
           aria-controls={`sg-${s.key}`}
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg text-left outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
         >
           <IconTile icon={done ? CheckCircle2 : Icon} tone={done ? "success" : SECTION_TONE[s.key]} />
           <span className="min-w-0 flex-1">
