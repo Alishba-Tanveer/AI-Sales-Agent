@@ -2,12 +2,14 @@ import { cn } from "cn";
 import type { LucideIcon } from "lucide-react";
 import { CARD_HOVER, ICON_POP, Pill, TONES, type PillTone, type Tone } from "@/features/settings/components/settings-ui";
 
-export type StatusKind = "builtin" | "manual" | "planned";
+export type StatusKind = "builtin" | "manual" | "planned" | "automated" | "setup";
 
 const STATUS: Record<StatusKind, { label: string; tone: PillTone; dot?: string }> = {
   builtin: { label: "Built in", tone: "success", dot: "bg-success" },
   manual: { label: "Manual", tone: "info", dot: "bg-sky-500 dark:bg-sky-400" },
   planned: { label: "Planned", tone: "violet" },
+  automated: { label: "Automated", tone: "success", dot: "bg-success" },
+  setup: { label: "Not connected", tone: "warning" },
 };
 
 export function StatusPill({ kind }: { kind: StatusKind }) {

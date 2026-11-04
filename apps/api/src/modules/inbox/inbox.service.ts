@@ -2,6 +2,7 @@ import { LeadStage, prisma } from "@ai-sales-agent/database";
 import { generateGeminiJson } from "../../integrations/ai";
 import { AppError } from "../../utils/app-error";
 import { trackActivity } from "../activity/activity-logger";
+import { mailboxDb } from "../mailbox/mailbox.db";
 
 /** Stages a lead only reaches after you have reached out to them. */
 const CONTACTED_STAGES = new Set<LeadStage>([LeadStage.CONTACTED, LeadStage.INTERESTED, LeadStage.WON, LeadStage.LOST]);
@@ -35,7 +36,10 @@ export class InboxService {
       if (entry) entry.count += 1;
       else byLead.set(message.leadId, { latest: message, count: 1 });
     }
-    return [...byLead.values()].slice(0, 200).map(({ latest, count }) => ({ ...latest, threadReplyCount: count }));
+    const entries = [...byLead.values()].slice(0, 200);
+    // Replies that arrived through the mailbox automation carry what the AI understood them to mean (interested, question, ...).
+    const intents = await mailboxDb.intents(organizationId, entries.map(({ latest }) => latest.id));
+    return entries.map(({ latest, count }) => ({ ...latest, threadReplyCount: count, intent: intents[latest.id] ?? null }));
   }
 
   async recordInbound(organizationId: string, input: { leadId: string; channel: "EMAIL" | "LINKEDIN"; subject?: string; body: string; occurredAt?: string }) {
@@ -73,7 +77,8 @@ export class InboxService {
     const message = await prisma.leadCommunication.findFirst({ where: { id, organizationId, direction: "INBOUND" }, include: { lead: true } });
     if (!message) throw new AppError("Inbox message not found", 404);
     const thread = await prisma.leadCommunication.findMany({ where: { organizationId, leadId: message.leadId }, orderBy: { occurredAt: "asc" } });
-    return { message, thread };
+    const intents = await mailboxDb.intents(organizationId, thread.map((item) => item.id));
+    return { message, thread: thread.map((item) => ({ ...item, intent: intents[item.id] ?? null })) };
   }
 
   async draftReply(organizationId: string, id: string, instruction?: string) {

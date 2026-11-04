@@ -17,7 +17,7 @@ import { logoutUser } from "@/features/auth/api";
 import { can } from "@/lib/permissions";
 import { useRole } from "@/lib/use-role";
 import { useStoredUser } from "@/lib/use-stored-user";
-import { useRunningCount, useRunningDiscoverCount } from "@/features/activity/store";
+import { useUnseenActivityCount, useRunningDiscoverCount } from "@/features/activity/store";
 import { useNavCounts } from "@/features/overview/hooks";
 import { NAV_SECTIONS, isNavActive, type NavBadgeTone, type NavItem } from "./nav-config";
 
@@ -88,8 +88,8 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   const tab = useSearchParams().get("tab");
   const router = useRouter();
   const counts = useNavCounts();
-  // the Activity pill is the number of tasks running right now (live from the Activity feed, not a fixed count)
-  const runningTasks = useRunningCount();
+  // the Activity pill counts tasks that started since the Activity page was last opened (+1 for every search, draft, video...)
+  const runningTasks = useUnseenActivityCount();
   const runningDiscoverTasks = useRunningDiscoverCount();
   // reactive: a photo or name saved in Settings appears here immediately
   const user = useStoredUser();

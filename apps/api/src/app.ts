@@ -15,6 +15,7 @@ import { analyticsRoutes } from "./modules/analytics/analytics.routes";
 import { leadsRoutes } from "./modules/leads/leads.routes";
 import { inboxRoutes } from "./modules/inbox/inbox.routes";
 import { opportunitiesRoutes } from "./modules/opportunities/opportunities.routes";
+import { mailboxRoutes } from "./modules/mailbox/mailbox.routes";
 
 const app = express();
 
@@ -42,6 +43,7 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/leads", leadsRoutes);
 app.use("/api/inbox", inboxRoutes);
 app.use("/api/opportunities", opportunitiesRoutes);
+app.use("/api/mailbox", mailboxRoutes);
 
 app.use(errorHandler);
 

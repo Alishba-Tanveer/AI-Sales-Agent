@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "cn";
@@ -9,6 +9,7 @@ import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components
 import { countByTab, matchesTab } from "../format";
 import { useNow } from "@/lib/use-now";
 import { useActivity } from "../hooks";
+import { markActivitySeen } from "../store";
 import type { ActivityJob, ActivityTab } from "../types";
 import { ActivityEmpty, ActivityError, ActivitySkeleton } from "./activity-states";
 import { JobDetailsDialog } from "./job-details-dialog";
@@ -45,6 +46,11 @@ export function ActivityPage() {
   const jobs = useMemo(() => (state.status === "success" ? state.jobs : []), [state]);
   const counts = useMemo(() => countByTab(jobs), [jobs]);
   const filtered = useMemo(() => jobs.filter((j) => matchesTab(j, tab)), [jobs, tab]);
+
+  // being on this page means the sidebar "new activity" counter is cleared, also for tasks that arrive while it is open
+  useEffect(() => {
+    if (state.status === "success") markActivitySeen();
+  }, [state]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, pageCount - 1);

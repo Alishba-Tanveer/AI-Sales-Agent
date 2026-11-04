@@ -12,6 +12,7 @@ import {
   Search,
   Send,
   Ban,
+  Video,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "cn";
@@ -27,10 +28,11 @@ export const KIND_ICON: Record<JobKind, LucideIcon> = {
   discover: Compass,
   followup: CalendarClock,
   lead: UserRound,
+  video: Video,
 };
 
 /** One theme color per kind of task, shared by the Activity page and the Overview feed. */
-export const KIND_TONE: Record<JobKind, string> = { research: "text-sky-500", draft: "text-violet-500", sync: "text-teal-500", enrich: "text-amber-500", invite: "text-pink-500", analyze: "text-indigo-500", discover: "text-emerald-500", followup: "text-orange-500", lead: "text-primary" };
+export const KIND_TONE: Record<JobKind, string> = { research: "text-sky-500", draft: "text-violet-500", sync: "text-teal-500", enrich: "text-amber-500", invite: "text-pink-500", analyze: "text-indigo-500", discover: "text-emerald-500", followup: "text-orange-500", lead: "text-primary", video: "text-fuchsia-500" };
 
 /** Icon in front of the task name. Status wins over kind for running / failed / queued / cancelled. */
 export function JobIcon({ job, className }: { job: Pick<ActivityJob, "kind" | "status">; className?: string }) {
@@ -45,8 +47,8 @@ export function JobIcon({ job, className }: { job: Pick<ActivityJob, "kind" | "s
     case "cancelled":
       return <Ban className={cn(base, "text-muted-foreground")} aria-hidden />;
     default: {
-      const Icon = KIND_ICON[job.kind];
-      return <Icon className={cn(base, KIND_TONE[job.kind])} aria-hidden />;
+      const Icon = KIND_ICON[job.kind] ?? Search;
+      return <Icon className={cn(base, KIND_TONE[job.kind] ?? "text-muted-foreground")} aria-hidden />;
     }
   }
 }

@@ -41,7 +41,9 @@ export function RecentActivity({ items }: { items: ActivityItem[] }) {
         {recent.map((item) => {
           // A failed task always shows the red alert icon. Every other task uses its kind's icon and color
           // (same as the Activity page); items without a kind fall back to a distinct icon and color per type.
-          const { icon: Icon, cls } = item.type !== "failed" && item.kind ? { icon: KIND_ICON[item.kind], cls: KIND_TONE[item.kind] } : typeMeta[item.type];
+          // an unknown kind (for example one added on the server before the page was updated) falls back to the type icon instead of crashing
+          const kindIcon = item.kind ? KIND_ICON[item.kind] : undefined;
+          const { icon: Icon, cls } = item.type !== "failed" && item.kind && kindIcon ? { icon: kindIcon, cls: KIND_TONE[item.kind] ?? "text-muted-foreground" } : typeMeta[item.type];
           return (
             <li
               key={item.id}
