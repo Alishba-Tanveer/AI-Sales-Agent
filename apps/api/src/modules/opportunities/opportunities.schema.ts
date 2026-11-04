@@ -5,7 +5,12 @@ export const opportunityStatusSchema = z.enum(["open", "saved", "dismissed"]);
 export const postedWithinSchema = z.enum(["any", "24h", "7d", "30d"]);
 
 export const searchOpportunitiesSchema = z.object({
-  keywords: z.array(z.string()).default([]),
+  // An empty keyword list used to match every posting, so "clear the keywords and search" showed everything again.
+  keywords: z
+    .array(z.string())
+    .default([])
+    .transform((list) => list.map((k) => k.trim()).filter(Boolean))
+    .refine((list) => list.length > 0, { message: "Add at least one keyword before searching." }),
   sourceIds: z.array(z.string()).default([]),
   types: z.array(opportunityTypeSchema).default(["client_project", "job_posting", "freelance"]),
   minRelevance: z.number().min(0).max(100).default(75),

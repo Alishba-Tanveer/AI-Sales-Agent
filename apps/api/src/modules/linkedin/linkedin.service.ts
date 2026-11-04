@@ -18,7 +18,7 @@ import {
 } from "./linkedin.schema";
 import { generateGeminiJson, isAiConfigured } from "../../integrations/ai";
 import { tavilySearch } from "../../integrations/tavily";
-import { trackLinkedinActivity } from "../activity/activity-logger";
+import { trackLinkedinActivity, beginScriptVideoActivity, finishScriptVideoActivity } from "../activity/activity-logger";
 
 /** Most people one import may add. Keeps the single transaction well inside its time limit. */
 const MAX_IMPORT_ROWS = 500;
@@ -821,6 +821,7 @@ export class LinkedinService {
       status: "creating_video",
       videoStatus: "creating",
     });
+    await beginScriptVideoActivity({ organizationId, scriptId: id, scriptTitle: script.title });
 
     try {
       const talk = await createAvatarTalk({
@@ -842,6 +843,7 @@ export class LinkedinService {
       return this.formatScript(updated);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Video generation failed";
+      await finishScriptVideoActivity(organizationId, id, { ok: false, error: msg });
       await linkedinRepository.updateScript(organizationId, id, {
         videoStatus: "failed",
         status: script.status === "creating_video" ? "needs_approval" : script.status,
@@ -861,6 +863,7 @@ export class LinkedinService {
         });
 
         const script = await linkedinRepository.findScriptById(organizationId, scriptId);
+        await finishScriptVideoActivity(organizationId, scriptId, { ok: true, output: `Video rendered for "${script?.title || "your script"}".` });
 
         await notify({
           organizationId,
@@ -874,9 +877,11 @@ export class LinkedinService {
         await linkedinRepository.updateScript(organizationId, scriptId, {
           videoStatus: "failed",
         });
+        await finishScriptVideoActivity(organizationId, scriptId, { ok: false, error: result.error || "D-ID could not render the video." });
       }
     } catch (err) {
       console.error("Failed while finalizing D-ID video in background", { scriptId, talkId, err });
+      await finishScriptVideoActivity(organizationId, scriptId, { ok: false, error: err instanceof Error ? err.message : "Video rendering failed." });
     }
   }
 
@@ -895,11 +900,13 @@ export class LinkedinService {
             videoStatus: "ready",
             status: "ready",
           });
+          await finishScriptVideoActivity(organizationId, id, { ok: true, output: `Video rendered for "${script.title}".` });
           return this.formatScript(updated);
         } else if (talk.status === "error") {
           const updated = await linkedinRepository.updateScript(organizationId, id, {
             videoStatus: "failed",
           });
+          await finishScriptVideoActivity(organizationId, id, { ok: false, error: talk.error || "D-ID could not render the video." });
           return this.formatScript(updated);
         }
       } catch (e) {

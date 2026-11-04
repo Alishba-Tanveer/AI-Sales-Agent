@@ -16,10 +16,25 @@ function getAuthHeader(): string {
 
 /** Thrown when the D-ID account has no credits left (HTTP 402). */
 export class DIdCreditsError extends Error {
-  constructor() {
+  constructor(public readonly detail?: string) {
     super("Video generation is unavailable: the D-ID account has run out of credits. Please top up your D-ID plan and try again.");
     this.name = "DIdCreditsError";
   }
+}
+
+/** Safe-to-log fingerprint of the key (never the whole key), so two people can check they load the same one. */
+export function didKeyFingerprint(): string {
+  const key = (process.env.D_DI_KEY_AVATAR || "").trim();
+  if (!key) return "(not set)";
+  return `${key.slice(0, 4)}...${key.slice(-4)} (length ${key.length})`;
+}
+
+/** Asks D-ID what this key can spend. Useful to tell "no credits" apart from "wrong key". */
+export async function getDIdCredits(): Promise<{ status: number; body: string }> {
+  const res = await fetch(`${DID_API_BASE}/credits`, {
+    headers: { Authorization: getAuthHeader(), Accept: "application/json" },
+  });
+  return { status: res.status, body: await res.text() };
 }
 
 export interface CreateTalkOptions {
@@ -76,8 +91,10 @@ export async function createAvatarTalk(options: CreateTalkOptions): Promise<Talk
 
   if (!res.ok) {
     const errorBody = await res.text();
+    // Log what D-ID really said: the message shown to the user is generic, and this is the only place the real reason is visible.
+    console.error(`[d-id] POST /talks failed with HTTP ${res.status} using key ${didKeyFingerprint()}: ${errorBody}`);
     if (res.status === 402 || /InsufficientCredits/i.test(errorBody)) {
-      throw new DIdCreditsError();
+      throw new DIdCreditsError(errorBody);
     }
     throw new Error(`D-ID talk creation failed (${res.status}): ${errorBody}`);
   }
