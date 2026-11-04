@@ -1,6 +1,6 @@
 import { prisma } from "@ai-sales-agent/database";
 
-type ActivityKind = "research" | "draft" | "discover" | "analyze" | "sync" | "enrich" | "invite" | "followup" | "lead";
+type ActivityKind = "research" | "draft" | "discover" | "analyze" | "sync" | "enrich" | "invite" | "followup" | "lead" | "video";
 type TrackActivityInput<T> = {
   organizationId: string;
   kind: ActivityKind;
@@ -69,6 +69,56 @@ export async function trackActivity<T>(input: TrackActivityInput<T>): Promise<T>
       }
     }
     throw error;
+  }
+}
+
+/**
+ * Records a task that keeps running after the request that started it has returned (a video that is rendered by D-ID).
+ * It stays "running" in the Activity feed until finishScriptVideoActivity() closes it.
+ */
+export async function beginScriptVideoActivity(input: { organizationId: string; scriptId: string; scriptTitle: string }) {
+  try {
+    await prisma.activityLog.create({
+      data: {
+        organizationId: input.organizationId,
+        kind: "video",
+        title: "Create AI avatar video",
+        leadContext: input.scriptTitle,
+        agent: "LinkedIn Agent",
+        status: "running",
+        startedAt: new Date(),
+        metadata: { scriptId: input.scriptId },
+      },
+    });
+  } catch (error) {
+    console.error("[activity] could not create video activity record:", error);
+  }
+}
+
+/** Closes every running video task of this script as completed or failed. Safe to call more than once. */
+export async function finishScriptVideoActivity(
+  organizationId: string,
+  scriptId: string,
+  result: { ok: true; output: string } | { ok: false; error: string },
+) {
+  try {
+    const running = await prisma.activityLog.findMany({
+      where: { organizationId, kind: "video", status: "running", metadata: { path: ["scriptId"], equals: scriptId } },
+      select: { id: true, startedAt: true },
+    });
+    for (const row of running) {
+      await prisma.activityLog.update({
+        where: { id: row.id },
+        data: {
+          status: result.ok ? "completed" : "failed",
+          durationSec: row.startedAt ? Math.max(0, Math.round((Date.now() - row.startedAt.getTime()) / 1000)) : null,
+          output: result.ok ? result.output.slice(0, 2000) : null,
+          error: result.ok ? null : result.error.slice(0, 1000),
+        },
+      });
+    }
+  } catch (error) {
+    console.error("[activity] could not finish video activity record:", error);
   }
 }
 

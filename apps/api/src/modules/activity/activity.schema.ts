@@ -10,6 +10,7 @@ export const jobKindSchema = z.enum([
   "discover",
   "followup",
   "lead",
+  "video",
 ]);
 
 export const jobStatusSchema = z.enum([
