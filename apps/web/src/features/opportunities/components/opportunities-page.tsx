@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, Download, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { OptionSelect } from "@/components/ui/option-select";
 import { Reveal } from "@/features/overview/components/reveal";
@@ -35,11 +36,23 @@ export function OpportunitiesPage() {
   const shown = items.slice(0, visible);
   const remaining = items.length - shown.length;
 
-  // a new search or a different sort order starts again from the first 10
-  useEffect(() => setVisible(PAGE_SIZE), [state.status, sort]);
+  // a new search or a different sort order starts again from the first 10 (state adjusted while rendering, not in an effect)
+  const pagingKey = `${state.status}|${sort}`;
+  const [seenPagingKey, setSeenPagingKey] = useState(pagingKey);
+  if (seenPagingKey !== pagingKey) {
+    setSeenPagingKey(pagingKey);
+    setVisible(PAGE_SIZE);
+  }
 
   const reset = () => setFilters(DEFAULT_FILTERS);
-  const search = () => void run(filters);
+  const search = () => {
+    // with no keyword every posting used to match, so clearing the keywords and searching listed everything again
+    if (filters.keywords.length === 0) {
+      toast.error("Add at least one keyword to search.");
+      return;
+    }
+    void run(filters);
+  };
 
   return (
     <main className="mx-auto w-full max-w-[1280px] p-6 lg:p-8">

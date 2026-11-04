@@ -135,6 +135,74 @@ export const activityStore = {
   },
 };
 
+/**
+ * "New activity" counter for the sidebar. Every task that starts after the person last opened the Activity page adds 1,
+ * and opening the page clears it. The moment of the last visit is remembered per user in this browser.
+ */
+const SEEN_PREFIX = "activity:last-seen:";
+let lastSeen: number | null = null;
+let lastSeenOwner: string | null = null;
+const seenListeners = new Set<() => void>();
+
+function seenKey() {
+  const id = userStore.get()?.id;
+  return id ? `${SEEN_PREFIX}${id}` : null;
+}
+
+function readLastSeen(): number {
+  const owner = userStore.get()?.id ?? null;
+  if (lastSeen !== null && owner === lastSeenOwner) return lastSeen;
+  lastSeenOwner = owner;
+  let stored: number | null = null;
+  try {
+    const key = seenKey();
+    const raw = key ? localStorage.getItem(key) : null;
+    stored = raw ? Number(raw) : null;
+  } catch {
+    /* storage blocked: the counter just starts from now each visit */
+  }
+  // first visit ever: start counting from now, so old history does not show up as "new"
+  lastSeen = stored && Number.isFinite(stored) ? stored : Date.now();
+  if (!stored) writeLastSeen(lastSeen);
+  return lastSeen;
+}
+
+function writeLastSeen(at: number) {
+  lastSeen = at;
+  try {
+    const key = seenKey();
+    if (key) localStorage.setItem(key, String(at));
+  } catch {
+    /* ignore */
+  }
+  seenListeners.forEach((l) => l());
+}
+
+/** Called while the Activity page is open: everything in the feed counts as seen. */
+export function markActivitySeen() {
+  const newest = state.status === "success" ? Math.max(0, ...state.jobs.map((j) => (j.startedAt ? Date.parse(j.startedAt) : 0))) : 0;
+  // the server's clock can differ a little from this computer's, so the newest task time counts too
+  writeLastSeen(Math.max(Date.now(), newest));
+}
+
+const subscribeSeen = (cb: () => void) => {
+  seenListeners.add(cb);
+  return () => {
+    seenListeners.delete(cb);
+  };
+};
+
+/** Number of tasks that started since the Activity page was last opened. 0 until the feed is known. */
+export function useUnseenActivityCount(): number {
+  const s = useActivityState();
+  const seen = useSyncExternalStore(subscribeSeen, readLastSeen, () => Infinity);
+  useEffect(() => {
+    activityStore.load();
+  }, []);
+  if (s.status !== "success") return 0;
+  return s.jobs.filter((j) => j.startedAt && Date.parse(j.startedAt) > seen).length;
+}
+
 export function useActivityState(): ActivityState {
   return useSyncExternalStore(subscribe, () => state, () => state);
 }

@@ -33,6 +33,10 @@ const envSchema = z.object({
   LINKEDIN_REDIRECT_URI: z.string().url().optional(),
   LINKEDIN_API_VERSION: z.string().regex(/^\d{6}$/).default("202610"),
   ENCRYPTION_KEY: z.string().optional(),
+  /** Email automation. When set, every approved email is sent to this address instead of the lead (safe end-to-end testing). */
+  MAIL_SEND_OVERRIDE_TO: z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), z.string().email().optional()),
+  /** How often connected mailboxes are checked for replies (cron, default every 2 minutes). */
+  MAIL_POLL_CRON: z.string().default("*/2 * * * *"),
 });
 
 export const env = envSchema.parse(process.env);

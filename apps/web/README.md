@@ -1,63 +1,48 @@
-## Analytics & Integrations
+## Email Automation
 
-### Analytics (`/analytics`)
+- Added optional Gmail mailbox connection through IMAP and SMTP.
+- Added mailbox connection management to the Integrations page.
+- Added encrypted mailbox credential storage using AES-256-GCM.
+- Added email review and editing before approval and sending.
+- Added **Approve & Send** functionality from Lead Details and Inbox.
+- Added test mode using `MAIL_SEND_OVERRIDE_TO` to redirect outgoing emails to a test address.
+- Added duplicate-send protection and configurable daily email limits (default: 40).
+- Added Do Not Contact and archived-lead sending restrictions.
+- Added automatic reply synchronization through the background worker (every two minutes by default).
+- Added manual **Sync Now** functionality in Inbox.
+- Added email thread matching and duplicate reply detection.
+- Added AI reply-intent classification using the configured AI provider.
+- Added automatic Do Not Contact handling for unsubscribe requests.
+- Added AI-generated reply drafts that always require user approval before sending.
+- Added notification handling for relevant replies and bounced emails.
+- Preserved manual email sending and reply logging workflows.
 
-Implemented an Analytics dashboard that calculates performance metrics using data from existing application endpoints.
+## Inbox and Leads
 
-**Features:**
-- **Period filters:** Today, Last 7 Days, Last 30 Days, and All Time.
-- **Lead metrics:** Leads added, contacted, interested, won, and lost.
-- **Outreach metrics:** Emails sent, LinkedIn messages, replies, and reply rate.
-- **Agent activity:** Tasks run, completed tasks, failed tasks, and success rate.
-- **LinkedIn metrics:** Connection requests sent, new connections, posts published, and scripts awaiting approval.
-- **Period comparisons:** Displays percentage changes against the previous equivalent period.
-- **Charts:** Leads added over time and sales pipeline funnel.
-- **CSV export:** Export the currently calculated analytics data.
-- **Refresh:** Reload analytics data from the existing endpoints.
-- **Loading and error handling:** Includes loading skeletons, error states, empty states, and partial-failure handling.
+- Integrated mailbox automation into Inbox and Lead Details.
+- Added email approval and sending dialogs.
+- Added AI intent badges to incoming messages.
+- Added mailbox synchronization and automatic Inbox refresh.
+- Extended frontend communication types to support mailbox reply information.
 
-**Implementation notes:**
-- Analytics calculations are performed on the frontend using existing API data.
-- Changing the selected period recalculates metrics without refetching data.
-- Metrics are based on leads added during the selected period, regardless of their current pipeline stage.
-- No dedicated analytics backend endpoint is currently required by this implementation.
-- Custom date-range filtering is not included.
+## Technical Changes
 
-### Integrations (`/integrations`)
+- Added the mailbox API module and frontend mailbox feature components.
+- Registered mailbox routes in the API.
+- Added background mailbox polling to the worker.
+- Added `imapflow`, `mailparser`, and `@types/mailparser` dependencies.
+- Added `ENCRYPTION_KEY`, `MAIL_SEND_OVERRIDE_TO`, and `MAIL_POLL_CRON` environment configuration.
+- Added mailbox setup instructions in `apps/api/MAILBOX_AUTOMATION.md`.
 
-Implemented an Integrations page to display the application's available services and their current integration approach.
+## Configuration
 
-**Integration categories:**
-- **Gmail:** Manual integration.
-- **LinkedIn:** Manual integration.
-- **AI Provider:** Built-in functionality.
-- **Web Research:** Built-in functionality.
-- **Job Sources:** Built-in functionality.
-- **Video Generation:** Planned functionality.
+Required environment variables:
 
-**Features:**
-- Displays integration availability and implementation status.
-- Gmail card displays the daily email sending limit and outreach strategy approval status.
-- AI provider card displays monthly spending and request information for the Owner.
-- Restricts sensitive integration information to Owner/Admin roles where applicable.
-- Provides clear descriptions of manual, built-in, and planned integrations.
+- `ENCRYPTION_KEY`: 64-character hexadecimal encryption key.
+- `AI_PROVIDER`: Set to `groq` when using Groq for AI classification and reply drafts.
+- `MAIL_SEND_OVERRIDE_TO`: Optional test recipient that overrides lead email addresses.
+- `MAIL_POLL_CRON`: Optional mailbox polling schedule; defaults to every two minutes.
 
-**Implementation notes:**
-- Integration statuses are descriptive and do not represent live connection health.
-- No dedicated integrations status API currently exists.
-- Connect, Disconnect, and Test Connection actions are not included because backend functionality for these operations is not available.
+Mailbox automation is optional and activates only after a mailbox is connected. AI-generated replies are never sent without approval.
 
-### UI and Data Handling
-
-- Both pages follow the existing dashboard layout, theme, and shared component styles.
-- Analytics and Integrations use the existing frontend architecture.
-- Loading, empty, error, and partial-data states are handled within the pages.
-- All mock data files across features (Activity, Notifications, Opportunities, Overview, and Settings) have been deleted.
-- The Overview page and all dashboard features run 100% on live backend APIs.
-
-### Future Improvements
-
-- Add a dedicated Analytics API for server-side reporting.
-- Add custom date-range filtering.
-- Implement a backend Integrations status endpoint.
-- Add real connection, disconnection, testing, and synchronization functionality for supported integrations.
+**Security:** Never commit `.env` files, encryption keys, Gmail App Passwords, or API keys.

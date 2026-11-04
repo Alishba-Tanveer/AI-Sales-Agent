@@ -112,7 +112,7 @@ function KeywordInput({ value, onChange }: { value: string[]; onChange: (v: stri
 
 export function FilterPanel({ filters, onChange, onSearch, searching }: { filters: SearchFilters; onChange: (f: SearchFilters) => void; onSearch: () => void; searching: boolean }) {
   const toggle = <T extends string>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
-  const canSearch = filters.sourceIds.length > 0 && filters.types.length > 0 && !searching;
+  const canSearch = filters.keywords.length > 0 && filters.sourceIds.length > 0 && filters.types.length > 0 && !searching;
 
   return (
     <aside aria-label="Search filters" className="w-full shrink-0 overflow-hidden rounded-xl border border-border bg-card transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 lg:sticky lg:top-20 lg:w-[280px]">
@@ -169,6 +169,7 @@ export function FilterPanel({ filters, onChange, onSearch, searching }: { filter
             {searching ? <Loader2 className="animate-spin" /> : <Search />}
             {searching ? "Searching…" : "Search opportunities"}
           </Button>
+          {filters.keywords.length === 0 && <p className="text-xs text-warning">Add at least one keyword.</p>}
           {(filters.sourceIds.length === 0 || filters.types.length === 0) && <p className="text-xs text-warning">Pick at least one source and one type.</p>}
           <button type="button" onClick={() => onChange(DEFAULT_FILTERS)} className="cursor-pointer self-center text-xs text-muted-foreground transition-colors hover:text-foreground">
             Reset filters

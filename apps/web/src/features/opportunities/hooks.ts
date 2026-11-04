@@ -82,12 +82,14 @@ export function useOpportunities() {
   );
 
   useEffect(() => {
-    void loadShared(cachedState.status === "success");
+    // started from a timer callback, not in the effect body, so the loading state is not set synchronously inside the effect
+    const first = setTimeout(() => void loadShared(cachedState.status === "success"), 0);
     const onVisible = () => document.visibilityState === "visible" && void loadShared(true);
     document.addEventListener("visibilitychange", onVisible);
     // background refresh only while the tab is actually on screen
     const timer = setInterval(() => document.visibilityState === "visible" && void loadShared(true), 60_000);
     return () => {
+      clearTimeout(first);
       document.removeEventListener("visibilitychange", onVisible);
       clearInterval(timer);
     };

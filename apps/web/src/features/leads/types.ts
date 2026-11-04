@@ -31,4 +31,6 @@ export type LeadCommunication = {
   body: string;
   occurredAt: string;
   createdAt: string;
+  /** what the AI understood an automatically received reply to mean (only set for synced replies) */
+  intent?: string | null;
 };

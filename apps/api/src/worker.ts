@@ -5,6 +5,7 @@ import { prisma } from "@ai-sales-agent/database";
 import { env } from "./config/env";
 import { RECOVERY_WINDOW_MS } from "./utils/account-rules";
 import { trackLinkedinActivity } from "./modules/activity/activity-logger";
+import { syncAllMailboxes } from "./modules/mailbox/mailbox.sync";
 
 const connection = new IORedis(env.REDIS_URL, {
   maxRetriesPerRequest: null,
@@ -13,7 +14,10 @@ const connection = new IORedis(env.REDIS_URL, {
 const worker = new Worker(
   "sales-agent-jobs",
   async (job) => {
-    console.log(`Processing job ${job.id}: ${job.name}`);
+    if (job.name !== "mail:poll") console.log(`Processing job ${job.id}: ${job.name}`);
+    if (job.name === "mail:poll") {
+      await syncAllMailboxes();
+    }
     if (job.name === "linkedin:daily-news") {
       const configs = await prisma.linkedinConfig.findMany({ where: { offer: { not: "" }, audience: { not: "" } }, select: { organizationId: true } });
       for (const config of configs) {
@@ -90,5 +94,9 @@ setInterval(runPurge, SIX_HOURS);
 const linkedinQueue = new Queue("sales-agent-jobs", { connection: new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null }) });
 void linkedinQueue.upsertJobScheduler("linkedin-daily-news", { pattern: "0 3 * * *" }, { name: "linkedin:daily-news" })
   .catch((error) => console.error("[linkedin-news] scheduler setup failed:", (error as Error).message));
+
+// Email automation: check connected mailboxes for replies (does nothing when no mailbox is connected).
+void linkedinQueue.upsertJobScheduler("mail-poll", { pattern: env.MAIL_POLL_CRON }, { name: "mail:poll", opts: { removeOnComplete: 20, removeOnFail: 50 } })
+  .catch((error) => console.error("[mailbox] scheduler setup failed:", (error as Error).message));
 
 console.log("Sales agent background worker started.");

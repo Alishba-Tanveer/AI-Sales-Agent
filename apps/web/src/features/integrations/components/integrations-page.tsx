@@ -13,6 +13,7 @@ import { getOutreach, getUsage } from "@/features/settings/api";
 import { HOVER_BUTTONS, Pill, TONES, type Tone } from "@/features/settings/components/settings-ui";
 import { useLoad } from "@/features/settings/use-load";
 import { IntegrationCard, Row } from "./integrations-ui";
+import { MailboxCard } from "@/features/mailbox/components/mailbox-card";
 
 /** Filled primary button, or an outline button tinted with its card's theme colour. */
 const linkBtn = (primary = false, tone?: Tone) =>
@@ -100,13 +101,17 @@ export function IntegrationsPage() {
           <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary-soft/40 p-3.5 text-sm text-muted-foreground">
             <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
             <p>
-              <span className="font-medium text-foreground">Nothing here logs in to your mailbox or LinkedIn.</span> <span className="font-medium text-foreground">Built in</span> tools run for your whole workspace with nothing to set
+              <span className="font-medium text-foreground">Nothing logs in to LinkedIn, and your mailbox is only used if you connect it in Mailbox automation.</span> <span className="font-medium text-foreground">Built in</span> tools run for your whole workspace with nothing to set
               up. <span className="font-medium text-foreground">Manual</span> means you do the last step yourself, so nothing is ever sent without you.
             </p>
           </div>
         </Reveal>
 
         <div className="grid w-full min-w-0 grid-cols-1 items-stretch gap-6 md:grid-cols-2">
+          <Reveal delay={80} className="grid">
+            <MailboxCard />
+          </Reveal>
+
           <Reveal delay={100} className="grid">
             <IntegrationCard
               icon={Mail}
@@ -127,7 +132,7 @@ export function IntegrationsPage() {
             >
               <Row label="Sending">You send from your own Gmail</Row>
               <Row label="Replies">Copy a reply into the Inbox to log it</Row>
-              <Row label="Access">No connection to your mailbox</Row>
+              <Row label="Access">The manual way needs no connection to your mailbox</Row>
               <OutreachRows />
             </IntegrationCard>
           </Reveal>
