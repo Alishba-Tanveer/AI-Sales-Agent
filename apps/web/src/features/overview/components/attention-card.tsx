@@ -15,7 +15,7 @@ const kindConfig: Record<
     iconCls: "bg-primary-soft text-primary",
     label: "Take over",
     href: "/inbox",
-    actionCls: "border border-border bg-secondary text-secondary-foreground hover:bg-muted",
+    actionCls: TONES.info.btn,
   },
   failure: {
     icon: CircleAlert,
@@ -83,7 +83,7 @@ export function AttentionCard({ items }: { items: AttentionItem[] }) {
                   </div>
                 </div>
                 <Link
-                  href={cfg.href}
+                  href={item.href ?? cfg.href}
                   className={cn(
                     buttonVariants({ variant: "ghost" }),
                     "group/action h-auto shrink-0 gap-1 rounded-lg px-3.5 py-1.5 text-sm font-medium transition-all duration-200 motion-safe:hover:-translate-y-0.5 hover:shadow-md",

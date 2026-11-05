@@ -201,7 +201,7 @@ export function ProfileOptimizer() {
             <Textarea id="offer" rows={2} value={offer} onChange={(e) => setOffer(e.target.value)} placeholder="e.g. I build AI agents for B2B SaaS outbound" />
           </Field>
           <Field label="Who do you want to sell to?" htmlFor="audience">
-            <Textarea id="audience" rows={2} value={audience} onChange={(e) => setAudience(e.target.value)} placeholder="e.g. Heads of Sales at SaaS companies with 50–500 people" />
+            <Textarea id="audience" rows={2} value={audience} onChange={(e) => setAudience(e.target.value)} placeholder="e.g. Heads of Sales at SaaS companies with 50 to 500 people" />
           </Field>
         </div>
       </SectionCard>

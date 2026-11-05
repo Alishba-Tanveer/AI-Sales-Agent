@@ -1,6 +1,7 @@
 import { findCompanyContact } from "../../integrations/contact-finder";
 import { LeadStage, Prisma, prisma } from "@ai-sales-agent/database";
 import { generateGeminiJson } from "../../integrations/ai";
+import { ensureOutreachGreeting, outreachGreeting, researchRecipient } from "../../integrations/outreach-research";
 import { AppError } from "../../utils/app-error";
 import { trackActivity } from "../activity/activity-logger";
 
@@ -135,19 +136,57 @@ export class LeadsService {
     if (isLinkedIn && lead.stage === LeadStage.NEW && !lead.linkedinConnectedAt) {
       throw new AppError(`Connect with ${lead.name} on LinkedIn first, mark them as connected, then draft your message.`, 409);
     }
+    const conversation = (await prisma.leadCommunication.findMany({
+      where: {
+        organizationId,
+        leadId: lead.id,
+        OR: [
+          { direction: "INBOUND", status: "RECEIVED" },
+          { direction: "OUTBOUND", status: "SENT" },
+        ],
+      },
+      orderBy: { occurredAt: "desc" },
+      take: 12,
+    })).reverse();
+    const greeting = outreachGreeting(lead.name, lead.company);
+    const lastMessage = conversation.at(-1);
+    const isReply = lastMessage?.direction === "INBOUND";
+    const isFollowup = conversation.length > 0 && lastMessage?.direction === "OUTBOUND";
     return trackActivity({
       organizationId, agent: "General Agent", kind: "draft", title: `Draft ${isLinkedIn ? "LinkedIn message" : "email"}: ${lead.name}`, leadName: lead.name, context: lead.company ?? "",
       run: async () => {
+        const publicResearch = await researchRecipient({ name: lead.name, company: lead.company, jobTitle: lead.jobTitle });
+        const scenario = isLinkedIn
+          ? "first-touch LinkedIn message"
+          : isReply
+            ? "email reply to the latest message the prospect sent"
+            : isFollowup
+              ? "follow-up email after the latest message we sent"
+              : "first-touch email";
+        const emailScenarioRule = isReply
+          ? "Reply directly to the prospect's latest incoming message and address what they actually said."
+          : isFollowup
+            ? "Write a courteous follow-up to our latest sent email. Do not suggest that the prospect replied or opened it."
+            : "Write a first-touch email. Do not imply prior contact or a relationship that is not in the supplied context.";
         const draft = await generateGeminiJson<{ subject: string; body: string }>({
           system: isLinkedIn
-            ? "Write a short, friendly first-touch LinkedIn message for B2B outreach direct message to someone you just connected with. Return JSON with subject (a short label, not shown to the recipient) and body. Do not invent facts about the recipient or their company. No signature, no links. Include one clear, low-pressure question. Keep the body under 70 words."
-            : "Write a short, respectful first-touch B2B sales email. Return JSON with subject and body. Do not invent facts about the recipient or their company. Include one clear, low-pressure question. Keep the body under 120 words.",
-          prompt: JSON.stringify({ sender: organization, recipient: { name: lead.name, role: lead.jobTitle, company: lead.company }, context: lead.notes, instruction: instruction?.trim() || "Introduce the sender's offer and ask if a short conversation would be useful." }),
+            ? "Write a genuinely personalized, friendly LinkedIn message to a new connection. Start with the greeting supplied in the prompt. Connect one verified detail about the recipient or company to the sender's exact services, then ask one clear, low-pressure question. Do not use generic praise or claim familiarity. Never invent facts. No signature or links. Keep it under 70 words. Return JSON with subject (a short internal label) and body."
+            : `${emailScenarioRule} Write a genuinely personalized B2B email. Start exactly with the greeting from the prompt. Make the message about this specific recipient: reference one concrete, relevant fact from the supplied notes, conversation, or public research, then explain why the sender's exact service is relevant to that fact and the recipient's role. Use the sender's services and differentiation, not a generic pitch. Every sentence after the greeting must be specific to the recipient, their company, their role, the conversation, or the relevant offer. Do not invent facts, use empty praise, or include unrelated claims. Ask one clear, low-pressure question. Make the subject specific to this contact's context. Keep it concise, 80 to 140 words, and return JSON with subject and body.`,
+          prompt: JSON.stringify({
+            scenario,
+            sender: organization,
+            recipient: { name: lead.name, greeting, role: lead.jobTitle, company: lead.company, website: lead.websiteUrl },
+            leadContext: lead.notes,
+            publicResearch,
+            conversation: conversation.map((message) => ({ direction: message.direction, channel: message.channel, subject: message.subject, body: message.body })),
+            instruction: instruction?.trim() || "Use the strongest verified detail to make this message relevant. If there is no reliable personal detail, be transparent and personalize only from the verified company, role, and offer. Do not make up a trigger or pain point.",
+          }),
         });
         if (!draft.body?.trim() || (!isLinkedIn && !draft.subject?.trim())) throw new AppError("The draft provider returned an incomplete message.", 502);
+        const personalizedBody = ensureOutreachGreeting(draft.body, greeting);
         return prisma.leadCommunication.create({ data: {
           organizationId, leadId: id, channel, direction: "OUTBOUND", status: "DRAFT",
-          subject: isLinkedIn ? null : draft.subject.trim().slice(0, 240), body: draft.body.trim().slice(0, 10_000),
+          subject: isLinkedIn ? null : draft.subject.trim().slice(0, 240), body: personalizedBody.slice(0, 10_000),
         } });
       },
       output: () => `${isLinkedIn ? "LinkedIn message" : "Email"} draft saved for ${lead.name} for manual review.`,

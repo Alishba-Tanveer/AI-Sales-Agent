@@ -40,7 +40,7 @@ export function JobDetailsDialog({ job, open, onOpenChange, now }: { job: Activi
                   ? formatDuration(job.durationSec)
                   : job.startedAt && now > 0
                     ? formatDuration((now - new Date(job.startedAt).getTime()) / 1000)
-                    : "—"}
+                    : "Not available"}
               </Item>
               <Item label="Retries">{retriesLabel(job)}{job.retries > 0 ? ` (max ${job.maxRetries})` : ""}</Item>
             </dl>

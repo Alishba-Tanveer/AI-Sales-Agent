@@ -52,7 +52,7 @@ export function ContentEngine() {
         if (!live) return;
         setScripts(s);
         setSettings(cfg);
-        setSelectedId(s.find((x) => x.status === "needs_approval")?.id ?? null);
+        setSelectedId(s.find((x) => x.status === "needs_approval" && x.videoStatus !== "failed")?.id ?? null);
       })
       .catch((e) => live && setLoadError(errMsg(e, "Could not load your scripts.")));
     return () => {
@@ -69,8 +69,8 @@ export function ContentEngine() {
   };
 
   const list = scripts ?? [];
-  const pending = list.filter((s) => s.status === "needs_approval");
-  const scheduled = list.filter((s) => s.status === "creating_video" || s.status === "ready");
+  const pending = list.filter((s) => s.status === "needs_approval" && s.videoStatus !== "failed");
+  const scheduled = list.filter((s) => s.status === "creating_video" || s.status === "ready" || s.videoStatus === "failed");
   const posted = list.filter((s) => s.status === "posted");
 
   const update = (id: string, patch: Partial<ContentScript>) => setScripts((cur) => (cur ?? []).map((s) => (s.id === id ? { ...s, ...patch } : s)));
@@ -105,7 +105,7 @@ export function ContentEngine() {
             if (latest.videoUrl) {
               toast.success(`Topic video ready for "${latest.title}"!`);
             } else if (latest.videoStatus === "failed") {
-              toast.error(`Video generation failed for "${latest.title}". It is back in Needs approval; you can retry now or later.`);
+              toast.error(`Video unavailable for "${latest.title}". The generated post image and caption are ready to view or post in Scheduled.`);
             }
           }
         } catch {
@@ -308,6 +308,7 @@ export function ContentEngine() {
             {scheduled.map((s) => {
               const isCreating = s.status === "creating_video" || s.videoStatus === "creating";
               const hasVideo = Boolean(s.videoUrl);
+              const videoFailed = s.videoStatus === "failed";
               const ready = s.status === "ready" && !isCreating;
               return (
                 <li key={s.id} className={cn("flex flex-col gap-3 rounded-xl border border-border bg-card p-5", CARD_LIFT)}>
@@ -316,6 +317,8 @@ export function ContentEngine() {
                         <Pill tone="primary"><Loader2 className="size-3 animate-spin" /> Finding footage and rendering video…</Pill>
                     ) : hasVideo ? (
                       <Pill tone="success"><CheckCircle2 className="size-3" /> Topic Video Ready</Pill>
+                    ) : videoFailed ? (
+                      <Pill tone="warning"><TriangleAlert className="size-3" /> Video unavailable · Post ready</Pill>
                     ) : ready ? (
                       <Pill tone="success"><CheckCircle2 className="size-3" /> Ready to post</Pill>
                     ) : (
@@ -326,6 +329,21 @@ export function ContentEngine() {
                     <p className="text-sm font-semibold text-foreground">{s.title}</p>
                     <p className="mt-1 [overflow-wrap:anywhere] text-xs text-muted-foreground">{s.hook}</p>
                   </div>
+                  {!hasVideo && (
+                    <div className="relative flex aspect-[4/3] max-h-64 items-center justify-center overflow-hidden rounded-lg border border-border bg-background">
+                      <Image
+                        src={postImageDataUrl(s)}
+                        alt={`Generated post image: ${s.title}`}
+                        width={1080}
+                        height={1350}
+                        unoptimized
+                        className="size-full object-contain"
+                      />
+                      <span className="absolute bottom-2 left-2 rounded-md border border-border/70 bg-background/90 px-2 py-1 text-[11px] font-medium text-muted-foreground">
+                        {videoFailed ? "Post image · video unavailable" : "Generated post image"}
+                      </span>
+                    </div>
+                  )}
                   {hasVideo && (
                     <div className="relative overflow-hidden rounded-lg border border-border bg-black aspect-video max-h-52 flex items-center justify-center">
                       <video src={s.videoUrl} preload="metadata" className="size-full object-contain" />
@@ -344,11 +362,11 @@ export function ContentEngine() {
                   <div className="mt-auto flex flex-wrap gap-2 border-t border-border pt-4">
                     <Button size="lg" disabled={isCreating} onClick={() => setPosting(s)}><Send /> Post on LinkedIn</Button>
                     <Button variant="outline" size="lg" disabled={isCreating} onClick={() => setPreviewing(s)}>
-                      <Play /> {hasVideo ? "Watch Video" : "Preview"}
+                      <Play /> {hasVideo ? "Watch Video" : videoFailed ? "View Post" : "Preview"}
                     </Button>
                     {!hasVideo && !isCreating && (
                       <Button variant="outline" size="lg" onClick={() => createVideo(s)}>
-                        <Sparkles className="size-3.5" /> Create Topic Video
+                        <Sparkles className="size-3.5" /> {videoFailed ? "Retry Video" : "Create Topic Video"}
                       </Button>
                     )}
                     <Button variant="ghost" size="lg" className="ml-auto text-destructive hover:text-destructive" aria-label={`Delete ${s.title}`} title="Delete this content" onClick={() => setConfirm({ kind: "cancel", s })}><Trash2 className="size-4"/>Delete</Button>
@@ -494,12 +512,6 @@ function ReviewPanel({
         </div>
       </header>
 
-      {s.videoStatus === "failed" && (
-        <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive-soft/40 px-3 py-2 text-sm text-foreground">
-          Video generation failed. Your script is back in Needs approval. Retry now or later.
-        </p>
-      )}
-
       {editing ? (
         <div className="flex flex-col gap-3">
           <Field label="Hook (first line)" htmlFor="hook"><Textarea id="hook" rows={2} value={hook} onChange={(e) => setHook(e.target.value)} /></Field>
@@ -617,7 +629,7 @@ function PreviewDialog({ s, onClose, onPost }: { s: ContentScript | null; onClos
             <DialogHeader>
               <DialogTitle className="pr-6 text-base">{s.title}</DialogTitle>
               <DialogDescription>
-                {s.videoUrl ? "Topic-matched footage montage · captions from your script" : `About ${s.seconds} seconds · ready for you to record`}
+                {s.videoUrl ? "Topic-matched footage montage · captions from your script" : s.videoStatus === "failed" ? "Video unavailable, your generated post image and caption are ready to view and post." : `About ${s.seconds} seconds · ready for you to record`}
               </DialogDescription>
             </DialogHeader>
 

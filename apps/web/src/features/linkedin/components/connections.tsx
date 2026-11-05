@@ -314,8 +314,8 @@ export function Connections() {
               </p>
             </FactTile>
             <div className="grid gap-3 sm:grid-cols-2 lg:col-span-3 lg:grid-cols-1">
-              <StatTile icon={Send} tone="warning" label="How often" value={strategy.perDay ? String(strategy.perDay) : "—"} unit="notes / day" />
-              <StatTile icon={Clock} tone="violet" label="Follow up after" value={strategy.followUpDays ? String(strategy.followUpDays) : "—"} unit="days" />
+              <StatTile icon={Send} tone="warning" label="How often" value={strategy.perDay ? String(strategy.perDay) : "Not set"} unit="notes / day" />
+              <StatTile icon={Clock} tone="violet" label="Follow up after" value={strategy.followUpDays ? String(strategy.followUpDays) : "Not set"} unit="days" />
             </div>
           </div>
         ) : (
@@ -453,7 +453,7 @@ export function Connections() {
             </table>
           </div>
           <div className="flex items-center justify-between border-t border-border px-4 py-3 text-xs text-muted-foreground">
-            <span>Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, rows.length)} of {rows.length}</span>
+            <span>Showing {(safePage - 1) * PAGE_SIZE + 1} to {Math.min(safePage * PAGE_SIZE, rows.length)} of {rows.length}</span>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>Previous</Button>
               <Button size="sm" variant="outline" disabled={safePage >= pageCount} onClick={() => setPage(safePage + 1)}>Next</Button>
