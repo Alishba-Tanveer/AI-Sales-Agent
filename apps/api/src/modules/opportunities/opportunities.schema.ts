@@ -3,6 +3,7 @@ import { z } from "zod";
 export const opportunityTypeSchema = z.enum(["client_project", "job_posting", "freelance"]);
 export const opportunityStatusSchema = z.enum(["open", "saved", "dismissed"]);
 export const postedWithinSchema = z.enum(["any", "24h", "7d", "30d"]);
+export const opportunitySourceSchema = z.enum(["jobicy", "arbeitnow", "remotive", "remoteok", "weworkremotely"]);
 
 export const searchOpportunitiesSchema = z.object({
   // An empty keyword list used to match every posting, so "clear the keywords and search" showed everything again.
@@ -11,7 +12,7 @@ export const searchOpportunitiesSchema = z.object({
     .default([])
     .transform((list) => list.map((k) => k.trim()).filter(Boolean))
     .refine((list) => list.length > 0, { message: "Add at least one keyword before searching." }),
-  sourceIds: z.array(z.string()).default([]),
+  sourceIds: z.array(opportunitySourceSchema).min(1, "Pick at least one source.").default([]),
   types: z.array(opportunityTypeSchema).default(["client_project", "job_posting", "freelance"]),
   minRelevance: z.number().min(0).max(100).default(75),
   postedWithin: postedWithinSchema.default("30d"),

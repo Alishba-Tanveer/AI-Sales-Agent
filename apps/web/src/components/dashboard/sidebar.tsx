@@ -34,6 +34,7 @@ const pillColor: Record<NavBadgeTone, string> = {
   pink: "var(--pink, #f472b6)",
   teal: "var(--teal, #2dd4bf)",
   destructive: "var(--destructive, #f87171)",
+  success: "var(--success, #4ade80)",
 };
 
 function NavLink({

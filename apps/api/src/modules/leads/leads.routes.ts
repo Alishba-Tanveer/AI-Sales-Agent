@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuth } from "../../middleware/auth";
+import { requireAuth, requireRole } from "../../middleware/auth";
 import { leadsController } from "./leads.controller";
 
 const router = Router();
@@ -9,7 +9,7 @@ router.post("/", leadsController.create);
 router.post("/import", leadsController.import);
 router.get("/:id", leadsController.get);
 router.patch("/:id", leadsController.update);
-router.delete("/:id", leadsController.archive);
+router.delete("/:id", requireRole("OWNER"), leadsController.archive);
 router.post("/:id/find-contact", leadsController.findContact);
 router.post("/:id/draft-email", leadsController.draftEmail);
 router.post("/:id/linkedin-connected", leadsController.markLinkedInConnected);

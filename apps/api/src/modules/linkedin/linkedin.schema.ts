@@ -215,6 +215,10 @@ export const importLeadsSchema = z.object({
   csv: z.string().max(500_000, "That CSV is too large. Split it into smaller files.").optional(),
 });
 
+export const resolveLeadProfilesSchema = z.object({
+  ids: z.array(z.string().min(1)).max(100),
+});
+
 export const connectAccountSchema = z.object({
   profileUrl: z.string().trim().optional(),
   accountName: z.string().trim().max(120).optional(),

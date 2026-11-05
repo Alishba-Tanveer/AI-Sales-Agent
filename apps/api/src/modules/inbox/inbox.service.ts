@@ -8,6 +8,12 @@ import { mailboxDb } from "../mailbox/mailbox.db";
 const CONTACTED_STAGES = new Set<LeadStage>([LeadStage.CONTACTED, LeadStage.INTERESTED, LeadStage.WON, LeadStage.LOST]);
 
 export class InboxService {
+  async deleteThread(organizationId: string, id: string) {
+    const message = await prisma.leadCommunication.findFirst({ where: { id, organizationId }, select: { leadId: true } });
+    if (!message) throw new AppError("Conversation not found", 404);
+    await prisma.leadCommunication.deleteMany({ where: { organizationId, leadId: message.leadId } });
+    return { deleted: true };
+  }
   /**
    * One conversation per person. Every reply logged for the same lead belongs to that lead's single thread, so the list
    * returns the newest received message of each lead (with how many they have sent) and the thread view shows everything:

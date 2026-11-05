@@ -6,6 +6,27 @@
 
 @custom-variant dark (&:is(.dark *));
 
+.content-preview-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--primary) 55%, transparent) transparent;
+  scrollbar-gutter: stable;
+}
+
+.content-preview-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.content-preview-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.content-preview-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 55%, transparent);
+  background-clip: content-box;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

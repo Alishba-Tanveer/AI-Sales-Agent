@@ -159,13 +159,14 @@ export function termMatch(term: string, title: string, body: string): number {
 }
 
 /**
- * Strength of the best-matching keyword mixed with the average: one strong hit (say "automation" in the title)
- * already makes a good match, and matching several keywords pushes the score higher still.
+ * Keywords are alternatives: a posting that matches one selected keyword must not be penalized because it does not
+ * match another. Matches on multiple selected terms may strengthen the score.
  */
 function aggregateKeywords(values: number[]): number {
-  if (values.length === 0) return 0;
-  const avg = values.reduce((a, b) => a + b, 0) / values.length;
-  return 0.25 * avg + 0.75 * Math.max(...values);
+  const matches = values.filter((value) => value >= 0.3);
+  if (matches.length === 0) return 0;
+  const avg = matches.reduce((a, b) => a + b, 0) / matches.length;
+  return 0.25 * avg + 0.75 * Math.max(...matches);
 }
 
 function aggregateServices(values: number[]): number {

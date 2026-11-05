@@ -122,4 +122,10 @@ export class ActivityService {
       },
     };
   }
+
+  async deleteJob(organizationId: string, id: string) {
+    const result = await this.activityRepository.delete(id, organizationId);
+    if (!result.count) throw new AppError("Activity task not found", 404);
+    return { deleted: true };
+  }
 }

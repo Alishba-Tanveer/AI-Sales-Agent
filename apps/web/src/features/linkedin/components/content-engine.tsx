@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import {
-  BadgeCheck, CalendarClock, CheckCircle2, Clock, ClipboardCopy, ExternalLink, FileText, Lightbulb, Loader2, Newspaper, Pencil, Plus,
+  BadgeCheck, CheckCircle2, Clock, ClipboardCopy, ExternalLink, FileText, Lightbulb, Loader2, Newspaper, Pencil, Plus,
   RefreshCw, Send, Sparkles, Trash2, Video, X, Play, Settings2, Link2, TriangleAlert, Download, Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useSearchParams } from "next/navigation";
 import { cn } from "cn";
 import { can, currentRole } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
@@ -15,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CARD_HOVER, CARD_INNER, CARD_LIFT, HOVER_BUTTONS, Field, Pill, TONES, inputCls } from "@/features/settings/components/settings-ui";
 import { approveScript, checkPostStatus, createScript, fetchContent, generateScriptVideo, fetchScriptVideoStatus, markScriptPosted, regenerateScript, removeScript, saveContentSettings, updateScript, refreshNicheNews } from "../api";
 import { ACTIVITY_URL, composeUrl, copyText, normalizeWebUrl, scriptCaption } from "../links";
-import { downloadCaption, downloadPostImage, downloadScript } from "../post-assets";
+import { downloadCaption, downloadPostImage, downloadScript, postImageDataUrl } from "../post-assets";
 import type { ContentScript, ContentSettings } from "../types";
 import { ConfirmDialog, HowItWorksDialog, IconTile, LinkButton, PageHeader, StepStrip, TabBar, fmtDate, fmtTime } from "./linkedin-ui";
 
@@ -25,11 +27,12 @@ type Confirm = { kind: "dismiss" | "cancel" | "remove"; s: ContentScript } | nul
 const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
 export function ContentEngine() {
+  const searchParams = useSearchParams();
   const canEditWorkspace = can.editWorkspaceSettings(currentRole());
   const [scripts, setScripts] = useState<ContentScript[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [tab, setTab] = useState<TabId>("approval");
+  const [tab, setTab] = useState<TabId>(() => searchParams.get("contentTab") === "scheduled" ? "scheduled" : "approval");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [topicOpen, setTopicOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -83,7 +86,7 @@ export function ContentEngine() {
       replace(generating);
       setSelectedId(nextPending(s.id));
       setTab("scheduled");
-      toast.success("AI avatar video generation started. Rendering via D-ID…");
+      toast.success("Topic video creation started. Finding relevant Pixabay clips and generating spoken narration…");
     } catch (e) {
       toast.error(errMsg(e, "Could not start AI video generation."));
     }
@@ -100,7 +103,9 @@ export function ContentEngine() {
           if (latest.videoStatus === "ready" || latest.status === "ready" || latest.videoStatus === "failed") {
             replace(latest);
             if (latest.videoUrl) {
-              toast.success(`AI Avatar video ready for "${latest.title}"!`);
+              toast.success(`Topic video ready for "${latest.title}"!`);
+            } else if (latest.videoStatus === "failed") {
+              toast.error(`Video generation failed for "${latest.title}". It is back in Needs approval; you can retry now or later.`);
             }
           }
         } catch {
@@ -197,7 +202,8 @@ export function ContentEngine() {
       <div className={cn("flex flex-col gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between", CARD_HOVER)}>
         <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
           <span className="flex items-center gap-1.5"><Clock className="size-4 text-sky-700 dark:text-sky-400" /> Post reminder daily at <b className="font-semibold text-foreground">{fmtTime(remindAt)}</b></span>
-          <span className="flex items-center gap-1.5"><Video className="size-4 text-muted-foreground" /> D-ID Video AI: Create talking avatar videos from your scripts, or record yourself.</span>
+          <span className="flex items-center gap-1.5"><Video className="size-4 text-muted-foreground" /> Create a narrated video with topic-matched footage, or record yourself.</span>
+          <a href="https://pixabay.com" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">Footage provided by Pixabay</a>
         </p>
         {canEditWorkspace && <Button variant="ghost" size="sm" onClick={() => setAvatarOpen(true)}><Settings2 /> Reminder</Button>}
       </div>
@@ -272,6 +278,7 @@ export function ContentEngine() {
                           <span className="font-medium text-foreground">{s.source}</span>
                           <span>{fmtDate(s.date)}</span>
                           <span>{s.seconds}s · {s.words} words</span>
+                          {s.videoStatus === "failed" && <Pill tone="destructive"><TriangleAlert className="size-3" /> Video failed · retry available</Pill>}
                         </span>
                         <span className="text-sm font-semibold text-foreground">{s.title}</span>
                         <span className="[overflow-wrap:anywhere] text-xs text-muted-foreground">{s.hook}</span>
@@ -306,15 +313,14 @@ export function ContentEngine() {
                 <li key={s.id} className={cn("flex flex-col gap-3 rounded-xl border border-border bg-card p-5", CARD_LIFT)}>
                   <div className="flex items-center justify-between gap-2">
                     {isCreating ? (
-                      <Pill tone="primary"><Loader2 className="size-3 animate-spin" /> Generating AI Video (D-ID)…</Pill>
+                        <Pill tone="primary"><Loader2 className="size-3 animate-spin" /> Finding footage and rendering video…</Pill>
                     ) : hasVideo ? (
-                      <Pill tone="success"><CheckCircle2 className="size-3" /> AI Video Ready</Pill>
+                      <Pill tone="success"><CheckCircle2 className="size-3" /> Topic Video Ready</Pill>
                     ) : ready ? (
                       <Pill tone="success"><CheckCircle2 className="size-3" /> Ready to post</Pill>
                     ) : (
                       <Pill tone="primary"><Loader2 className="size-3 animate-spin" /> Waiting for recording</Pill>
                     )}
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground"><CalendarClock className="size-3.5" /> Remind me {fmtDate(s.scheduledFor, true)}</span>
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-foreground">{s.title}</p>
@@ -342,7 +348,7 @@ export function ContentEngine() {
                     </Button>
                     {!hasVideo && !isCreating && (
                       <Button variant="outline" size="lg" onClick={() => createVideo(s)}>
-                        <Sparkles className="size-3.5" /> Generate AI Video
+                        <Sparkles className="size-3.5" /> Create Topic Video
                       </Button>
                     )}
                     <Button variant="ghost" size="lg" className="ml-auto text-destructive hover:text-destructive" aria-label={`Delete ${s.title}`} title="Delete this content" onClick={() => setConfirm({ kind: "cancel", s })}><Trash2 className="size-4"/>Delete</Button>
@@ -410,10 +416,10 @@ export function ContentEngine() {
           { title: "We find niche news", text: "Tavily searches this week\u2019s news using your niche, audience, services and target industries. The AI then scores each story for how useful it is to your audience and keeps only the relevant ones. Each draft links to its source." },
           { title: "We write a short script", text: "Each script has a hook, three main points and a call to action, about 40 seconds long." },
           { title: "You approve", text: "Edit the words, ask for a new draft, or dismiss it. Nothing moves forward without your yes." },
-          { title: "You record the video", text: "The free stack stops at an approved script. Record your own clip or read from the script." },
+          { title: "Generate or record", text: "The app finds Pixabay clips tagged for your topic, narrates your script, and adds a heading, key spoken lines, and an AI-designed three-part visual breakdown." },
           { title: "Post it yourself", text: "Download the caption, script or post image, then publish on LinkedIn by hand. LinkedIn does not allow apps to post for you." },
         ]}
-        note="AI avatar generation and automatic video creation are outside the selected free stack. You approve the script and record your own video."
+        note="Topic videos combine topic-tagged Pixabay footage, spoken narration, visible script lines, and an AI-designed visual breakdown. They do not use talking avatars."
       />
     </main>
   );
@@ -488,6 +494,12 @@ function ReviewPanel({
         </div>
       </header>
 
+      {s.videoStatus === "failed" && (
+        <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive-soft/40 px-3 py-2 text-sm text-foreground">
+          Video generation failed. Your script is back in Needs approval. Retry now or later.
+        </p>
+      )}
+
       {editing ? (
         <div className="flex flex-col gap-3">
           <Field label="Hook (first line)" htmlFor="hook"><Textarea id="hook" rows={2} value={hook} onChange={(e) => setHook(e.target.value)} /></Field>
@@ -504,7 +516,7 @@ function ReviewPanel({
           <Block label="Main points" tone="border-border bg-background">
             <ul className="list-disc space-y-1 pl-4 text-sm text-foreground">{s.points.map((p, i) => <li key={i}>{p}</li>)}</ul>
           </Block>
-          <Block label="Call to action" tone="border-success/40 bg-success-soft"><p className="text-sm text-foreground">{s.cta}</p></Block>
+          <Block label="Call to action" tone="border-violet-500/40 bg-violet-100/70 dark:border-violet-400/40 dark:bg-violet-400/15"><p className="text-sm text-foreground">{s.cta}</p></Block>
         </div>
       )}
 
@@ -512,17 +524,17 @@ function ReviewPanel({
 
       <div className="mt-auto flex flex-col gap-2 border-t border-border pt-4">
         <div className="flex flex-col gap-2">
-          <Button size="lg" className="h-10 bg-primary text-primary-foreground hover:bg-primary/90 font-medium" onClick={() => run("video", () => onCreateVideo(s))} disabled={editing || busy !== null}>
-            {busy === "video" ? <Loader2 className="animate-spin" /> : <Sparkles />} Create AI Avatar Video (D-ID)
+          <Button size="lg" className={cn("h-10 font-medium", TONES.pink.btn)} onClick={() => run("video", () => onCreateVideo(s))} disabled={editing || busy !== null}>
+            {busy === "video" ? <Loader2 className="animate-spin" /> : <Sparkles />} {s.videoStatus === "failed" ? "Retry Video" : "Create Topic Video"}
           </Button>
-          <Button size="lg" variant="outline" className="h-10 text-muted-foreground hover:text-foreground" onClick={() => run("approve", () => onApprove(s))} disabled={editing || busy !== null}>
+          <Button size="lg" variant="outline" className={cn("h-10", TONES.success.btn)} onClick={() => run("approve", () => onApprove(s))} disabled={editing || busy !== null}>
             {busy === "approve" ? <Loader2 className="animate-spin" /> : <Video />} Approve script &amp; record yourself
           </Button>
         </div>
         <div className="grid grid-cols-3 gap-2">
-          <Button variant="outline" size="lg" onClick={() => (editing ? setEditing(false) : startEdit())} disabled={busy !== null}><Pencil /> Edit</Button>
-          <Button variant="outline" size="lg" onClick={() => run("redo", () => onRegenerate(s))} disabled={editing || busy !== null}>{busy === "redo" ? <Loader2 className="animate-spin" /> : <RefreshCw />} Redo</Button>
-          <Button variant="ghost" size="lg" onClick={() => onDismiss(s)} disabled={busy !== null}><X /> Dismiss</Button>
+          <Button variant="outline" size="lg" className={TONES.info.btn} onClick={() => (editing ? setEditing(false) : startEdit())} disabled={busy !== null}><Pencil /> Edit</Button>
+          <Button variant="outline" size="lg" className={TONES.warning.btn} onClick={() => run("redo", () => onRegenerate(s))} disabled={editing || busy !== null}>{busy === "redo" ? <Loader2 className="animate-spin" /> : <RefreshCw />} Redo</Button>
+          <Button variant="ghost" size="lg" className="text-destructive hover:bg-destructive-soft" onClick={() => onDismiss(s)} disabled={busy !== null}><X /> Dismiss</Button>
         </div>
       </div>
     </section>
@@ -582,39 +594,56 @@ function ReminderDialog({ open, onOpenChange, time, onSave }: { open:boolean; on
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-md"><form onSubmit={save} className="grid gap-4"><DialogHeader><DialogTitle className="text-base">Posting reminder</DialogTitle><DialogDescription>Choose when to review and post a video you record yourself.</DialogDescription></DialogHeader><Field label="Remind me at" htmlFor="remind"><Input id="remind" type="time" required value={value} onChange={(e)=>setValue(e.target.value)} className={inputCls}/></Field><DialogFooter><Button type="button" variant="ghost" disabled={busy} onClick={()=>onOpenChange(false)}>Cancel</Button><Button type="submit" disabled={busy}>{busy&&<Loader2 className="animate-spin"/>} Save reminder</Button></DialogFooter></form></DialogContent></Dialog>;
 }
 
+function PixabayCredits({ videoUrl }: { videoUrl: string }) {
+  let credits: Array<{ name: string; profileUrl: string; videoUrl: string }> = [];
+  try {
+    const raw = new URL(videoUrl).searchParams.get("credits");
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(parsed)) credits = parsed.filter((item) => item && typeof item.name === "string" && typeof item.profileUrl === "string" && typeof item.videoUrl === "string" && item.profileUrl.startsWith("https://pixabay.com/users/") && item.videoUrl.startsWith("https://pixabay.com/videos/"));
+  } catch { /* show generic Pixabay credit if metadata is absent */ }
+  return (
+    <p className="w-full shrink-0 text-center text-[11px] text-muted-foreground">
+      Footage by {credits.length ? credits.map((credit, index) => <span key={`${credit.videoUrl}-${index}`}>{index > 0 ? ", " : ""}<a href={credit.videoUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground">{credit.name}</a></span>) : "Pixabay contributors"} on <a href="https://pixabay.com" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground">Pixabay</a>
+    </p>
+  );
+}
+
 function PreviewDialog({ s, onClose, onPost }: { s: ContentScript | null; onClose: () => void; onPost: (s: ContentScript) => void }) {
   return (
     <Dialog open={!!s} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="content-preview-scroll overflow-y-auto" style={{ width: "min(max(50vw, 320px), 1100px)", maxWidth: "calc(100vw - 2rem)", maxHeight: "80vh", overflowY: "auto" }}>
         {s && (
           <>
             <DialogHeader>
               <DialogTitle className="pr-6 text-base">{s.title}</DialogTitle>
               <DialogDescription>
-                {s.videoUrl ? "AI Avatar video generated with D-ID" : `About ${s.seconds} seconds · ready for you to record`}
+                {s.videoUrl ? "Topic-matched footage montage · captions from your script" : `About ${s.seconds} seconds · ready for you to record`}
               </DialogDescription>
             </DialogHeader>
 
-            {s.videoUrl ? (
-              <div className="mx-auto flex aspect-video w-full overflow-hidden rounded-xl border border-border bg-black">
-                <video src={s.videoUrl} controls autoPlay className="size-full rounded-xl object-contain" />
+            <div className="grid min-h-0 gap-4 lg:grid-cols-[1.05fr_.95fr]">
+              <div className="flex min-h-[220px] items-center justify-center overflow-hidden rounded-xl border border-border bg-background p-2" style={{ height: "min(54dvh, 520px)" }}>
+                {s.videoUrl ? (
+                  <div className="flex h-full w-full min-h-0 flex-col items-center justify-center gap-2">
+                    <video src={s.videoUrl} controls autoPlay className="min-h-0 w-full flex-1 rounded-lg object-contain" />
+                    <PixabayCredits videoUrl={s.videoUrl} />
+                  </div>
+                ) : (
+                  <Image src={postImageDataUrl(s)} alt={`Designed LinkedIn post graphic: ${s.title}`} width={1080} height={1350} unoptimized className="h-full w-full rounded-lg object-contain shadow-lg" />
+                )}
               </div>
-            ) : (
-              <div className="mx-auto flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-xl border border-border bg-background text-center">
-                <span className="flex size-12 items-center justify-center rounded-full border border-primary/30 bg-primary-soft text-primary"><Play className="size-5" /></span>
-                <p className="px-6 text-xs text-muted-foreground">Record this script yourself using your camera or phone, or generate a photorealistic talking video avatar with D-ID.</p>
+              <div className="flex min-h-0 flex-col gap-3">
+                <div className={cn("max-h-48 overflow-y-auto rounded-lg border border-border bg-background p-3", CARD_INNER)}>
+                  <p className="mb-1.5 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Caption</p>
+                  <p className="text-sm whitespace-pre-line text-foreground">{scriptCaption(s)}</p>
+                </div>
+                <DownloadRow s={s} />
+                <DialogFooter className="mt-auto">
+                  <Button variant="ghost" onClick={onClose}>Close</Button>
+                  <Button onClick={() => onPost(s)}><Send /> Copy caption &amp; post</Button>
+                </DialogFooter>
               </div>
-            )}
-
-            <div className={cn("rounded-lg border border-border bg-background p-3", CARD_INNER)}>
-              <p className="mb-1.5 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Caption</p>
-              <p className="text-sm whitespace-pre-line text-foreground">{scriptCaption(s)}</p>
             </div>
-            <DownloadRow s={s} />
-            <DialogFooter>
-              <Button variant="ghost" onClick={onClose}>Close</Button>
-              <Button onClick={() => onPost(s)}><Send /> Copy caption &amp; post</Button>
-            </DialogFooter>
           </>
         )}
       </DialogContent>
@@ -624,7 +653,7 @@ function PreviewDialog({ s, onClose, onPost }: { s: ContentScript | null; onClos
 
 /** LinkedIn does not allow posting from apps, so the person downloads what they need and posts it themselves. */
 function DownloadRow({ s }: { s: ContentScript }) {
-  const run = (label: string, fn: () => void) => () => { try { fn(); toast.success(`${label} downloaded`); } catch (e) { toast.error(errMsg(e, `Could not download the ${label.toLowerCase()}.`)); } };
+  const run = (label: string, fn: () => void | Promise<void>) => async () => { try { await fn(); toast.success(`${label} downloaded`); } catch (e) { toast.error(errMsg(e, `Could not download the ${label.toLowerCase()}.`)); } };
   return (
     <div className="grid gap-2">
       <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Download to post yourself</p>
@@ -637,7 +666,7 @@ function DownloadRow({ s }: { s: ContentScript }) {
             onClick={() => {
               const a = document.createElement("a");
               a.href = s.videoUrl!;
-              a.download = "linkedin-avatar-video.mp4";
+              a.download = "linkedin-topic-video.mp4";
               a.target = "_blank";
               a.rel = "noopener noreferrer";
               a.click();
@@ -651,7 +680,7 @@ function DownloadRow({ s }: { s: ContentScript }) {
         <Button type="button" variant="outline" size="sm" onClick={run("Image", () => downloadPostImage(s))}><ImageIcon /> Image</Button>
       </div>
       <p className="text-xs text-muted-foreground">
-        {s.videoUrl ? "Download your AI avatar video and caption to upload directly to LinkedIn." : "Caption and image make a text or photo post. Read the script on camera for a video post."}
+        {s.videoUrl ? "Download your topic video and caption to upload directly to LinkedIn." : "Caption and image make a text or photo post. Read the script on camera for a video post."}
       </p>
     </div>
   );

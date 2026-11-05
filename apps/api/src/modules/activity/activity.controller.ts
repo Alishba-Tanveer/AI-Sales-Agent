@@ -98,4 +98,11 @@ export class ActivityController {
       next(err);
     }
   };
+
+  deleteJob = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user?.organizationId) throw new AppError("Authentication required", 401);
+      res.json(await this.activityService.deleteJob(req.user.organizationId, String(req.params.id)));
+    } catch (err) { next(err); }
+  };
 }

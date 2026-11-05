@@ -133,6 +133,9 @@ export const activityStore = {
     if (state.status !== "success") return;
     set({ status: "success", jobs: state.jobs.map((j) => (j.id === id ? { ...j, ...patch } : j)) });
   },
+  remove(id: string) {
+    if (state.status === "success") set({ status: "success", jobs: state.jobs.filter((job) => job.id !== id) });
+  },
 };
 
 /**

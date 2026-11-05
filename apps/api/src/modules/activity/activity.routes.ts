@@ -2,7 +2,7 @@ import { Router } from "express";
 import { ActivityRepository } from "./activity.repository";
 import { ActivityService } from "./activity.service";
 import { ActivityController } from "./activity.controller";
-import { requireAuth } from "../../middleware/auth";
+import { requireAuth, requireRole } from "../../middleware/auth";
 
 const activityRepository = new ActivityRepository();
 export const activityService = new ActivityService(activityRepository);
@@ -17,5 +17,6 @@ router.get("/running-count", activityController.getRunningCount);
 router.post("/jobs", activityController.createJob);
 router.post("/:id/retry", activityController.retryJob);
 router.post("/:id/cancel", activityController.cancelJob);
+router.delete("/:id", requireRole("OWNER"), activityController.deleteJob);
 
 export const activityRoutes = router;

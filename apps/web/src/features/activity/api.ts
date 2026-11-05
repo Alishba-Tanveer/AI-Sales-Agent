@@ -21,3 +21,7 @@ export async function cancelJob(job: ActivityJob): Promise<JobPatch> {
   const res = await api<{ data: JobPatch }>(`/api/activity/${job.id}/cancel`, { method: "POST" });
   return res.data;
 }
+
+export async function deleteJob(job: ActivityJob): Promise<void> {
+  await api(`/api/activity/${job.id}`, { method: "DELETE" });
+}

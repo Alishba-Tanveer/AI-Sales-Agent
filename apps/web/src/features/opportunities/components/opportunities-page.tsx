@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { OptionSelect } from "@/components/ui/option-select";
 import { Reveal } from "@/features/overview/components/reveal";
+import { TONES } from "@/features/settings/components/settings-ui";
 import { useNow } from "@/lib/use-now";
 import { DEFAULT_FILTERS, PAGE_SIZE } from "../constants";
 import { accentAt, exportOpportunitiesCsv, sortOpportunities } from "../format";
@@ -32,7 +33,7 @@ export function OpportunitiesPage() {
 
   const items = useMemo(() => (state.status === "success" ? sortOpportunities(state.items, sort) : []), [state, sort]);
   // dismissed cards stay visible (faded, with Restore) but do not count as "found"
-  const active = items.filter((o) => o.status !== "dismissed").length;
+  const active = items.length;
   const shown = items.slice(0, visible);
   const remaining = items.length - shown.length;
 
@@ -92,7 +93,7 @@ export function OpportunitiesPage() {
                       <div className="flex items-center gap-3">
                         <span className="size-2 rounded-full bg-primary" aria-hidden />
                         <p className="text-sm font-semibold text-foreground">
-                          Found {active} {active === 1 ? "opportunity" : "opportunities"}
+                          Found {active} {active === 1 ? "matching opportunity" : "matching opportunities"}
                           <span className="ml-2 text-xs font-normal text-muted-foreground">
                             {remaining > 0 ? `showing ${shown.length} of ${items.length} · ` : ""}shared with your team
                           </span>
@@ -100,7 +101,7 @@ export function OpportunitiesPage() {
                       </div>
                       <div className="flex items-center gap-2 self-end sm:self-auto">
                         <OptionSelect aria-label="Sort opportunities" value={sort} onValueChange={(v) => setSort(v as SortKey)} options={SORT_OPTIONS} className="w-48 text-xs" />
-                        <Button variant="outline" size="lg" onClick={() => exportOpportunitiesCsv(items)}>
+                        <Button variant="outline" size="lg" className={TONES.violet.btn} onClick={() => exportOpportunitiesCsv(items)}>
                           <Download />
                           Export
                         </Button>

@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import Link from "next/link";
 import { Briefcase, Building2, Check, CircleCheck, ExternalLink, Info, Landmark, Loader2, Sparkles, MapPin, RotateCcw, Trash2, UserPlus, Wallet, X, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
@@ -6,6 +6,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { SOURCES, TOP_MATCH, TYPE_META } from "../constants";
 import { initials, ink, isNew, postedLabel, tint } from "../format";
 import type { Opportunity, SourceGroup } from "../types";
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
 
 const GROUP_ICON: Record<SourceGroup, LucideIcon> = { job_portal: Briefcase, company_site: Building2, registry: Landmark };
 
@@ -29,9 +30,9 @@ export const OpportunityCard = memo(function OpportunityCard({
   onSave: (o: Opportunity) => void;
   onDismiss: (o: Opportunity) => void;
   onRestore: (o: Opportunity) => void;
-  /** deletes the result for the whole team straight away (no confirmation) */
-  onDelete: (o: Opportunity) => void;
+  onDelete: (o: Opportunity) => void | Promise<void>;
 }) {
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const dismissed = item.status === "dismissed";
   const saved = item.status === "saved";
   const type = TYPE_META[item.type];
@@ -39,6 +40,7 @@ export const OpportunityCard = memo(function OpportunityCard({
   const SourceIcon = GROUP_ICON[group];
 
   return (
+    <>
     <article
       aria-label={item.title}
       className={cn(
@@ -173,7 +175,7 @@ export const OpportunityCard = memo(function OpportunityCard({
           <button
             type="button"
             disabled={busy}
-            onClick={() => onDelete(item)}
+            onClick={() => setDeleteOpen(true)}
             aria-label={`Delete ${item.title}`}
             title="Delete for the whole team"
             className="inline-flex size-8 items-center justify-center rounded-lg text-destructive outline-none transition-colors hover:bg-destructive-soft focus-visible:ring-2 focus-visible:ring-destructive/40 disabled:pointer-events-none disabled:opacity-50"
@@ -183,5 +185,7 @@ export const OpportunityCard = memo(function OpportunityCard({
         </div>
       </div>
     </article>
+    <ConfirmActionDialog open={deleteOpen} onOpenChange={setDeleteOpen} title="Delete this opportunity?" description={`“${item.title}” will be permanently removed for the whole team.`} onConfirm={() => onDelete(item)} />
+    </>
   );
 });

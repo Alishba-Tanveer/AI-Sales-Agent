@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import path from "node:path";
 import { env } from "./config/env";
 import { errorHandler } from "./middleware/error-handler";
 import { authRoutes } from "./modules/auth/auth.routes";
@@ -22,6 +23,13 @@ const app = express();
 app.use(helmet());
 app.use(cors({ origin: env.WEB_URL }));
 app.use(express.json({ limit: "4mb" }));
+
+// Generated topic videos are intended for playback/export in the web client.
+const videoStorage = path.resolve(env.VIDEO_STORAGE_DIR || path.join(process.cwd(), "uploads", "linkedin-videos"));
+app.use("/media", cors({ origin: env.WEB_URL }), (req, res, next) => {
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+  next();
+}, express.static(videoStorage, { index: false, dotfiles: "deny", maxAge: "1h" }));
 
 app.get("/api/health", (_req, res) => {
   res.status(200).json({

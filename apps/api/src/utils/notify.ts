@@ -1,5 +1,6 @@
 import { Role, prisma } from "@ai-sales-agent/database";
 import { encodeType, type NotificationType } from "./notification-audience";
+import { sendNoticeEmail } from "./mailer";
 
 /**
  * WHO SEES WHAT (the single source of truth, every notification in the app goes through notify()).
@@ -50,6 +51,25 @@ export async function notify(input: NotifyInput): Promise<number> {
       recipientIds = users.map((u) => u.id);
     }
     if (recipientIds.length === 0) return 0;
+
+    // Settings exposes two real alert rules. Other event types retain their normal in-app behavior.
+    const ruleId = input.type === "failure" ? "failures" : input.type === "reply" && /^Interested:/i.test(input.title) ? "interested" : null;
+    let emailEnabled = false;
+    let inAppEnabled = true;
+    if (ruleId) {
+      const settings = await prisma.workspaceSettings.findUnique({ where: { organizationId: input.organizationId }, select: { notificationRules: true } });
+      const rules = Array.isArray(settings?.notificationRules) ? settings.notificationRules as Array<{ id?: unknown; email?: unknown; inApp?: unknown }> : [];
+      const saved = rules.find((rule) => rule.id === ruleId);
+      // Match the published defaults if settings have not been created or an older record lacks this rule.
+      emailEnabled = typeof saved?.email === "boolean" ? saved.email : true;
+      inAppEnabled = typeof saved?.inApp === "boolean" ? saved.inApp : ruleId === "interested";
+    }
+
+    if (ruleId && emailEnabled) {
+      const users = await prisma.user.findMany({ where: { id: { in: recipientIds }, deletedAt: null }, select: { email: true } });
+      await Promise.all(users.map((user) => sendNoticeEmail({ toEmail: user.email, subject: input.title, lines: [input.body, ...(input.href ? [`Open: ${input.href}`] : [])] })));
+    }
+    if (ruleId && !inAppEnabled) return 0;
 
     const res = await prisma.inAppNotification.createMany({
       data: recipientIds.map((id) => ({

@@ -40,12 +40,6 @@ export type SearchResult = {
   failures: SourceFailure[];
 };
 
-/**
- * A search keeps at most this many matches (the best ones). The page shows them 10 at a time, so the browser never
- * has to draw hundreds of cards and the database does not fill up with every posting a portal returns.
- */
-export const MAX_STORED_RESULTS = 50;
-
 const MAX_TEXT_CHARS = 30_000;
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -120,7 +114,7 @@ const lastGood = new Map<string, { at: number; items: Candidate[] }>();
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const enc = encodeURIComponent;
-const topKeywords = (input: SearchOpportunitiesInput) => input.keywords.map((k: string) => k.trim()).filter(Boolean).slice(0, 3);
+const topKeywords = (input: SearchOpportunitiesInput) => input.keywords.map((k: string) => k.trim()).filter(Boolean);
 
 function friendlyError(label: string, error: unknown): string {
   if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
@@ -443,7 +437,7 @@ export class OpportunitiesService {
         const seen = new Set<string>();
         const matches: Array<Candidate & { type: OpportunityType; relevance: number; signals: string }> = [];
         for (const c of candidates) {
-          if (Number.isNaN(c.postedAt.getTime())) c.postedAt = new Date(now - 24 * 3600_000);
+          if (!Number.isFinite(c.postedAt.getTime()) || c.postedAt.getTime() > now) continue;
           if (now - c.postedAt.getTime() > timeLimitMs) continue;
 
           const type = c.type ?? inferOpportunityType(c.title, c.description);
@@ -476,10 +470,11 @@ export class OpportunitiesService {
         }
 
         matches.sort((a, b) => b.relevance - a.relevance || b.postedAt.getTime() - a.postedAt.getTime());
-        const best = matches.slice(0, MAX_STORED_RESULTS);
+        const best = matches;
 
         // 4. Store only those matches (a few at a time) so saves and dismissals persist and teammates see the same list
         const keepIds: string[] = [];
+        const resultRows: Awaited<ReturnType<OpportunitiesRepository["upsertOpportunity"]>>[] = [];
         for (let i = 0; i < best.length; i += 10) {
           const rows = await Promise.all(
             best.slice(i, i + 10).map((item) =>
@@ -500,6 +495,7 @@ export class OpportunitiesService {
             ),
           );
           keepIds.push(...rows.map((r) => r.id));
+          resultRows.push(...rows);
         }
 
         // 5. This search replaces the previous untouched results. Saved and dismissed ones always stay.
@@ -508,8 +504,7 @@ export class OpportunitiesService {
           await this.opportunitiesRepository.deleteOpenExcept(organizationId, keepIds);
         }
 
-        const rows = await this.opportunitiesRepository.list(organizationId);
-        return { items: rows.map(formatRow), failures };
+        return { items: resultRows.map(formatRow), failures };
       },
       output: (result) => `Found ${result.items.length} opportunities matching your criteria (${input.sourceIds.length} sources searched).`,
     });
@@ -531,7 +526,12 @@ export class OpportunitiesService {
     }
 
     const contact = await findCompanyContact({ company: opp.company, urls: [opp.url] });
-    if (!contact.email && !contact.linkedinUrl) {
+    // This lead represents the company, so never attach an individual's /in/ profile
+    // as if it were the company's LinkedIn page.
+    const companyLinkedinUrl = contact.linkedinUrl && /linkedin\.com\/company\//i.test(contact.linkedinUrl)
+      ? contact.linkedinUrl
+      : null;
+    if (!contact.email && !companyLinkedinUrl) {
       throw new AppError(
         `${opp.company} doesn't have an email or LinkedIn on its website, so it can't be contacted and wasn't added to Leads.`,
         422,
@@ -544,7 +544,7 @@ export class OpportunitiesService {
       company: opp.company,
       source: `Find Opportunities: ${opp.sourceLabel}`,
       email: contact.email ?? undefined,
-      linkedinUrl: contact.linkedinUrl ?? undefined,
+      linkedinUrl: companyLinkedinUrl ?? undefined,
       websiteUrl: contact.websiteUrl ?? opp.url,
       notes: `${opp.title}${opp.budget ? ` (${opp.budget})` : ""}\n\n${opp.signals}`,
     });

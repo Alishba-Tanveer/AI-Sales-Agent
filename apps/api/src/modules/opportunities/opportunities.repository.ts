@@ -79,6 +79,7 @@ export class OpportunitiesRepository {
           type: data.type,
           sourceId: data.sourceId,
           sourceLabel: data.sourceLabel,
+          postedAt: data.postedAt,
           // always the freshly computed score; keeping the old maximum would preserve stale / inflated values
           relevance: data.relevance,
           signals: data.signals,

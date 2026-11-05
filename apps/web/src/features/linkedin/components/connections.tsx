@@ -11,15 +11,17 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CARD_HOVER, CARD_INNER, HOVER_BUTTONS, Field, Pill, SectionCard, TONES, initials, inputCls, type Tone } from "@/features/settings/components/settings-ui";
-import { addLeadToCrm, createLead, deleteLeads, discoverBuyers, fetchLeads, fetchStrategy, importLeads, saveLeadNote, saveStrategy, sendLead, skipLead, markLeadSent, markLeadConnected, type ImportRow } from "../api";
+import { addLeadToCrm, createLead, deleteLeads, fetchLeads, fetchStrategy, importLeads, resolveLeadProfiles, saveLeadNote, saveStrategy, sendLead, skipLead, markLeadSent, markLeadConnected, type ImportRow } from "../api";
 import { copyText, linkedinMessageUrl, normalizeLinkedInProfileUrl, personSearchUrl } from "../links";
 import type { Lead, OutreachStrategy } from "../types";
 import { ConfirmDialog, HowItWorksDialog, IconTile, LinkButton, PageHeader, TabBar, fmtDate } from "./linkedin-ui";
 
 type TabId = "engaged" | "buyers" | "pending" | "connected";
+type ImportDest = "engaged" | "buyer";
 const PAGE_SIZE = 8;
 /** The server saves up to 500 people per request as one all-or-nothing batch, so bigger files are sent in chunks. */
 const IMPORT_CHUNK = 400;
+const profileLookupAttempted = new Set<string>();
 /** Most people one file may hold. LinkedIn exports of a few thousand connections fit. */
 const MAX_IMPORT_ROWS = 3000;
 /** The file is only read in the browser, never uploaded whole. LinkedIn's messages.csv holds every message text, so it can be large. */
@@ -63,6 +65,7 @@ export function Connections() {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [strategy, setStrategy] = useState<OutreachStrategy | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [resolvingProfiles, setResolvingProfiles] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [tab, setTab] = useState<TabId>("engaged");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -71,7 +74,7 @@ export function Connections() {
   const [strategyOpen, setStrategyOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [researching, setResearching] = useState(false);
+  const [importDest, setImportDest] = useState<ImportDest>("engaged");
   const [helpOpen, setHelpOpen] = useState(false);
   const [detail, setDetail] = useState<Lead | null>(null);
   const [confirm, setConfirm] = useState<{ kind: "withdraw" | "connected" | "delete" | "bulk-delete"; lead?: Lead } | null>(null);
@@ -82,8 +85,28 @@ export function Connections() {
     Promise.all([fetchLeads(), fetchStrategy()])
       .then(([l, s]) => {
         if (!live) return;
-        setLeads(l);
+        // Older imports briefly lost their chosen destination. Recover Target buyers
+        // from the import reason so existing records remain in the right tab.
+        const restoredDestinations = l.map((lead) =>
+          lead.source === "engaged" && /imported:\s*target buyer/i.test(lead.reason)
+            ? { ...lead, source: "buyer" as const }
+            : lead,
+        );
+        const withProfiles = restoredDestinations.filter((lead) => !!normalizeLinkedInProfileUrl(lead.url ?? ""));
+        const missing = restoredDestinations.filter((lead) => !lead.url && isPersonName(lead.name) && !profileLookupAttempted.has(lead.id)).slice(0, 100);
+        missing.forEach((lead) => profileLookupAttempted.add(lead.id));
+        setLeads(withProfiles);
         setStrategy(s);
+        if (missing.length) {
+          setResolvingProfiles(true);
+          void resolveLeadProfiles(missing.map((lead) => lead.id))
+            .then((resolved) => {
+              if (!live) return;
+              setLeads((current) => [...resolved, ...(current ?? []).filter((lead) => !resolved.some((item) => item.id === lead.id))]);
+            })
+            .catch(() => { /* Keep the verified profile list visible during temporary search errors. */ })
+            .finally(() => { if (live) setResolvingProfiles(false); });
+        }
       })
       .catch((e) => live && setLoadError(errMsg(e, "Could not load your connections.")));
     return () => {
@@ -98,7 +121,8 @@ export function Connections() {
     setAttempt((a) => a + 1);
   };
 
-  const all = leads ?? [];
+  // Lists contain only people with a verified LinkedIn profile URL.
+  const all = (leads ?? []).filter((lead) => !!normalizeLinkedInProfileUrl(lead.url ?? ""));
   const open = (l: Lead) => l.status === "suggested" || l.status === "approved";
   const engaged = all.filter((l) => l.source === "engaged" && open(l));
   const buyers = all.filter((l) => l.source === "buyer" && open(l));
@@ -106,7 +130,7 @@ export function Connections() {
   const connected = all.filter((l) => l.status === "connected");
   const tabRows = { engaged, buyers, pending, connected }[tab];
   const q = query.trim().toLowerCase();
-  const rows = q ? tabRows.filter((l) => [l.name, l.role, l.company, l.reason, l.url ?? ""].some((v) => v.toLowerCase().includes(q))) : tabRows;
+  const rows = q ? tabRows.filter((l) => [l.name, l.role, l.company, l.reason, l.url].some((v) => String(v ?? "").toLowerCase().includes(q))) : tabRows;
 
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
@@ -200,41 +224,34 @@ export function Connections() {
 
   /** Throws on failure so the dialog stays open. Large files go in chunks; each chunk is all-or-nothing. */
   const importPeople = async (rows: ImportRow[]) => {
-    let imported = 0, duplicates = 0;
+    let imported = 0, duplicates = 0, missingProfiles = 0;
     try {
       for (let i = 0; i < rows.length; i += IMPORT_CHUNK) {
         const res = await importLeads(rows.slice(i, i + IMPORT_CHUNK));
         imported += res.importedCount;
         duplicates += res.skippedDuplicates ?? 0;
+        missingProfiles += res.skippedNoProfile ?? 0;
         setLeads((cur) => [...res.leads, ...(cur ?? [])]);
       }
     } catch (e) {
       if (imported) toast.message(`${imported} people were imported before the error`, { description: "Fix the problem and import the file again. People already added are skipped automatically." });
       throw e;
     }
-    changeTab(rows[0]?.status === "connected" ? "connected" : rows[0]?.source === "buyer" ? "buyers" : "engaged");
-    toast.success(`Imported ${imported} ${imported === 1 ? "person" : "people"}`, { description: duplicates ? `${duplicates} already in your list ${duplicates === 1 ? "was" : "were"} skipped.` : undefined });
+    changeTab(rows[0]?.source === "buyer" ? "buyers" : "engaged");
+    if (!imported && missingProfiles) {
+      toast.message("No LinkedIn profiles were found", { description: `${missingProfiles} row${missingProfiles === 1 ? " was" : "s were"} skipped because a matching profile could not be verified.` });
+    } else {
+      const notes = [
+        missingProfiles ? `${missingProfiles} row${missingProfiles === 1 ? " was" : "s were"} skipped because no matching LinkedIn profile was found.` : "",
+        duplicates ? `${duplicates} already in your list ${duplicates === 1 ? "was" : "were"} skipped.` : "",
+      ].filter(Boolean);
+      toast.success(`Imported ${imported} ${imported === 1 ? "person" : "people"}`, { description: notes.join(" ") || undefined });
+    }
   };
 
-  /** Searches public sources for buyer candidates (the server verifies each one against the source text). Takes up to about a minute. */
-  const researchBuyers = async () => {
-    if (researching) return;
-    setResearching(true);
-    try {
-      const res = await discoverBuyers();
-      if (res.discoveredCount === 0) {
-        const sites = [...new Set(res.researchSources.map((s) => { try { return new URL(s.url).hostname.replace(/^www\./, ""); } catch { return ""; } }).filter(Boolean))].slice(0, 5);
-        toast("No new buyers found this time", { description: `Nobody in the public results matched closely enough to verify.${sites.length ? ` Searched: ${sites.join(", ")}.` : ""} Try again later, or widen your buyer titles in Settings.` });
-        return;
-      }
-      setLeads((cur) => [...res.leads, ...(cur ?? [])]);
-      changeTab("buyers");
-      toast.success(`Found ${res.discoveredCount} possible buyer${res.discoveredCount === 1 ? "" : "s"}. Check each one before you reach out.`);
-    } catch (e) {
-      toast.error(errMsg(e, "Could not research buyers. Please try again."));
-    } finally {
-      setResearching(false);
-    }
+  const openImport = () => {
+    setImportDest(tab === "buyers" ? "buyer" : "engaged");
+    setImportOpen(true);
   };
 
   /** "Save note" on someone waiting for approval, or just save the message for someone already connected. */
@@ -265,10 +282,7 @@ export function Connections() {
         actions={
           <>
             <Button variant="outline" className={TONES.warning.btn} onClick={() => setHelpOpen(true)}><Lightbulb /> How it works</Button>
-            <Button variant="outline" className={TONES.success.btn} onClick={() => setImportOpen(true)}><Upload /> Import</Button>
-            <Button variant="outline" className={TONES.pink.btn} onClick={() => void researchBuyers()} disabled={researching} aria-busy={researching}>
-              {researching ? <Loader2 className="animate-spin" /> : <Search />} {researching ? "Researching…" : "Research buyers"}
-            </Button>
+            <Button variant="outline" className={TONES.success.btn} onClick={openImport}><Upload /> Import</Button>
             <Button variant="outline" className={TONES.info.btn} onClick={() => setAddOpen(true)}><Plus /> Add person</Button>
           </>
         }
@@ -360,14 +374,11 @@ export function Connections() {
           ) : (
             <>
               <p className="text-sm font-medium text-foreground">No one here yet</p>
-              <p className="mt-1 text-sm text-muted-foreground">Import people who engaged with your posts, or search public sources for buyer candidates in your niche.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Import people who engaged with your posts or add target buyers from a CSV.</p>
+              {resolvingProfiles && <p className="mt-3 text-xs text-muted-foreground" role="status">Finding and verifying LinkedIn profile links…</p>}
               <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                <Button variant="outline" size="sm" className={TONES.success.btn} onClick={() => setImportOpen(true)}><Upload /> Import CSV</Button>
-                <Button variant="outline" size="sm" className={TONES.pink.btn} onClick={() => void researchBuyers()} disabled={researching}>
-                  {researching ? <Loader2 className="animate-spin" /> : <Search />} {researching ? "Researching…" : "Research buyers"}
-                </Button>
+                <Button variant="outline" size="sm" className={TONES.success.btn} onClick={openImport}><Upload /> Import CSV</Button>
               </div>
-              {researching && <p className="mt-3 text-xs text-muted-foreground" role="status">Searching public sources. This can take up to a minute.</p>}
             </>
           )}
         </div>
@@ -454,7 +465,7 @@ export function Connections() {
       <NoteDialog lead={noteLead} onClose={() => setNoteLead(null)} onSend={submitNote} />
       {strategy && <StrategyDialog open={strategyOpen} onOpenChange={setStrategyOpen} value={strategy} onSave={submitStrategy} />}
       <AddPersonDialog open={addOpen} onOpenChange={setAddOpen} onAdd={addPerson} />
-      <ImportDialog open={importOpen} onOpenChange={setImportOpen} onImport={importPeople} />
+      <ImportDialog key={importOpen ? importDest : "closed"} open={importOpen} initialDest={importDest} onOpenChange={setImportOpen} onImport={importPeople} />
       <LeadDialog lead={detail} onClose={() => setDetail(null)} onEditNote={(l) => { setDetail(null); setNoteLead(l); }} />
 
       <ConfirmDialog
@@ -729,6 +740,18 @@ function parseCsv(text: string): string[][] {
 type ImportPerson = Omit<ImportRow, "source" | "reason">;
 type ParsedImport = { ready: ImportPerson[]; skipped: string[]; problems: string[]; linkedinExport: boolean; messagesExport?: boolean };
 
+/** Ignore account-history and browser metadata that can be mistaken for a person's name in arbitrary CSV files. */
+function isPersonName(value: string): boolean {
+  const name = value.replace(/\s+/g, " ").trim();
+  if (name.length < 2 || !/[\p{L}]{2}/u.test(name)) return false;
+  const parts = name.toLowerCase().split(/[^\p{L}]+/u).filter(Boolean);
+  if (parts.length < 2 || parts.some((part) => ["organization", "limited", "ltd", "llc", "inc", "incorporated", "corporation", "systems", "technologies", "technology", "solutions", "services", "holdings", "plc", "gmbh", "linkedin", "puzzle", "guide"].includes(part))) return false;
+  if (/\d|@|https?:|linkedin\.com|mozilla|applewebkit|chrome|safari|firefox|edg\/|opera|webkit|gecko|windows nt|android|iphone|macintosh|user agent|ip address|login date|connected on|first name|last name/i.test(name)) return false;
+  if (/^(?:mon|tue|wed|thu|fri|sat|sun)(?:day)?\b/i.test(name) && /\b\d{4}\b/.test(name)) return false;
+  if (/^(?:name|full name|contact name|person name|profile name|login|date|time|company|position|email)$/i.test(name)) return false;
+  return true;
+}
+
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 /** "22 Jun 2026" (LinkedIn's format) or "2026-06-22" -> "2026-06-22"; anything else -> undefined. */
 function isoDate(v: string): string | undefined {
@@ -791,7 +814,7 @@ function readMessages(rows: string[][], headerAt: number): ParsedImport {
   for (const p of found.values()) {
     if (p.url && seenUrl.has(p.url)) continue;
     if (p.url) seenUrl.add(p.url);
-    if (p.name.length < 2) { skipped.push(`${p.url ?? "A person"}: no name in the file, skipped.`); continue; }
+    if (!isPersonName(p.name)) { skipped.push(`${p.url ?? "A person"}: no valid person name in the file, skipped.`); continue; }
     if (/^linkedin member$/i.test(p.name)) { skipped.push(`${p.url ?? "A person"}: LinkedIn hides this person’s name (“LinkedIn Member”), skipped.`); continue; }
     ready.push({ name: p.name, url: p.url });
   }
@@ -812,13 +835,21 @@ function readImport(text: string): ParsedImport {
   const norm = (h: string) => h.toLowerCase().replace(/\s+/g, " ").trim();
   const messagesAt = rows.findIndex((r) => r.some((h) => norm(h) === "sender profile url") && r.some((h) => norm(h) === "from"));
   if (messagesAt >= 0) return readMessages(rows, messagesAt);
-  const headerAt = rows.findIndex((r) => r.length >= 3 && r.some((h) => /^(first name|full name|name)$/.test(norm(h))));
+  const nameColumn = (h: string) => /^(?:first name|last name|(?:full|contact|person|profile) name|name)$/.test(norm(h));
+  const headerAt = rows.findIndex((r) => r.length >= 3 && r.some(nameColumn));
+  const metadataHeader = rows.some((r) => {
+    const values = r.map(norm);
+    return values.some((v) => /^(?:login date|date and time)$/.test(v)) || (values.some((v) => /ip address/.test(v)) && values.some((v) => /user agent|browser/.test(v)));
+  });
+  if (headerAt < 0 && metadataHeader) {
+    return { ready: [], skipped: [], problems: ["This CSV contains login or device history, not a people list. Import a CSV with a person name column."], linkedinExport: false };
+  }
   const header = headerAt >= 0 ? rows[headerAt].map(norm) : null;
   const dataRows = rows.slice(headerAt >= 0 ? headerAt + 1 : 0);
   const isLinkedInLayout = !header && dataRows.slice(0, 8).some((r) => /linkedin\.com\//i.test(r[2] ?? ""));
   const find = (re: RegExp) => (header ? header.findIndex((h) => re.test(h)) : -1);
   const at = header
-    ? { first: find(/^first name$/), last: find(/^last name$/), name: find(/^(full )?name$/), role: find(/position|title|role|headline/), company: find(/company|organi[sz]ation|employer/), url: find(/^url$|profile|link|linkedin/), date: find(/connected on/) }
+    ? { first: find(/^first name$/), last: find(/^last name$/), name: find(/^(?:(?:full|contact|person|profile) )?name$/), role: find(/position|title|role|headline/), company: find(/company|organi[sz]ation|employer/), url: find(/^url$|profile|link|linkedin/), date: find(/connected on/) }
     : isLinkedInLayout
       ? { first: 0, last: 1, name: -1, role: 5, company: 4, url: 2, date: 6 }
       : { first: -1, last: -1, name: 0, role: 1, company: 2, url: 3, date: -1 };
@@ -837,7 +868,7 @@ function readImport(text: string): ParsedImport {
     const name = clip(at.name >= 0 ? cell(r, at.name) : `${cell(r, at.first)} ${cell(r, at.last)}`);
     const rawUrl = cell(r, at.url);
     if (!name && !rawUrl && !cell(r, at.company) && !cell(r, at.role)) return; // empty line: nothing to say about it
-    if (name.length < 2) return void skipped.push(`Line ${line}: no name${rawUrl ? ` (${rawUrl})` : ""}, skipped.`);
+    if (!isPersonName(name)) return void skipped.push(`Line ${line}: this row does not contain a valid person's name, skipped.`);
     const url = rawUrl ? normalizeLinkedInProfileUrl(rawUrl) ?? undefined : undefined;
     const key = url ?? `${name}|${cell(r, at.company)}`.toLowerCase();
     if (seen.has(key)) return void skipped.push(`Line ${line} (${name}): listed twice in this file, skipped.`);
@@ -849,22 +880,14 @@ function readImport(text: string): ParsedImport {
   return { ready, skipped, problems: problems.filter(Boolean), linkedinExport };
 }
 
-type ImportDest = "engaged" | "buyer" | "connected";
-
-function ImportDialog({ open, onOpenChange, onImport }: { open: boolean; onOpenChange: (o: boolean) => void; onImport: (rows: ImportRow[]) => Promise<void> }) {
+function ImportDialog({ open, initialDest, onOpenChange, onImport }: { open: boolean; initialDest: ImportDest; onOpenChange: (o: boolean) => void; onImport: (rows: ImportRow[]) => Promise<void> }) {
   const [text, setText] = useState("");
   const [fileName, setFileName] = useState("");
-  const [dest, setDest] = useState<ImportDest>("engaged");
-  const [destTouched, setDestTouched] = useState(false);
+  const [dest, setDest] = useState<ImportDest>(initialDest);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const parsed = useMemo(() => (text.trim() ? readImport(text) : null), [text]);
-  // LinkedIn's own export is a list of people you are already connected with, so that is the natural place for it.
-  // Both of these adjust state while rendering instead of inside an effect.
-  if (parsed?.linkedinExport && !destTouched && dest !== "connected") setDest("connected");
-  // Clear the import whenever the dialog closes.
-  const [wasOpen, setWasOpen] = useState(open);
-  if (wasOpen !== open) { setWasOpen(open); if (!open) { setText(""); setFileName(""); setDestTouched(false); } }
+  // The parent remounts this dialog when it opens or its destination changes, so its local draft resets naturally.
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     e.target.value = "";
@@ -879,8 +902,7 @@ function ImportDialog({ open, onOpenChange, onImport }: { open: boolean; onOpenC
     if (parsed.problems.length) return void toast.error(parsed.problems[0]);
     setBusy(true);
     try {
-      const reason = dest === "connected" ? "Imported from your LinkedIn connections" : dest === "engaged" ? "Imported: engaged with your LinkedIn posts" : "Imported: target buyer from your list";
-      await onImport(parsed.ready.map((r) => ({ ...r, source: dest === "buyer" ? "buyer" : "engaged", status: dest === "connected" ? "connected" : "suggested", reason })));
+      await onImport(parsed.ready.map((r) => ({ ...r, source: dest, status: "suggested", reason: dest === "buyer" ? "Imported: target buyer from your list" : "Imported: engaged with your LinkedIn posts" })));
       setText("");
       setFileName("");
       onOpenChange(false);
@@ -896,12 +918,12 @@ function ImportDialog({ open, onOpenChange, onImport }: { open: boolean; onOpenC
         <form onSubmit={submit} className="grid min-w-0 gap-4">
           <DialogHeader>
             <DialogTitle>Import people</DialogTitle>
-            <DialogDescription>Upload or paste LinkedIn’s Connections.csv or messages.csv export, or a CSV with name, role, company and LinkedIn link. A header row is optional.</DialogDescription>
+            <DialogDescription>Upload or paste LinkedIn’s Connections.csv or messages.csv export, or a CSV with a person name column. We’ll look up and verify missing LinkedIn profile links automatically.</DialogDescription>
           </DialogHeader>
           <Field label="Add them to" htmlFor="imp-src">
-            <div id="imp-src" role="radiogroup" className="grid grid-cols-3 gap-2">
-              {([["connected", "My connections", Users], ["engaged", "Engaged", Heart], ["buyer", "Target buyers", Target]] as const).map(([id, label, Icon]) => (
-                <button key={id} type="button" role="radio" aria-checked={dest === id} onClick={() => { setDest(id); setDestTouched(true); }}
+            <div id="imp-src" role="radiogroup" className="grid grid-cols-2 gap-2">
+              {([["engaged", "Engaged", Heart], ["buyer", "Target buyers", Target]] as const).map(([id, label, Icon]) => (
+                <button key={id} type="button" role="radio" aria-checked={dest === id} onClick={() => setDest(id)}
                   className={cn("flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring", dest === id ? "border-primary bg-primary-soft text-primary" : "border-input text-foreground hover:bg-secondary/60")}>
                   <Icon className="size-4 shrink-0" /> <span className="truncate">{label}</span>
                 </button>
