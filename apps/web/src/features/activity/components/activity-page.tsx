@@ -40,8 +40,12 @@ export function ActivityPage() {
   const searchParams = useSearchParams();
   const { state, reload, busy, retry, cancel, remove } = useActivity();
   const now = useNow();
-  const [tab, setTab] = useState<ActivityTab>(() => searchParams.get("tab") === "failed" ? "failed" : "all");
+  const tabParam = TABS.find((t) => t.id === searchParams.get("tab"))?.id ?? "all";
+  const [tab, setTab] = useState<ActivityTab>(tabParam);
+  const [syncedTabParam, setSyncedTabParam] = useState<ActivityTab>(tabParam);
   const [page, setPage] = useState(0);
+  // /activity?tab=running (top-bar search) switches the tab, also when the page is already open.
+  if (syncedTabParam !== tabParam) { setSyncedTabParam(tabParam); setTab(tabParam); setPage(0); }
   const [viewed, setViewed] = useState<ActivityJob | null>(null);
   const [viewOpen, setViewOpen] = useState(false);
 

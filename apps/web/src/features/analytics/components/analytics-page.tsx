@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Download, RefreshCw, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Reveal } from "@/features/overview/components/reveal";
 import { HOVER_BUTTONS, TONES } from "@/features/settings/components/settings-ui";
 import { cn } from "cn";
-import { buildAnalytics, toCsv } from "../compute";
+import { buildAnalytics, PERIODS, toCsv } from "../compute";
 import { useAnalytics } from "../hooks";
 import { SOURCE_LABEL, type AnalyticsView, type PeriodId, type RawAnalytics } from "../types";
 import { AnalyticsEmpty, AnalyticsError, AnalyticsSkeleton, Funnel, LeadsOverTime, MetricSection, PeriodTabs } from "./analytics-ui";
@@ -45,7 +46,12 @@ function Notice({ raw, cut, onRetry }: { raw: RawAnalytics; cut: boolean; onRetr
 
 export function AnalyticsPage() {
   const { state, reload } = useAnalytics();
-  const [period, setPeriod] = useState<PeriodId>("7d");
+  const searchParams = useSearchParams();
+  const periodParam: PeriodId = PERIODS.find((p) => p.id === searchParams.get("period"))?.id ?? "7d";
+  const [period, setPeriod] = useState<PeriodId>(periodParam);
+  const [syncedPeriodParam, setSyncedPeriodParam] = useState<PeriodId>(periodParam);
+  // /analytics?period=30d (top-bar search) switches the period, also when the page is already open.
+  if (syncedPeriodParam !== periodParam) { setSyncedPeriodParam(periodParam); setPeriod(periodParam); }
   const view = useMemo(() => (state.status === "ready" ? buildAnalytics(state.raw, period, state.loadedAt) : null), [state, period]);
 
   const byId = (id: string) => view?.groups.find((g) => g.id === id);

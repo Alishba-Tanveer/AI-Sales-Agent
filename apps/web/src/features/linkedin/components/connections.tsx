@@ -17,6 +17,7 @@ import type { Lead, OutreachStrategy } from "../types";
 import { ConfirmDialog, HowItWorksDialog, IconTile, LinkButton, PageHeader, TabBar, fmtDate } from "./linkedin-ui";
 
 type TabId = "engaged" | "buyers" | "pending" | "connected";
+export const CONNECTION_LISTS: TabId[] = ["engaged", "buyers", "pending", "connected"];
 type ImportDest = "engaged" | "buyer";
 const PAGE_SIZE = 8;
 /** The server saves up to 500 people per request as one all-or-nothing batch, so bigger files are sent in chunks. */
@@ -60,14 +61,14 @@ const avatarTone = (id: string, prevId?: string): Tone => {
 
 const REASON_TONE = { like: "text-destructive", comment: "text-sky-700 dark:text-sky-400", view: "text-violet-700 dark:text-violet-400", fit: "text-success" } as const;
 
-export function Connections() {
+export function Connections({ initialTab = "engaged" }: { initialTab?: TabId }) {
   const canEditWorkspace = can.editWorkspaceSettings(currentRole());
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [strategy, setStrategy] = useState<OutreachStrategy | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [resolvingProfiles, setResolvingProfiles] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const [tab, setTab] = useState<TabId>("engaged");
+  const [tab, setTab] = useState<TabId>(initialTab);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const [noteLead, setNoteLead] = useState<Lead | null>(null);
