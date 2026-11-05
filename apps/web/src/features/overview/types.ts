@@ -18,6 +18,7 @@ export type AttentionItem = {
   kind: "reply" | "failure" | "scheduled" | "content";
   title: string;
   subtitle: string;
+  href?: string;
 };
 
 export type StageCount = { stage: LeadStage; count: number };

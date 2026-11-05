@@ -526,7 +526,7 @@ export class LinkedinService {
     let filtered = allScripts;
     if (filters?.status) {
       if (filters.status === "scheduled") {
-        filtered = filtered.filter((s) => s.status === "creating_video" || s.status === "ready");
+        filtered = filtered.filter((s) => s.status === "creating_video" || s.status === "ready" || s.videoStatus === "failed");
       } else {
         filtered = filtered.filter((s) => s.status === filters.status);
       }
@@ -545,10 +545,10 @@ export class LinkedinService {
     }
 
     const counts = {
-      needs_approval: allScripts.filter((s) => s.status === "needs_approval").length,
+      needs_approval: allScripts.filter((s) => s.status === "needs_approval" && s.videoStatus !== "failed").length,
       creating_video: allScripts.filter((s) => s.status === "creating_video").length,
       ready: allScripts.filter((s) => s.status === "ready").length,
-      scheduled: allScripts.filter((s) => s.status === "creating_video" || s.status === "ready").length,
+      scheduled: allScripts.filter((s) => s.status === "creating_video" || s.status === "ready" || s.videoStatus === "failed").length,
       posted: allScripts.filter((s) => s.status === "posted").length,
       total: allScripts.length,
     };
@@ -850,17 +850,17 @@ export class LinkedinService {
       });
     } catch (err) {
       console.error("Failed while rendering topic video", { scriptId, err });
-      await linkedinRepository.updateScript(organizationId, scriptId, { videoStatus: "failed", status: "needs_approval" });
+      await linkedinRepository.updateScript(organizationId, scriptId, { videoStatus: "failed", status: "ready" });
       const message = err instanceof Error ? err.message : "Topic video rendering failed.";
       const storedScript = await linkedinRepository.findScriptById(organizationId, scriptId);
       await finishScriptVideoActivity(organizationId, scriptId, { ok: false, error: message });
       await notify({
         organizationId,
         type: "system",
-        title: "Topic Video Failed",
+        title: "Video unavailable, post ready",
         audience: "ALL",
-        body: `Video generation failed for "${storedScript?.title || "your script"}". ${message}`.slice(0, 1000),
-        href: "/linkedin?tab=content&contentTab=approval",
+        body: `We couldn't create a video for "${storedScript?.title || "your script"}". The generated post image and caption are ready to view or post in Scheduled.`,
+        href: "/linkedin?tab=content&contentTab=scheduled",
       });
     }
   }

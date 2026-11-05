@@ -171,7 +171,7 @@ const SOURCE_DEFS: Record<string, SourceDef> = {
         fallbackSignals: "Seeking technical engineering partner for systems integration.",
         budget:
           j.annualSalaryMin && j.annualSalaryMax
-            ? `${j.salaryCurrency || "$"}${Math.round(j.annualSalaryMin / 1000)}k–${Math.round(j.annualSalaryMax / 1000)}k`
+            ? `${j.salaryCurrency || "$"}${Math.round(j.annualSalaryMin / 1000)}k-${Math.round(j.annualSalaryMax / 1000)}k`
             : null,
         location: j.jobGeo || "Remote",
         url: j.url || "https://jobicy.com",
@@ -229,7 +229,7 @@ const SOURCE_DEFS: Record<string, SourceDef> = {
         postedAt: j.date ? new Date(j.date) : new Date(now - 20 * 3600_000),
         description: clean(j.description),
         fallbackSignals: "Hiring partner or specialist for remote system integrations.",
-        budget: j.salary_min && j.salary_max ? `$${Math.round(j.salary_min / 1000)}k–$${Math.round(j.salary_max / 1000)}k` : null,
+        budget: j.salary_min && j.salary_max ? `$${Math.round(j.salary_min / 1000)}k-$${Math.round(j.salary_max / 1000)}k` : null,
         location: j.location || "Remote",
         url: j.url || `https://remoteok.com/remote-jobs/${j.id}`,
       })),

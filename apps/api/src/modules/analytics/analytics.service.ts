@@ -54,6 +54,7 @@ export class AnalyticsService {
       failedJobsCount,
       scheduledJobs,
       scheduledLinkedInPosts,
+      unsentReplyDrafts,
       stageGroups,
     ] = await Promise.all([
       prisma.lead.count({ where: { organizationId } }),
@@ -71,6 +72,12 @@ export class AnalyticsService {
       prisma.activityLog.count({ where: { organizationId, status: "queued", scheduledFor: { not: null } } }),
       // Keep this aligned with the LinkedIn Scheduled tab: ready posts and posts creating a video both count.
       prisma.linkedinScript.count({ where: { organizationId, status: { in: ["ready", "creating_video"] } } }),
+      // Each pending draft links to its own lead conversation in the Inbox.
+      prisma.leadCommunication.findMany({
+        where: { organizationId, direction: "OUTBOUND", status: "DRAFT", lead: { is: { archivedAt: null } } },
+        orderBy: { occurredAt: "desc" },
+        select: { id: true, leadId: true, channel: true, lead: { select: { name: true, company: true } } },
+      }),
       prisma.lead.groupBy({
         by: ["stage"],
         where: { organizationId },
@@ -96,6 +103,7 @@ export class AnalyticsService {
       kind: "reply" | "failure" | "scheduled" | "content";
       title: string;
       subtitle: string;
+      href?: string;
     }> = [];
 
     if (failedJobsCount > 0) {
@@ -108,6 +116,18 @@ export class AnalyticsService {
     }
     if (scheduledJobs > 0) attention.push({ id: "att-scheduled", kind: "scheduled", title: `${scheduledJobs} scheduled task(s)`, subtitle: "Review upcoming work in Activity" });
     if (scheduledLinkedInPosts > 0) attention.push({ id: "att-content", kind: "content", title: `${scheduledLinkedInPosts} content item(s) scheduled`, subtitle: "Review your upcoming LinkedIn posts and videos" });
+    const draftLeadIds = new Set<string>();
+    for (const draft of unsentReplyDrafts) {
+      if (draftLeadIds.has(draft.leadId)) continue;
+      draftLeadIds.add(draft.leadId);
+      attention.push({
+        id: `att-reply-${draft.leadId}`,
+        kind: "reply",
+        title: `Reply draft for ${draft.lead.name}`,
+        subtitle: `${draft.channel === "EMAIL" ? "Email" : "LinkedIn"} reply is waiting for your review${draft.lead.company ? ` · ${draft.lead.company}` : ""}`,
+        href: `/inbox?leadId=${encodeURIComponent(draft.leadId)}`,
+      });
+    }
 
     const activity = recentActivity.map((a: ActivityLog) => {
       let type: "draft" | "reply" | "approved" | "failed" | "lead_added" = "draft";

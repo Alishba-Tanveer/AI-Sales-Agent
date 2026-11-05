@@ -272,7 +272,7 @@ export function changeOf(metric: Metric): Change | null {
 }
 
 export const formatValue = (metric: Metric) =>
-  metric.value === null ? "—" : metric.format === "percent" ? `${metric.value.toFixed(1)}%` : metric.value.toLocaleString("en-US");
+  metric.value === null ? "Not available" : metric.format === "percent" ? `${metric.value.toFixed(1)}%` : metric.value.toLocaleString("en-US");
 
 /* ---------- CSV export ---------- */
 
