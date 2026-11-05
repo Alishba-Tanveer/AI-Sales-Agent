@@ -22,17 +22,18 @@ import type { ContentScript, ContentSettings } from "../types";
 import { ConfirmDialog, HowItWorksDialog, IconTile, LinkButton, PageHeader, StepStrip, TabBar, fmtDate, fmtTime } from "./linkedin-ui";
 
 type TabId = "approval" | "scheduled" | "posted";
+export const CONTENT_STAGES: TabId[] = ["approval", "scheduled", "posted"];
 type Confirm = { kind: "dismiss" | "cancel" | "remove"; s: ContentScript } | null;
 
 const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
-export function ContentEngine() {
+export function ContentEngine({ initialTab }: { initialTab?: TabId } = {}) {
   const searchParams = useSearchParams();
   const canEditWorkspace = can.editWorkspaceSettings(currentRole());
   const [scripts, setScripts] = useState<ContentScript[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [tab, setTab] = useState<TabId>(() => searchParams.get("contentTab") === "scheduled" ? "scheduled" : "approval");
+  const [tab, setTab] = useState<TabId>(() => initialTab ?? (searchParams.get("contentTab") === "scheduled" ? "scheduled" : "approval"));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [topicOpen, setTopicOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);

@@ -2,11 +2,13 @@
 
 import { useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Menu, Search } from "lucide-react";
+import { Bell, Loader2, Menu, Search } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
-import { buildSuggestions } from "@/features/search/destinations";
+import { buildSuggestions, type Suggestion } from "@/features/search/destinations";
+import { resolveLookup } from "@/features/search/resolve";
 import { currentRole } from "@/lib/permissions";
 import { cn } from "cn";
 import { NotificationsSheet } from "@/features/notifications/components/notifications-sheet";
@@ -20,6 +22,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
   const { unread } = useNotifications();
 
   // Global search: as you type it suggests matching pages and tabs ("team" -> Settings > Team); the last row searches Leads.
@@ -27,17 +30,44 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const items = useMemo(() => (open ? buildSuggestions(query, currentRole()) : []), [query, open]);
   const showList = open && items.length > 0;
 
-  const go = (href: string) => {
-    router.push(href);
+  const reset = () => {
     setQuery("");
     setActive(0);
     setOpen(false);
   };
 
+  const go = (href: string) => {
+    router.push(href);
+    reset();
+  };
+
+  /** Nothing matched: stay on the current page, keep what was typed so it can be corrected, and say so. */
+  const notFound = (text: string) => {
+    setOpen(false);
+    toast("Nothing found", { description: `No page, tab, conversation or lead matches “${text.trim()}”. Try a page name like “inbox”, “settings team” or “target buyers”, or a person’s name.` });
+  };
+
+  const choose = async (pick: Suggestion | undefined, typed: string) => {
+    if (!pick) return notFound(typed);
+    if (pick.lookup === undefined) return go(pick.href);
+    setSearching(true);
+    try {
+      const href = await resolveLookup(pick.lookup);
+      if (href) go(href);
+      else if (pick.lookup.scope === "inbox") { setOpen(false); toast("Nothing found", { description: `No Inbox conversation matches “${pick.lookup.term}”.` }); }
+      else notFound(typed);
+    } catch {
+      setOpen(false);
+      toast.error("Could not search right now. Please try again.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const pick = items[active] ?? items[0];
-    if (pick) go(pick.href);
+    if (!query.trim() || searching) return;
+    void choose(items[active] ?? items[0], query);
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -76,7 +106,9 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
             if (!formRef.current?.contains(e.relatedTarget as Node | null)) setOpen(false);
           }}
         >
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-muted-foreground" />
+          {searching
+            ? <Loader2 className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 animate-spin text-primary" />
+            : <Search className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-muted-foreground" />}
           <Input
             type="search"
             value={query}
@@ -93,7 +125,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
             aria-autocomplete="list"
             aria-activedescendant={showList ? `${listId}-${active}` : undefined}
             autoComplete="off"
-            placeholder="Search leads, or type a page, e.g. settings team..."
+            placeholder="Search a page, tab or person, e.g. target buyers, inbox alishba..."
             aria-label="Search"
             className="h-10 rounded-lg border-border bg-card pr-4 pl-9 text-xs transition-all duration-200 hover:border-primary/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 md:text-xs dark:bg-card [&::-webkit-search-cancel-button]:appearance-none"
           />
@@ -109,7 +141,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
                         tabIndex={-1}
                         onMouseDown={(e) => e.preventDefault()}
                         onMouseEnter={() => setActive(i)}
-                        onClick={() => go(it.href)}
+                        onClick={() => void choose(it, query)}
                         className={cn(
                           "flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs outline-none transition-colors",
                           i === active ? "bg-primary-soft text-primary" : "text-foreground hover:bg-muted",

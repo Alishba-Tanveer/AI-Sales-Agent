@@ -59,9 +59,12 @@ export function LeadsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedSearch = searchParams.get("search") ?? "";
+  const stageParam = searchParams.get("stage");
+  const requestedStage: LeadStage | "ALL" = STAGE_ORDER.find((value) => value === stageParam) ?? "ALL";
   const [leads, setLeads] = useState<Lead[]>([]);
   const [counts, setCounts] = useState<Partial<Record<LeadStage, number>>>({});
-  const [stage, setStage] = useState<LeadStage | "ALL">("ALL");
+  const [stage, setStage] = useState<LeadStage | "ALL">(requestedStage);
+  const [syncedStageParam, setSyncedStageParam] = useState(requestedStage);
   const [query, setQuery] = useState(requestedSearch);
   const [syncedSearchParam, setSyncedSearchParam] = useState(requestedSearch);
   const [loading, setLoading] = useState(true);
@@ -76,6 +79,11 @@ export function LeadsPage() {
   const [stageBusyId, setStageBusyId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // /leads?stage=WON (top-bar search) opens that stage filter, also when the page is already open.
+  if (syncedStageParam !== requestedStage) {
+    setSyncedStageParam(requestedStage);
+    setStage(requestedStage);
+  }
   if (syncedSearchParam !== requestedSearch) {
     setSyncedSearchParam(requestedSearch);
     setQuery(requestedSearch);

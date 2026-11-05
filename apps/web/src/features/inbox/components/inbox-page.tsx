@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ExternalLink, Loader2, Mail, MessageSquare, Plus, RefreshCw, Search, Send, Sparkles, Trash2 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
@@ -33,7 +34,11 @@ export function InboxPage() {
   const [items, setItems] = useState<InboxItem[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [selected, setSelected] = useState<InboxItem | null>(null);
-  const requestedLeadId = useRef<string | null>(null);
+  // /inbox?leadId=...&r=... opens that person's conversation (set by the top-bar search and by "Open in inbox" links).
+  const searchParams = useSearchParams();
+  const leadIdParam = searchParams.get("leadId");
+  const requestKey = leadIdParam ? searchParams.toString() : "";
+  const handledRequest = useRef("");
   const [deleteThreadOpen, setDeleteThreadOpen] = useState(false);
   const [thread, setThread] = useState<LeadCommunication[]>([]);
   const [query, setQuery] = useState("");
@@ -54,9 +59,6 @@ export function InboxPage() {
   const [sendTarget, setSendTarget] = useState<LeadCommunication | null>(null);
   const [syncing, setSyncing] = useState(false);
   const selectedId = selected?.id;
-  useEffect(() => {
-    requestedLeadId.current = new URLSearchParams(window.location.search).get("leadId");
-  }, []);
   // New replies arrive in the background; refresh the list (and the open conversation) every minute while connected.
   useEffect(() => {
     if (!mailboxReady) return;
@@ -73,6 +75,9 @@ export function InboxPage() {
     catch (e) { setError(errorText(e)); }
     finally { setLoading(false); }
   }, [query]);
+  // A new request from the top bar clears the list filter so the person is always in the list.
+  const [seenRequest, setSeenRequest] = useState(requestKey);
+  if (seenRequest !== requestKey) { setSeenRequest(requestKey); if (requestKey && query) setQuery(""); }
   // Show the spinner as soon as the search changes (adjusting state while rendering, not inside an effect).
   const [loadedQuery, setLoadedQuery] = useState(query);
   if (loadedQuery !== query) { setLoadedQuery(query); setLoading(true); setError(""); }
@@ -97,13 +102,13 @@ export function InboxPage() {
     finally { setLoadingThread(false); }
   }, []);
   useEffect(() => {
-    const leadId = requestedLeadId.current;
-    if (!leadId) return;
-    const item = items.find((candidate) => candidate.lead.id === leadId);
+    if (!leadIdParam || handledRequest.current === requestKey) return;
+    const item = items.find((candidate) => candidate.lead.id === leadIdParam);
     if (!item) return;
-    requestedLeadId.current = null;
-    void selectMessage(item);
-  }, [items, selectMessage]);
+    handledRequest.current = requestKey;
+    // deferred one tick: opening the chat sets state, which must not happen synchronously inside an effect
+    void Promise.resolve().then(() => selectMessage(item));
+  }, [items, selectMessage, leadIdParam, requestKey]);
   useEffect(() => { if (!loadingThread) endRef.current?.scrollIntoView({ block: "end" }); }, [thread, loadingThread, selected?.lead.id]);
   const generateReply = async () => {
     if (!selected) return;
