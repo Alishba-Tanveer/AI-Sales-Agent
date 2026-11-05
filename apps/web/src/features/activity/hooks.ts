@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { cancelJob, retryJob } from "./api";
+import { cancelJob, deleteJob, retryJob } from "./api";
 import { activityStore, useActivityState } from "./store";
 import type { ActivityJob } from "./types";
 
@@ -37,6 +37,12 @@ export function useActivity() {
 
   const retry = useCallback((job: ActivityJob) => act(job, retryJob, `Retrying "${job.title}"`, "Could not retry this task."), [act]);
   const cancel = useCallback((job: ActivityJob) => act(job, cancelJob, `Cancelled "${job.title}"`, "Could not cancel this task."), [act]);
+  const remove = useCallback(async (job: ActivityJob) => {
+    setBusy((b) => new Set(b).add(job.id));
+    try { await deleteJob(job); activityStore.remove(job.id); toast.success("Activity deleted"); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Could not delete this activity."); }
+    finally { setBusy((b) => { const n = new Set(b); n.delete(job.id); return n; }); }
+  }, []);
 
-  return { state, reload, busy, retry, cancel };
+  return { state, reload, busy, retry, cancel, remove };
 }

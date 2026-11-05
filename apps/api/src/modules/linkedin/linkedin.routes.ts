@@ -168,16 +168,11 @@ router.put("/strategy", ownerOrAdmin, (req, res, next) => linkedinController.upd
 router.patch("/strategy", ownerOrAdmin, (req, res, next) => linkedinController.updateStrategy(req, res, next));
 
 // Static /leads/* and /connections/* actions BEFORE /:id
-router.post("/connections/discover", (req, res, next) =>
-  linkedinController.discoverConnections(req, res, next),
-);
-router.post("/leads/discover", (req, res, next) =>
-  linkedinController.discoverConnections(req, res, next),
-);
 router.post("/connections/import", (req, res, next) =>
   linkedinController.importLeads(req, res, next),
 );
 router.post("/leads/import", (req, res, next) => linkedinController.importLeads(req, res, next));
+router.post("/leads/resolve-profiles", (req, res, next) => linkedinController.resolveLeadProfiles(req, res, next));
 router.post("/leads/bulk-delete", (req, res, next) => linkedinController.deleteLeads(req, res, next));
 
 // Frontend /api/linkedin/leads routes

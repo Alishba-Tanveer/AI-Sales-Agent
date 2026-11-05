@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Bell, Building2, Megaphone, SlidersHorizontal, User, Users, type LucideIcon } from "lucide-react";
+import { Bell, Building2, Megaphone, User, Users, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { Reveal } from "@/features/overview/components/reveal";
 import { can, type AppRole } from "@/lib/permissions";
@@ -17,14 +17,13 @@ import { UsageTab } from "./usage-tab";
 
 type TabDef = { id: SettingsTabId; label: string; icon: LucideIcon; tone: Tone; allow?: (r: AppRole) => boolean };
 
-// Member sees Profile, Team (read only) and Notifications. Admin adds the workspace tabs. Only the Owner sees Usage and Limits.
+// Members see Profile, Team (read only), and Notifications & Usage. The usage panel remains Owner-only.
 const TABS: TabDef[] = [
   { id: "profile", label: "Profile", icon: User, tone: "primary" },
   { id: "business", label: "Business", icon: Building2, tone: "success", allow: can.editWorkspaceSettings },
   { id: "team", label: "Team", icon: Users, tone: "info" },
   { id: "outreach", label: "Outreach Strategy", icon: Megaphone, tone: "warning", allow: can.editWorkspaceSettings },
-  { id: "notifications", label: "Notifications", icon: Bell, tone: "pink" },
-  { id: "usage", label: "Usage and Limits", icon: SlidersHorizontal, tone: "violet", allow: can.manageUsageAndBilling },
+  { id: "notifications", label: "Notifications & Usage", icon: Bell, tone: "pink" },
 ];
 
 const isTab = (v: string | null, tabs: TabDef[]): v is SettingsTabId => tabs.some((t) => t.id === v);
@@ -37,7 +36,9 @@ export function SettingsPage() {
   // read after mount: the role comes from localStorage, which the server render can't see
   const role = useRole();
   const visibleTabs = TABS.filter((t) => !t.allow || (role !== null && t.allow(role)));
-  const tab: SettingsTabId = isTab(raw, visibleTabs) ? raw : "profile";
+  // Keep old bookmarks that opened the former Usage tab working after the tabs were combined.
+  const requestedTab = raw === "usage" ? "notifications" : raw;
+  const tab: SettingsTabId = isTab(requestedTab, visibleTabs) ? requestedTab : "profile";
 
   const go = (id: SettingsTabId) => router.replace(id === "profile" ? pathname : `${pathname}?tab=${id}`, { scroll: false });
 
@@ -56,6 +57,7 @@ export function SettingsPage() {
         <div role="tablist" aria-label="Settings sections" className="flex w-full items-center gap-1 overflow-x-auto overflow-y-hidden border-b border-border whitespace-nowrap [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
           {visibleTabs.map(({ id, label, icon: Icon, tone }) => {
             const active = tab === id;
+            const tabLabel = id === "notifications" && role !== "OWNER" ? "Notifications" : label;
             return (
               <button
                 key={id}
@@ -71,7 +73,7 @@ export function SettingsPage() {
                 )}
               >
                 <Icon className={cn("size-4", ICON_POP, TONES[tone].text)} />
-                {label}
+                {tabLabel}
               </button>
             );
           })}
@@ -84,8 +86,12 @@ export function SettingsPage() {
           {tab === "business" && <BusinessTab />}
           {tab === "team" && <TeamTab />}
           {tab === "outreach" && <OutreachTab />}
-          {tab === "notifications" && <NotificationsTab />}
-          {tab === "usage" && <UsageTab onOpenOutreach={() => go("outreach")} />}
+          {tab === "notifications" && (
+            <div className="flex flex-col gap-6">
+              <NotificationsTab />
+              {role === "OWNER" && <UsageTab onOpenOutreach={() => go("outreach")} />}
+            </div>
+          )}
         </div>
       </Reveal>
     </main>

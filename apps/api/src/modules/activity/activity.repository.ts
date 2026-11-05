@@ -30,8 +30,10 @@ export class ActivityRepository {
     return prisma.activityLog.findMany({
       where,
       orderBy: [{ startedAt: "desc" }, { createdAt: "desc" }],
-      take: query?.limit ?? 100,
-      skip: query?.page && query?.limit ? query.page * query.limit : undefined,
+      // Without an explicit page limit, return the full feed so Activity tab counters and analytics
+      // include every recorded job, not only the latest 100.
+      ...(query?.limit ? { take: query.limit } : {}),
+      skip: query?.page !== undefined && query?.limit ? query.page * query.limit : undefined,
     });
   }
 
@@ -95,6 +97,10 @@ export class ActivityRepository {
       where: { id, organizationId },
       data,
     });
+  }
+
+  async delete(id: string, organizationId: string) {
+    return prisma.activityLog.deleteMany({ where: { id, organizationId } });
   }
 
   async seedDefaultJobsIfEmpty(_organizationId: string) {

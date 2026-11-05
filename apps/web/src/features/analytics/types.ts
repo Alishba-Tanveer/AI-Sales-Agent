@@ -59,7 +59,7 @@ export type MetricGroup = {
 };
 
 export type FunnelStep = { label: string; count: number; color: string };
-export type ChartBucket = { label: string; value: number; hint: string };
+export type ChartBucket = { label: string; value: number; hint: string; dayLabel?: string; monthLabel?: string };
 
 export type AnalyticsView = {
   periodLabel: string;

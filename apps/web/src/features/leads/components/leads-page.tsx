@@ -3,17 +3,21 @@ import { sameText } from "../display";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Ban, Download, FileUp, Loader2, Plus, Search, UserRound } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Ban, Download, FileUp, Loader2, Plus, Search, Trash2, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { OptionSelect } from "@/components/ui/option-select";
 import { Textarea } from "@/components/ui/textarea";
-import { createLead, fetchLeads, updateLead, importLeads, type LeadInput } from "../api";
+import { archiveLead, createLead, fetchLeads, updateLead, importLeads, type LeadInput } from "../api";
 import type { Lead, LeadStage } from "../types";
 import { STAGE_META, STAGE_ORDER } from "../stages";
 import { LeadAvatar } from "./lead-avatar";
+import { useRole } from "@/lib/use-role";
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
+import { TONES } from "@/features/settings/components/settings-ui";
 
 const FILTERS: { value: LeadStage | "ALL"; label: string; color?: string }[] = [
   { value: "ALL", label: "All leads" },
@@ -51,11 +55,15 @@ function parseCsv(source: string) {
 }
 
 export function LeadsPage() {
+  const isOwner = useRole() === "OWNER";
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedSearch = searchParams.get("search") ?? "";
   const [leads, setLeads] = useState<Lead[]>([]);
   const [counts, setCounts] = useState<Partial<Record<LeadStage, number>>>({});
   const [stage, setStage] = useState<LeadStage | "ALL">("ALL");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(requestedSearch);
+  const [syncedSearchParam, setSyncedSearchParam] = useState(requestedSearch);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [open, setOpen] = useState(false);
@@ -64,8 +72,14 @@ export function LeadsPage() {
   const [importRows, setImportRows] = useState<LeadInput[]>([]);
   const [importSkipped, setImportSkipped] = useState<string[]>([]);
   const [dncLead, setDncLead] = useState<Lead | null>(null);
+  const [deleteLeadTarget, setDeleteLeadTarget] = useState<Lead | null>(null);
   const [stageBusyId, setStageBusyId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  if (syncedSearchParam !== requestedSearch) {
+    setSyncedSearchParam(requestedSearch);
+    setQuery(requestedSearch);
+  }
 
   const load = useCallback(async () => {
     setLoading(true); setLoadError("");
@@ -152,14 +166,20 @@ export function LeadsPage() {
     finally { setSaving(false); }
   };
 
+  const deleteLead = async () => {
+    if (!deleteLeadTarget) return;
+    try { await archiveLead(deleteLeadTarget.id); setLeads((current) => current.filter((item) => item.id !== deleteLeadTarget.id)); toast.success("Lead deleted"); setDeleteLeadTarget(null); }
+    catch (e) { toast.error(errorText(e)); }
+  };
+
   return (
     <main className="mx-auto w-full max-w-[1500px] space-y-6 p-5 md:p-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div><h1 className="text-3xl font-semibold tracking-tight">Leads</h1><p className="mt-1 text-muted-foreground">One contact record for email and LinkedIn outreach, with every next step tracked here.</p></div>
         <div className="flex flex-wrap gap-2">
           <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ""; }} />
-          <Button variant="outline" onClick={() => fileRef.current?.click()}><FileUp /> Import CSV</Button>
-          <Button variant="outline" onClick={exportCsv} disabled={!visible.length}><Download /> Export</Button>
+          <Button variant="outline" className={TONES.success.btn} onClick={() => fileRef.current?.click()}><FileUp /> Import CSV</Button>
+          <Button variant="outline" className={TONES.info.btn} onClick={exportCsv} disabled={!visible.length}><Download /> Export</Button>
           <Button onClick={() => setOpen(true)}><Plus /> Add lead</Button>
         </div>
       </div>
@@ -181,11 +201,12 @@ export function LeadsPage() {
           <label className="relative w-full sm:w-80"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"/><Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, company, email" className="h-9 pl-9" aria-label="Search leads"/></label>
         </div>
         {loadError ? <div className="p-12 text-center"><p className="font-medium">Could not load leads</p><p className="mt-1 text-sm text-muted-foreground">{loadError}</p><Button className="mt-4" variant="outline" onClick={() => void load()}>Retry</Button></div> : loading ? <div className="flex justify-center p-14"><Loader2 className="size-6 animate-spin text-primary"/></div> : visible.length === 0 ? <div className="p-14 text-center"><div className="mx-auto flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><UserRound/></div><h2 className="mt-3 font-semibold">No leads here yet</h2><p className="mt-1 text-sm text-muted-foreground">Add a person, import a CSV, or promote a researched LinkedIn contact into this pipeline.</p><Button className="mt-4" onClick={() => setOpen(true)}><Plus/> Add lead</Button></div> : (
-          <div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm"><thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground"><tr>{["Contact", "Company", "Source", "Stage", ""].map((h) => <th key={h} className="px-4 py-3 font-medium">{h}</th>)}</tr></thead><tbody className="divide-y divide-border">{visible.map((lead, index) => <tr key={lead.id} className="group transition-colors hover:bg-primary/5"><td className="px-4 py-3"><div className="flex items-center gap-3"><LeadAvatar name={lead.name} id={lead.id} prevId={visible[index - 1]?.id}/><div className="min-w-0"><button className="text-left font-medium transition-colors hover:text-primary" onClick={() => router.push(`/leads/${lead.id}`)}>{lead.name}</button><p className="truncate text-xs text-muted-foreground">{lead.jobTitle || (sameText(lead.name, lead.company) ? "Company lead" : "Role not set")}{lead.email ? ` · ${lead.email}` : ""}</p></div></div></td><td className="px-4 py-3">{lead.company || <span className="text-muted-foreground">Company not set</span>}</td><td className="px-4 py-3 text-muted-foreground">{lead.source || "Source not set"}</td><td className="px-4 py-3"><OptionSelect variant="pill" value={lead.stage} options={optionsFor(lead.stage)} disabled={stageBusyId === lead.id} onValueChange={(next) => void changeStage(lead, next as LeadStage)} aria-label={`Change ${lead.name} stage`}/></td><td className="px-4 py-3 text-right"><Button variant="ghost" size="sm" className="text-muted-foreground hover:bg-destructive-soft hover:text-destructive" onClick={() => setDncLead(lead)} aria-label={`Move ${lead.name} to Do not contact`} title="Move to Do not contact"><Ban/></Button></td></tr>)}</tbody></table></div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm"><thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground"><tr>{["Contact", "Company", "Source", "Stage", ""].map((h) => <th key={h} className="px-4 py-3 font-medium">{h}</th>)}</tr></thead><tbody className="divide-y divide-border">{visible.map((lead, index) => <tr key={lead.id} className="group transition-colors hover:bg-primary/5"><td className="px-4 py-3"><div className="flex items-center gap-3"><LeadAvatar name={lead.name} id={lead.id} prevId={visible[index - 1]?.id}/><div className="min-w-0"><button className="text-left font-medium transition-colors hover:text-primary" onClick={() => router.push(`/leads/${lead.id}`)}>{lead.name}</button><p className="truncate text-xs text-muted-foreground">{lead.jobTitle || (sameText(lead.name, lead.company) ? "Company lead" : "Role not set")}{lead.email ? ` · ${lead.email}` : ""}</p></div></div></td><td className="px-4 py-3">{lead.company || <span className="text-muted-foreground">Company not set</span>}</td><td className="px-4 py-3 text-muted-foreground">{lead.source || "Source not set"}</td><td className="px-4 py-3"><OptionSelect variant="pill" value={lead.stage} options={optionsFor(lead.stage)} disabled={stageBusyId === lead.id} onValueChange={(next) => void changeStage(lead, next as LeadStage)} aria-label={`Change ${lead.name} stage`}/></td><td className="px-4 py-3 text-right"><div className="flex justify-end"><Button variant="ghost" size="icon" className="text-muted-foreground hover:bg-destructive-soft hover:text-destructive" onClick={() => setDncLead(lead)} aria-label={`Move ${lead.name} to Do not contact`} title="Move to Do not contact"><Ban/></Button>{isOwner && <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive-soft" onClick={() => setDeleteLeadTarget(lead)} aria-label={`Delete ${lead.name}`} title="Delete lead"><Trash2/></Button>}</div></td></tr>)}</tbody></table></div>
         )}
       </section>
 
-      <LeadForm open={open} busy={saving} onClose={() => setOpen(false)} onSave={saveNew}/>
+        <LeadForm open={open} busy={saving} onClose={() => setOpen(false)} onSave={saveNew}/>
+        <ConfirmActionDialog open={!!deleteLeadTarget} onOpenChange={(value) => !value && setDeleteLeadTarget(null)} title={`Delete ${deleteLeadTarget?.name ?? "lead"}?`} description="This archives the lead and removes it from the active pipeline." onConfirm={deleteLead} />
       <Dialog open={!!dncLead} onOpenChange={(value) => !value && setDncLead(null)}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Move {dncLead?.name} to Do not contact?</DialogTitle><DialogDescription>This keeps the lead in your pipeline, and prevents AI email drafts.</DialogDescription></DialogHeader><DialogFooter><Button variant="ghost" disabled={saving} onClick={() => setDncLead(null)}>Cancel</Button><Button variant="destructive" disabled={saving} onClick={() => void moveToDoNotContact()}>{saving && <Loader2 className="animate-spin"/>}Move to Do not contact</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={importOpen} onOpenChange={setImportOpen}><DialogContent className="sm:max-w-xl"><DialogHeader><DialogTitle>Import leads</DialogTitle><DialogDescription>{importRows.length} ready to import{importSkipped.length ? ` · ${importSkipped.length} skipped` : ""}. New contacts will be added as New in your pipeline.</DialogDescription></DialogHeader><div className="max-h-64 overflow-auto rounded-lg border border-border"><table className="w-full text-sm"><thead className="sticky top-0 bg-card text-muted-foreground"><tr><th className="p-2 text-left">Name</th><th className="p-2 text-left">Email</th><th className="p-2 text-left">Company</th></tr></thead><tbody>{importRows.slice(0, 50).map((r, i) => <tr key={`${r.name}-${i}`} className="border-t border-border"><td className="p-2">{r.name}</td><td className="p-2">{r.email || "No email"}</td><td className="p-2">{r.company || "Company not set"}</td></tr>)}</tbody></table></div>{importSkipped.length > 0 && <ul className="max-h-24 list-disc overflow-y-auto pl-5 text-xs text-destructive">{importSkipped.map((reason) => <li key={reason}>{reason}</li>)}</ul>}<DialogFooter><Button variant="ghost" onClick={() => setImportOpen(false)}>Cancel</Button><Button disabled={saving || !importRows.length} onClick={() => void submitImport()}>{saving && <Loader2 className="animate-spin"/>}Import {importRows.length}</Button></DialogFooter></DialogContent></Dialog>
     </main>

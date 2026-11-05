@@ -1,4 +1,5 @@
-import { createAvatarTalk, getAvatarTalk, pollAvatarTalkUntilDone, isDIdConfigured, DIdCreditsError } from "../../integrations/did";
+import { getAvatarTalk, pollAvatarTalkUntilDone } from "../../integrations/did";
+import { assertTopicVideoConfigured, createTopicVideo } from "../../integrations/topic-video";
 import { Prisma, Role, prisma } from "@ai-sales-agent/database";
 import { AppError } from "../../utils/app-error";
 import {
@@ -31,6 +32,14 @@ function extractNameFromLinkedInUrl(url: string): string | null {
   const cleaned = slug.replace(/[0-9a-f]{8,}$/i, "").replace(/[-_.]+/g, " ").trim();
   if (cleaned.length < 2) return null;
   return cleaned.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+const evidenceTokens = (value: string) => value.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").split(/[^a-z0-9]+/).filter(Boolean);
+const NON_PERSON_TERMS = new Set(["organization", "company", "limited", "ltd", "llc", "inc", "incorporated", "corporation", "corp", "systems", "technologies", "technology", "solutions", "services", "group", "holdings", "plc", "gmbh", "official", "guide", "puzzle", "linkedin"]);
+
+function isLikelyPersonName(value: string) {
+  const tokens = evidenceTokens(value);
+  return tokens.length >= 2 && tokens.every((token) => !NON_PERSON_TERMS.has(token)) && !/\d|@|https?:|mozilla|applewebkit|chrome|safari|firefox|windows nt|android|iphone|macintosh|user agent|ip address|login date/i.test(value);
 }
 
 export class LinkedinService {
@@ -804,51 +813,55 @@ export class LinkedinService {
   async generateVideoForScript(
     organizationId: string,
     id: string,
-    options?: { voiceId?: string; sourceUrl?: string }
+    _options?: { voiceId?: string; sourceUrl?: string }
   ) {
     const script = await linkedinRepository.findScriptById(organizationId, id);
     if (!script) {
       throw new AppError("Content script not found", 404);
     }
 
-    if (!isDIdConfigured()) {
-      throw new AppError("D-ID avatar video generation is not configured. Please check D_DI_KEY_AVATAR in .env.", 400);
+    try {
+      await assertTopicVideoConfigured();
+    } catch (error) {
+      throw new AppError(error instanceof Error ? error.message : "Topic video creation is not configured.", 400);
     }
 
-    const spokenText = `${script.hook}. ${script.points.join(". ")}. ${script.cta}`;
-
-    await linkedinRepository.updateScript(organizationId, id, {
-      status: "creating_video",
-      videoStatus: "creating",
-    });
     await beginScriptVideoActivity({ organizationId, scriptId: id, scriptTitle: script.title });
+    const updated = await linkedinRepository.updateScript(organizationId, id, { status: "creating_video", videoStatus: "creating", videoId: null, videoUrl: null });
+    this.renderTopicVideo(organizationId, id, script).catch((err) => {
+      console.error("Error rendering Pixabay topic video", { scriptId: id, err });
+    });
+    return this.formatScript(updated);
+  }
 
+  async renderTopicVideo(organizationId: string, scriptId: string, script: { title: string; hook: string; points: string[]; cta: string }) {
     try {
-      const talk = await createAvatarTalk({
-        text: spokenText,
-        sourceUrl: options?.sourceUrl,
-        voiceId: options?.voiceId,
+      const result = await createTopicVideo(script);
+      await linkedinRepository.updateScript(organizationId, scriptId, { videoUrl: result.videoUrl, videoStatus: "ready", status: "ready" });
+      const storedScript = await linkedinRepository.findScriptById(organizationId, scriptId);
+      await finishScriptVideoActivity(organizationId, scriptId, { ok: true, output: `Topic video rendered for "${storedScript?.title || "your script"}" with Pixabay footage.` });
+      await notify({
+        organizationId,
+        type: "system",
+        title: "Topic Video Ready",
+        audience: "ALL",
+        body: `Your video for "${storedScript?.title || "your script"}" is ready to watch or post.`,
+        href: "/linkedin?tab=content",
       });
-
-      const updated = await linkedinRepository.updateScript(organizationId, id, {
-        videoId: talk.id,
-        videoStatus: "creating",
-        status: "creating_video",
+    } catch (err) {
+      console.error("Failed while rendering topic video", { scriptId, err });
+      await linkedinRepository.updateScript(organizationId, scriptId, { videoStatus: "failed", status: "needs_approval" });
+      const message = err instanceof Error ? err.message : "Topic video rendering failed.";
+      const storedScript = await linkedinRepository.findScriptById(organizationId, scriptId);
+      await finishScriptVideoActivity(organizationId, scriptId, { ok: false, error: message });
+      await notify({
+        organizationId,
+        type: "system",
+        title: "Topic Video Failed",
+        audience: "ALL",
+        body: `Video generation failed for "${storedScript?.title || "your script"}". ${message}`.slice(0, 1000),
+        href: "/linkedin?tab=content&contentTab=approval",
       });
-
-      this.pollAndFinalizeVideo(organizationId, id, talk.id).catch((err) => {
-        console.error("Error finalizing D-ID video in background", { scriptId: id, talkId: talk.id, err });
-      });
-
-      return this.formatScript(updated);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Video generation failed";
-      await finishScriptVideoActivity(organizationId, id, { ok: false, error: msg });
-      await linkedinRepository.updateScript(organizationId, id, {
-        videoStatus: "failed",
-        status: script.status === "creating_video" ? "needs_approval" : script.status,
-      });
-      throw new AppError(msg, err instanceof DIdCreditsError ? 402 : 502);
     }
   }
 
@@ -1434,72 +1447,23 @@ export class LinkedinService {
     });
   }
 
-  /**
-   * Buyer research. Data comes from public web search (Tavily), not from LinkedIn's API and not from a contact database:
-   * team / leadership / about pages, conference and webinar speaker lists, news and interviews, and any public LinkedIn
-   * pages that the search engine returns. The AI may only extract people that are written in those excerpts, and the
-   * server then re-checks every candidate (name and company must appear in the source text) before saving anything.
-   */
-  async discoverConnections(organizationId: string) {
-    const [config, org] = await Promise.all([
-      linkedinRepository.getOrCreateConfig(organizationId),
-      prisma.organization.findUnique({ where: { id: organizationId } }),
-    ]);
-
-    const titles = (org?.targetTitles ?? []).slice(0, 4);
-    const industries = (org?.targetIndustries ?? []).slice(0, 3);
-    const titleText = titles.join(" OR ") || config.audience;
-    const industryText = industries.join(" OR ") || config.offer;
-    if (!titleText && !industryText) throw new AppError("Set your buyer titles or niche before researching prospects.", 400);
-    const queries = [
-      `${titleText} ${industryText} company leadership team`,
-      `${titleText} ${industryText} speaker interview founder`,
-      `${titleText} ${industryText} LinkedIn profile`,
-    ].map((q) => q.replace(/\s+/g, " ").trim().slice(0, 300));
-    const settled = await Promise.allSettled(queries.map((query) => tavilySearch({ query, topic: "general", maxResults: 8 })));
-    const all = settled.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
-    if (!all.length && settled.every((r) => r.status === "rejected")) throw (settled[0] as PromiseRejectedResult).reason;
-    const hits = all.filter((h, i) => all.findIndex((x) => x.url === h.url) === i).slice(0, 14);
-    const sourceNotes = hits.map((h, i) => ({ id: i, title: h.title, url: h.url, excerpt: h.content.slice(0, 1_400) }));
-    const candidates = hits.length
-      ? await generateGeminiJson<Array<{ name: string; role: string; company: string; profileUrl?: string; sourceIndex: number; reason: string }> | { people?: Array<{ name: string; role: string; company: string; profileUrl?: string; sourceIndex: number; reason: string }> }>({
-          system:
-            "Extract real, named people who match the target buyer titles and industries and are explicitly present in the provided search excerpts. " +
-            "Never guess or fill in missing names, titles, employers, or LinkedIn URLs. profileUrl is optional: include it only if it appears verbatim in the excerpt or is the source URL itself. " +
-            'Each person must cite a sourceIndex. Return JSON {"people":[{"name","role","company","profileUrl","sourceIndex","reason"}]}, or {"people":[]} when evidence is insufficient.',
-          prompt: JSON.stringify({ target: { titles: titleText, industries: industryText }, sources: sourceNotes }),
-          temperature: 0.1,
-        })
-      : [];
-    const list = Array.isArray(candidates) ? candidates : Array.isArray(candidates?.people) ? candidates.people : [];
-
-    // Researching twice must not add the same person twice: skip anyone already in the list (same profile link, or same name and company).
-    const existing = await linkedinRepository.findLeads(organizationId);
-    const knownUrls = new Set(existing.map((l) => l.url).filter((u): u is string => !!u));
-    const knownPeople = new Set(existing.map((l) => `${l.name}|${l.company}`.toLowerCase()));
-    const mentions = (text: string, value: string) => text.toLowerCase().includes(value.toLowerCase());
-    const created = [];
-    for (const candidate of list) {
-      const hit = hits[candidate.sourceIndex];
-      const name = candidate.name?.trim();
-      const role = candidate.role?.trim();
-      const company = candidate.company?.trim();
-      if (!hit || !name || !role || !company) continue;
-      const haystack = `${hit.title} ${hit.content}`;
-      // The person and the company must really be in the source text.
-      const nameParts = name.split(/\s+/).filter((part) => part.length > 1);
-      if (nameParts.length < 2 || !nameParts.every((part) => mentions(haystack, part))) continue;
-      if (!mentions(haystack, company)) continue;
-      const rawUrl = candidate.profileUrl?.trim() ?? "";
-      const urlIsEvidenced = !!rawUrl && (hit.content.includes(rawUrl) || rawUrl === hit.url);
-      const profileUrl = urlIsEvidenced ? normalizeLinkedInProfileUrl(rawUrl) : null;
-      if ((profileUrl && knownUrls.has(profileUrl)) || knownPeople.has(`${name}|${company}`.toLowerCase())) continue;
-      if (profileUrl) knownUrls.add(profileUrl);
-      knownPeople.add(`${name}|${company}`.toLowerCase());
-      const lead = await this.createLead(organizationId, { name, role, company, ...(profileUrl ? { url: profileUrl } : {}), source: "buyer", status: "suggested", reason: `${(candidate.reason ?? "").trim() || "Matches your buyer profile."} Source: ${hit.url}`.slice(0, 500) });
-      created.push(lead);
+  /** Find a profile only when public search results provide evidence for the person's name and LinkedIn URL. */
+  private async findImportedProfileUrl(item: { name: string; role?: string; company?: string }): Promise<string | null> {
+    if (!isLikelyPersonName(item.name)) return null;
+    const nameParts = evidenceTokens(item.name);
+    const companyParts = evidenceTokens(item.company ?? "").filter((part) => /[a-z]/.test(part) && part.length > 2 && !NON_PERSON_TERMS.has(part));
+    const query = [`"${item.name.trim()}"`, item.role?.trim(), item.company?.trim(), "LinkedIn profile site:linkedin.com/in"].filter(Boolean).join(" ").slice(0, 300);
+    const results = await tavilySearch({ query, maxResults: 6 });
+    for (const result of results) {
+      if (!/linkedin\.com\/(?:in|pub)\//i.test(result.url)) continue;
+      const profileUrl = normalizeLinkedInProfileUrl(result.url);
+      if (!profileUrl) continue;
+      const evidence = new Set(evidenceTokens(`${result.title} ${result.content} ${result.url}`));
+      if (!nameParts.every((part) => evidence.has(part))) continue;
+      if (companyParts.length && !companyParts.some((part) => evidence.has(part))) continue;
+      return profileUrl;
     }
-    return { discoveredCount: created.length, leads: created, researchSources: hits.map(({ title, url }) => ({ title, url })) };
+    return null;
   }
 
   /**
@@ -1546,6 +1510,27 @@ export class LinkedinService {
     if (items.length === 0 && problems.length === 0) throw new AppError("There is nobody to import. Add at least one person.", 400);
     if (items.length > MAX_IMPORT_ROWS) throw new AppError(`Import up to ${MAX_IMPORT_ROWS} people at a time. This file has ${items.length}.`, 400);
 
+    const unresolved = new Set<number>();
+    const resolvedUrls = new Map<number, string>();
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(4, items.length) }, async () => {
+      while (cursor < items.length) {
+        const index = cursor++;
+        const item = items[index].item;
+        if (item.url?.trim()) continue;
+        try {
+          const profileUrl = await this.findImportedProfileUrl(item);
+          if (profileUrl) resolvedUrls.set(index, profileUrl);
+          else unresolved.add(index);
+        } catch {
+          // Search outages or missing credentials must not block the whole CSV import.
+          // These rows are safely skipped and reported as missing verified profiles.
+          unresolved.add(index);
+        }
+      }
+    });
+    await Promise.all(workers);
+
     const [config, org] = await Promise.all([
       linkedinRepository.getOrCreateConfig(organizationId),
       prisma.organization.findUnique({ where: { id: organizationId } }),
@@ -1555,9 +1540,10 @@ export class LinkedinService {
     const prepared: Array<ReturnType<LinkedinService["buildLeadData"]> & { connectedAt?: string }> = [];
     const knownUrls = new Set((await linkedinRepository.findLeads(organizationId)).map((l) => l.url).filter((u): u is string => !!u));
     let duplicates = 0;
-    for (const { row, item } of items) {
+    for (const [index, { row, item }] of items.entries()) {
+      if (!item.url?.trim() && unresolved.has(index)) continue;
       try {
-        const data = this.buildLeadData(config, org, item);
+        const data = this.buildLeadData(config, org, { ...item, url: item.url?.trim() || resolvedUrls.get(index) });
         if (data.url && knownUrls.has(data.url)) { duplicates += 1; continue; }
         if (data.url) knownUrls.add(data.url);
         const connectedAt = item.status === "connected" && item.connectedAt && /^\d{4}-\d{2}-\d{2}$/.test(item.connectedAt) ? item.connectedAt : item.status === "connected" ? new Date().toISOString().slice(0, 10) : undefined;
@@ -1584,7 +1570,26 @@ export class LinkedinService {
       },
       { timeout: 30_000, maxWait: 5_000 },
     );
-    return { importedCount: created.length, skippedDuplicates: duplicates, leads: created.map((row) => this.formatLead(row)) };
+    return { importedCount: created.length, skippedDuplicates: duplicates, skippedNoProfile: unresolved.size, leads: created.map((row) => this.formatLead(row)) };
+  }
+
+  /** Backfill verified profile links for existing people without exposing incomplete rows in the UI. */
+  async resolveLeadProfiles(organizationId: string, ids: string[]) {
+    const wanted = new Set(ids);
+    const rows = (await linkedinRepository.findLeads(organizationId)).filter((row) => wanted.has(row.id) && !row.url && isLikelyPersonName(row.name));
+    const resolved: ReturnType<LinkedinService["formatLead"]>[] = [];
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(4, rows.length) }, async () => {
+      while (cursor < rows.length) {
+        const row = rows[cursor++];
+        const url = await this.findImportedProfileUrl({ name: row.name, role: row.role, company: row.company });
+        if (!url) continue;
+        const updated = await linkedinRepository.updateLead(row.id, { url });
+        resolved.push(this.formatLead(updated));
+      }
+    });
+    await Promise.all(workers);
+    return { resolvedCount: resolved.length, leads: resolved };
   }
 
   async addLeadToCrm(organizationId: string, id: string) {

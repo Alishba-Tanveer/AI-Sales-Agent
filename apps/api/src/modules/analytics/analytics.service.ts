@@ -52,6 +52,8 @@ export class AnalyticsService {
       newThisWeek,
       recentActivity,
       failedJobsCount,
+      scheduledJobs,
+      scheduledLinkedInPosts,
       stageGroups,
     ] = await Promise.all([
       prisma.lead.count({ where: { organizationId } }),
@@ -66,6 +68,9 @@ export class AnalyticsService {
       prisma.activityLog.count({
         where: { organizationId, status: "failed" },
       }),
+      prisma.activityLog.count({ where: { organizationId, status: "queued", scheduledFor: { not: null } } }),
+      // Keep this aligned with the LinkedIn Scheduled tab: ready posts and posts creating a video both count.
+      prisma.linkedinScript.count({ where: { organizationId, status: { in: ["ready", "creating_video"] } } }),
       prisma.lead.groupBy({
         by: ["stage"],
         where: { organizationId },
@@ -88,7 +93,7 @@ export class AnalyticsService {
 
     const attention: Array<{
       id: string;
-      kind: "reply" | "failure";
+      kind: "reply" | "failure" | "scheduled" | "content";
       title: string;
       subtitle: string;
     }> = [];
@@ -101,6 +106,8 @@ export class AnalyticsService {
         subtitle: "Open the Activity page to inspect and retry failed tasks",
       });
     }
+    if (scheduledJobs > 0) attention.push({ id: "att-scheduled", kind: "scheduled", title: `${scheduledJobs} scheduled task(s)`, subtitle: "Review upcoming work in Activity" });
+    if (scheduledLinkedInPosts > 0) attention.push({ id: "att-content", kind: "content", title: `${scheduledLinkedInPosts} content item(s) scheduled`, subtitle: "Review your upcoming LinkedIn posts and videos" });
 
     const activity = recentActivity.map((a: ActivityLog) => {
       let type: "draft" | "reply" | "approved" | "failed" | "lead_added" = "draft";

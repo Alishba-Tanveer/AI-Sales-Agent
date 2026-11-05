@@ -82,7 +82,7 @@ export async function beginScriptVideoActivity(input: { organizationId: string; 
       data: {
         organizationId: input.organizationId,
         kind: "video",
-        title: "Create AI avatar video",
+        title: "Create topic video",
         leadContext: input.scriptTitle,
         agent: "LinkedIn Agent",
         status: "running",

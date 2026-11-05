@@ -5,6 +5,7 @@ import { ArchiveRestore, ChevronDown, Crown, MailPlus, MoreVertical, Plus, Shiel
 import { toast } from "sonner";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { userStore } from "@/features/auth/user-store";
@@ -38,6 +39,7 @@ export function TeamTab() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferId, setTransferId] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<TeamMember | null>(null);
 
   if (state.status === "loading") return <TabLoading label="Loading your team…" />;
   if (state.status === "error") return <TabError message={state.message} onRetry={reload} />;
@@ -79,9 +81,12 @@ export function TeamTab() {
     if (role === "Owner") return void (isOwner && !isPendingInvite(m) && openTransfer(m.id));
     return run(() => changeMemberRole(m.id, role), "Role updated");
   };
-  const remove = (m: TeamMember) => {
+  const remove = async () => {
+    const m = removeTarget;
+    if (!m) return;
     if (isMe(m)) return void toast.error("Cannot remove workspace owner");
-    return run(() => removeTeamEntry(m), isPendingInvite(m) ? "Invitation revoked" : "Member removed");
+    await run(() => removeTeamEntry(m), isPendingInvite(m) ? "Invitation revoked" : "Member removed");
+    setRemoveTarget(null);
   };
   const invite = async (email: string, role: TeamRole) => {
     const res = await inviteMember(email, role);
@@ -197,7 +202,7 @@ export function TeamTab() {
                             )}
                           </>
                         )}
-                        <DropdownMenuItem onClick={() => remove(m)} disabled={isMe(m)} className="text-destructive">
+                        <DropdownMenuItem onClick={() => setRemoveTarget(m)} disabled={isMe(m)} className="text-destructive">
                           <UserMinus className="size-4" />
                           {pending ? "Revoke invite" : "Remove"}
                         </DropdownMenuItem>
@@ -241,6 +246,7 @@ export function TeamTab() {
         initialId={transferId}
         candidates={members.filter((m) => !isPendingInvite(m) && m.role !== "Owner" && !isMe(m))}
       />
+      <ConfirmActionDialog open={!!removeTarget} onOpenChange={(open) => !open && setRemoveTarget(null)} title={removeTarget && isPendingInvite(removeTarget) ? "Revoke this invitation?" : `Remove ${removeTarget?.name ?? "this member"}?`} description={removeTarget && isPendingInvite(removeTarget) ? "This will revoke the invitation so the recipient can no longer join using it." : "They will lose access to this workspace. You can restore a removed member for 30 days."} confirmLabel={removeTarget && isPendingInvite(removeTarget) ? "Revoke invitation" : "Remove member"} onConfirm={remove} />
     </div>
   );
 }

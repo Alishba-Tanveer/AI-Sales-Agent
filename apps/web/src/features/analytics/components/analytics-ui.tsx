@@ -104,14 +104,14 @@ export function MetricSection({ group, hasPrevious, wide = true }: { group: Metr
 
 /* ---------- charts ---------- */
 
-function Panel({ title, aside, children, className }: { title: string; aside?: string; children: React.ReactNode; className?: string }) {
+function Panel({ title, aside, children, className, bodyClassName }: { title: string; aside?: string; children: React.ReactNode; className?: string; bodyClassName?: string }) {
   return (
     <section className={cn("flex flex-col rounded-xl border border-border bg-card p-6", CARD_HOVER, className)}>
       <div className="flex items-center justify-between border-b border-border pb-4">
         <h2 className="text-base font-medium text-foreground">{title}</h2>
         {aside && <span className="text-xs text-muted-foreground">{aside}</span>}
       </div>
-      <div className="pt-5">{children}</div>
+      <div className={cn("pt-5", bodyClassName)}>{children}</div>
     </section>
   );
 }
@@ -120,32 +120,65 @@ export function LeadsOverTime({ series, className }: { series: ChartBucket[]; cl
   const total = series.reduce((sum, b) => sum + b.value, 0);
   const max = Math.max(1, ...series.map((b) => b.value));
   const mid = series[Math.floor(series.length / 2)];
+  const daily = series.length > 0 && series.every((b) => b.dayLabel && b.monthLabel);
+  const monthGroups: Array<{ label: string; count: number }> = [];
+  if (daily) {
+    for (const bucket of series) {
+      const label = bucket.monthLabel!;
+      const last = monthGroups[monthGroups.length - 1];
+      if (last?.label === label) last.count += 1;
+      else monthGroups.push({ label, count: 1 });
+    }
+  }
   return (
-    <Panel title="Leads added over time" aside={`${total.toLocaleString("en-US")} added`} className={className}>
-      {total === 0 ? (
-        <p className="flex h-44 items-center justify-center text-center text-sm text-muted-foreground">No leads were added in this period.</p>
-      ) : (
-        <>
-          <div className="flex h-44 items-end gap-1" role="img" aria-label={`Leads added over time, ${total} in total`}>
-            {series.map((b, i) => (
-              <div key={i} className="group/bar relative flex h-full min-w-0 flex-1 items-end" title={b.hint}>
-                <span className="pointer-events-none absolute -top-1 left-1/2 z-10 hidden -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md group-hover/bar:block">
-                  {b.hint}
-                </span>
-                <div
-                  className={cn("w-full rounded-t transition-colors duration-150", b.value > 0 ? "bg-primary/70 group-hover/bar:bg-primary" : "bg-secondary")}
-                  style={{ height: b.value > 0 ? `${Math.max(4, (b.value / max) * 100)}%` : "2px" }}
-                />
+    <Panel title="Leads added over time" aside={`${total.toLocaleString("en-US")} added`} className={className} bodyClassName="flex flex-1 flex-col justify-center">
+      <div className="w-full">
+        {total === 0 ? (
+          <p className="flex h-44 items-center justify-center text-center text-sm text-muted-foreground">No leads were added in this period.</p>
+        ) : (
+          <>
+            <div className="flex h-44 items-end gap-1" role="img" aria-label={`Leads added over time, ${total} in total`}>
+              {series.map((b, i) => (
+                <div key={i} className="group/bar relative flex h-full min-w-0 flex-1 items-end" title={b.hint}>
+                  {daily && i > 0 && series[i - 1].monthLabel !== b.monthLabel && (
+                    <span aria-hidden className="pointer-events-none absolute -left-[3px] top-0 z-10 h-full w-px bg-border/80" />
+                  )}
+                  <span className="pointer-events-none absolute -top-1 left-1/2 z-10 hidden -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md group-hover/bar:block">
+                    {b.hint}
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-1/2 z-[1] -translate-x-1/2 whitespace-nowrap text-[10px] leading-none font-medium tabular-nums text-muted-foreground"
+                    style={{ bottom: b.value > 0 ? `calc(${Math.max(4, (b.value / max) * 100)}% + 4px)` : "5px" }}
+                  >
+                    {b.value.toLocaleString("en-US")}
+                  </span>
+                  <div
+                    className={cn("w-full rounded-t transition-colors duration-150", b.value > 0 ? "bg-primary/70 group-hover/bar:bg-primary" : "bg-secondary")}
+                    style={{ height: b.value > 0 ? `${Math.max(4, (b.value / max) * 100)}%` : "2px" }}
+                  />
+                </div>
+              ))}
+            </div>
+            {daily ? (
+              <div className="mt-2" aria-label="Daily dates">
+                <div className="flex gap-1 text-[10px] leading-4 tabular-nums text-muted-foreground">
+                  {series.map((bucket, index) => <span key={index} className="min-w-0 flex-1 text-center">{bucket.dayLabel}</span>)}
+                </div>
+                <div className="mt-1 flex gap-1 text-[10px] leading-4 text-muted-foreground">
+                  {monthGroups.map((group, index) => <span key={`${group.label}-${index}`} style={{ flex: group.count }} className="text-center">{group.label}</span>)}
+                </div>
               </div>
-            ))}
-          </div>
-          <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-            <span>{series[0]?.label}</span>
-            {series.length > 6 && <span className="hidden sm:block">{mid?.label}</span>}
-            <span>{series[series.length - 1]?.label}</span>
-          </div>
-        </>
-      )}
+            ) : (
+              <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+                <span>{series[0]?.label}</span>
+                {series.length > 6 && <span className="hidden sm:block">{mid?.label}</span>}
+                <span>{series[series.length - 1]?.label}</span>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </Panel>
   );
 }

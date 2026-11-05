@@ -96,6 +96,7 @@ function linkedinStats(raw: RawAnalytics, w: Window) {
 const hourFmt = new Intl.DateTimeFormat("en-US", { hour: "numeric" });
 const dayFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 const monthFmt = new Intl.DateTimeFormat("en-US", { month: "short", year: "2-digit" });
+const monthLongFmt = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" });
 
 function buildSeries(leads: Lead[], period: PeriodId, w: Window): ChartBucket[] {
   const dates = leads.filter((l) => !l.archivedAt).map((l) => Date.parse(l.createdAt)).filter(Number.isFinite);
@@ -115,7 +116,13 @@ function buildSeries(leads: Lead[], period: PeriodId, w: Window): ChartBucket[] 
   return counts.map((value, i) => {
     const at = new Date(start + i * width);
     const label = period === "today" ? hourFmt.format(at) : long ? monthFmt.format(at) : dayFmt.format(at);
-    return { label, value, hint: `${label}: ${value} ${value === 1 ? "person" : "people"} added` };
+    const isDaily = period !== "today" && !long;
+    return {
+      label,
+      value,
+      hint: `${label}: ${value} ${value === 1 ? "person" : "people"} added`,
+      ...(isDaily ? { dayLabel: String(at.getDate()), monthLabel: monthLongFmt.format(at) } : {}),
+    };
   });
 }
 

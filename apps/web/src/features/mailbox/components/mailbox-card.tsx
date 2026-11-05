@@ -5,6 +5,8 @@ import { ExternalLink, Inbox, Loader2, Mail, RefreshCw, ShieldCheck, Unplug } fr
 import { toast } from "sonner";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
+import { TONES } from "@/features/settings/components/settings-ui";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +37,7 @@ function describe(result: SyncResult) {
 export function MailboxCard() {
   const { mailbox, reload, setMailbox } = useMailbox();
   const [open, setOpen] = useState(false);
+  const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [busy, setBusy] = useState<"" | "connect" | "sync" | "lookback" | "settings" | "disconnect">("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -75,7 +78,6 @@ export function MailboxCard() {
     finally { setBusy(""); }
   };
   const disconnect = async () => {
-    if (!window.confirm("Disconnect the mailbox? Automatic sending and reply sync stop. Manual copy and paste keeps working.")) return;
     setBusy("disconnect");
     try { await disconnectMailbox(); setMailbox({ connected: false, testRedirectTo: mailbox?.testRedirectTo ?? null }); toast.success("Mailbox disconnected."); }
     catch (e) { toast.error(errorText(e)); }
@@ -91,9 +93,9 @@ export function MailboxCard() {
       status={connected ? (broken ? "setup" : "automated") : "setup"}
       actions={connected ? <>
         <Button size="sm" disabled={busy !== ""} onClick={() => void sync()}>{busy === "sync" ? <Loader2 className="animate-spin"/> : <RefreshCw/>}Sync now</Button>
-        <Button size="sm" variant="outline" disabled={busy !== ""} onClick={() => void sync(7)} title="Also look at mail from the last 7 days, for example replies to emails you sent by hand">{busy === "lookback" ? <Loader2 className="animate-spin"/> : <Mail/>}Import last 7 days</Button>
-        <Button size="sm" variant="outline" disabled={busy !== ""} onClick={() => setOpen(true)}>{broken ? "Reconnect" : "Change"}</Button>
-        <Button size="sm" variant="ghost" disabled={busy !== ""} onClick={() => void disconnect()}><Unplug/>Disconnect</Button>
+        <Button size="sm" variant="outline" className={TONES.info.btn} disabled={busy !== ""} onClick={() => void sync(7)} title="Also look at mail from the last 7 days, for example replies to emails you sent by hand">{busy === "lookback" ? <Loader2 className="animate-spin"/> : <Mail/>}Import last 7 days</Button>
+        <Button size="sm" variant="outline" className={TONES.warning.btn} disabled={busy !== ""} onClick={() => setOpen(true)}>{broken ? "Reconnect" : "Change"}</Button>
+        <Button size="sm" variant="outline" className={TONES.destructive.btn} disabled={busy !== ""} onClick={() => setDisconnectOpen(true)}><Unplug/>Disconnect</Button>
       </> : <Button size="sm" onClick={() => setOpen(true)}><Mail/>Connect mailbox</Button>}
     >
       {connected ? <>
@@ -149,5 +151,6 @@ export function MailboxCard() {
         </form>
       </DialogContent>
     </Dialog>
+    <ConfirmActionDialog open={disconnectOpen} onOpenChange={setDisconnectOpen} title="Disconnect this mailbox?" description="Automatic sending and reply sync will stop. Manual copy and paste will keep working." confirmLabel="Disconnect" onConfirm={disconnect} />
   </>;
 }

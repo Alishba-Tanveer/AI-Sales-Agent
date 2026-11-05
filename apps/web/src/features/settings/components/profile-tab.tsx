@@ -4,7 +4,7 @@ import { userStore } from "@/features/auth/user-store";
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BadgeCheck, Loader2, LogOut, Save, ShieldCheck, SquarePen, TriangleAlert, Trash2, User } from "lucide-react";
+import { BadgeCheck, Loader2, LogOut, Save, ShieldCheck, SquarePen, Trash2, User } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,6 +57,7 @@ function ProfileForm({ initial }: { initial: UserProfile }) {
   const [tz, setTz] = useState(initial.timezone);
   // a photo picked but not saved yet (it uploads together with "Save Changes")
   const [pending, setPending] = useState<{ file: File; preview: string } | null>(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [pwOpen, setPwOpen] = useState(false);
@@ -67,7 +68,7 @@ function ProfileForm({ initial }: { initial: UserProfile }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const roleLabel = saved.role ? saved.role.charAt(0) + saved.role.slice(1).toLowerCase() : "Member";
-  const avatar = pending?.preview ?? saved.avatar;
+  const avatar = pending?.preview ?? (removePhoto ? null : saved.avatar);
   const timezones = TIMEZONES.includes(tz) || !tz ? TIMEZONES : [tz, ...TIMEZONES];
 
   const onPickPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -77,31 +78,18 @@ function ProfileForm({ initial }: { initial: UserProfile }) {
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) return void toast.error("Use a JPG, PNG or WEBP image.");
     if (file.size > MAX_AVATAR) return void toast.error("Image is larger than 2MB.");
     if (pending) URL.revokeObjectURL(pending.preview);
+    setRemovePhoto(false);
     setPending({ file, preview: URL.createObjectURL(file) });
     toast.success("Photo selected. Save changes to apply it.");
   };
 
-  const onRemovePhoto = async () => {
+  const onRemovePhoto = () => {
     if (pending) {
       URL.revokeObjectURL(pending.preview);
       setPending(null);
     }
-    if (!saved.avatar) return void toast("Photo removed");
-    try {
-      const next = await removeAvatar();
-      setSaved(next);
-      const curUser = userStore.get();
-      if (curUser) {
-        userStore.set({
-          ...curUser,
-          avatar: null,
-          avatarUrl: null,
-        });
-      }
-      toast("Photo removed");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not remove your photo.");
-    }
+    setRemovePhoto(true);
+    toast("Photo removal pending. Save changes to apply it.");
   };
 
   const save = async () => {
@@ -117,6 +105,10 @@ function ProfileForm({ initial }: { initial: UserProfile }) {
         setSaved(next);
       }
       next = await saveProfile({ name: name.trim(), email: email.trim(), roleTitle: roleTitle.trim(), timezone: tz });
+      if (removePhoto) {
+        next = await removeAvatar();
+        setRemovePhoto(false);
+      }
       setSaved(next);
       setName(next.name);
       setEmail(next.email);
@@ -300,23 +292,16 @@ function ProfileForm({ initial }: { initial: UserProfile }) {
             </Button>
           </div>
         </div>
-      </SectionCard>
-
-      <section className={cn("flex flex-col items-start justify-between gap-4 rounded-xl border border-destructive/30 bg-destructive-soft/40 p-6 transition-all duration-200 hover:border-destructive/50 hover:shadow-lg hover:shadow-destructive/10 sm:flex-row sm:items-center")}>
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-destructive">
-            <TriangleAlert className="size-5" />
-            <h2 className="text-base font-semibold">Delete account</h2>
+        <div className={cn("flex flex-col items-start justify-between gap-4 rounded-lg border border-border bg-background p-4 sm:flex-row sm:items-center", CARD_INNER)}>
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold text-foreground">Delete account</span>
+            <span className="text-xs text-muted-foreground">Deactivate this account and start its 30-day recovery period.</span>
           </div>
-          <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            Your account is deactivated right away. You have 30 days to restore it by signing in. After 30 days it is permanently deleted and cannot be recovered. If you are the Owner, you can transfer the business to a team member first, or delete the whole business.
-          </p>
+          <Button variant="ghost" className="h-8 gap-2 px-3 text-xs text-destructive hover:bg-destructive-soft" onClick={() => setDeleteOpen(true)}>
+            <Trash2 className="size-4" /> Delete Account
+          </Button>
         </div>
-        <Button variant="destructive" className="h-9 shrink-0 gap-2 border border-destructive/40 px-4 text-sm font-semibold" onClick={() => setDeleteOpen(true)}>
-          <Trash2 className="size-4" />
-          Delete Account
-        </Button>
-      </section>
+      </SectionCard>
 
       <DeleteAccountDialog open={deleteOpen} onOpenChange={setDeleteOpen} />
     </div>

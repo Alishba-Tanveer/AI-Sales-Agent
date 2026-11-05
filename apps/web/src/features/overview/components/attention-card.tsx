@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { ArrowRight, CircleAlert, PartyPopper, User, type LucideIcon } from "lucide-react";
+import { ArrowRight, CalendarClock, CircleAlert, PartyPopper, User, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { TONES } from "@/features/settings/components/settings-ui";
 import type { AttentionItem } from "../types";
 
 const kindConfig: Record<
@@ -20,10 +21,12 @@ const kindConfig: Record<
     icon: CircleAlert,
     iconCls: "bg-destructive-soft text-destructive",
     label: "View",
-    href: "/activity",
+    href: "/activity?tab=failed",
     actionCls: "bg-transparent px-0 text-primary shadow-none hover:bg-transparent hover:shadow-none hover:underline motion-safe:hover:translate-y-0",
     showArrow: true,
   },
+  scheduled: { icon: CalendarClock, iconCls: "bg-primary-soft text-primary", label: "View", href: "/activity", actionCls: "border border-border bg-secondary text-secondary-foreground hover:bg-muted" },
+  content: { icon: CalendarClock, iconCls: "bg-warning-soft text-warning", label: "View schedule", href: "/linkedin?tab=content&contentTab=scheduled", actionCls: TONES.pink.btn },
 };
 
 export function AttentionCard({ items }: { items: AttentionItem[] }) {

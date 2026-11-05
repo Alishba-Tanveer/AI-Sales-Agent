@@ -19,7 +19,7 @@ export type NavBadgeKey = "activity" | "opportunities" | "leads" | "inbox" | "co
  * One theme colour per counter, so each page's pill is recognisable at a glance. Top to bottom the pills go
  * indigo, amber, violet, sky, pink, teal: no two neighbours share a colour (and none are near-identical hues).
  */
-export type NavBadgeTone = "destructive" | "warning" | "primary" | "violet" | "pink" | "teal" | "info";
+export type NavBadgeTone = "destructive" | "warning" | "primary" | "violet" | "pink" | "teal" | "info" | "success";
 
 export type NavItem = {
   label: string;
@@ -40,18 +40,18 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     items: [
       { label: "Overview", href: "/overview", icon: LayoutGrid },
-      { label: "Leads", href: "/leads", icon: Users, badge: { key: "leads", tone: "primary" } },
+      { label: "Leads", href: "/leads", icon: Users, badge: { key: "leads", tone: "info" } },
       { label: "Find Opportunities", href: "/find-opportunities", icon: Compass, badge: { key: "opportunities", tone: "warning" } },
-      { label: "Inbox", href: "/inbox", icon: Inbox, badge: { key: "inbox", tone: "violet" } },
-      { label: "Activity", href: "/activity", icon: Activity, badge: { key: "activity", tone: "info" } },
+      { label: "Inbox", href: "/inbox", icon: Inbox, badge: { key: "inbox", tone: "pink" } },
+      { label: "Activity", href: "/activity", icon: Activity, badge: { key: "activity", tone: "violet" } },
     ],
   },
   {
     title: "LinkedIn",
     items: [
       { label: "Profile", href: "/linkedin", icon: CircleUser },
-      { label: "Content", href: "/linkedin?tab=content", icon: Newspaper, badge: { key: "content", tone: "pink" } },
-      { label: "Connections", href: "/linkedin?tab=connections", icon: Network, badge: { key: "connections", tone: "teal" } },
+      { label: "Content", href: "/linkedin?tab=content", icon: Newspaper, badge: { key: "content", tone: "success" } },
+      { label: "Connections", href: "/linkedin?tab=connections", icon: Network, badge: { key: "connections", tone: "warning" } },
     ],
   },
   {

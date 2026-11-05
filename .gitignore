@@ -27,3 +27,6 @@ Thumbs.db
 
 # Playwright MCP plugin output
 .playwright-mcp/
+
+# Generated runtime uploads and cache
+apps/api/uploads/

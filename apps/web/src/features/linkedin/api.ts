@@ -171,6 +171,10 @@ export const saveStrategy = (s: Pick<OutreachStrategy, "who" | "message" | "perD
 /** GET /api/linkedin/leads */
 export const fetchLeads = async (): Promise<Lead[]> => (await api<{ leads: Lead[] }>("/api/linkedin/leads")).leads;
 
+/** Resolve profile URLs for previously imported people with enough public evidence to verify a match. */
+export const resolveLeadProfiles = async (ids: string[]): Promise<Lead[]> =>
+  (await api<Res<{ resolvedCount: number; leads: Lead[] }>>("/api/linkedin/leads/resolve-profiles", { method: "POST", body: json({ ids }) })).data.leads;
+
 /** POST /api/linkedin/leads  (a person added by hand lands in Target buyers as "Suggested") */
 export const createLead = (v: { name: string; role?: string; company?: string; url: string }) =>
   unwrap(api<Res<Lead>>("/api/linkedin/leads", { method: "POST", body: json({ ...v, source: "buyer", status: "suggested" }) }));
@@ -179,16 +183,7 @@ export type ImportRow = { name: string; role?: string; company?: string; url?: s
 
 /** POST /api/linkedin/leads/import  { leads }  (people from a CSV the user exported; each lands in its chosen list as "Suggested") */
 export const importLeads = (leads: ImportRow[]) =>
-  unwrap(api<Res<{ importedCount: number; skippedDuplicates?: number; leads: Lead[] }>>("/api/linkedin/leads/import", { method: "POST", body: json({ leads }) }));
-
-export type DiscoverResult = { discoveredCount: number; leads: Lead[]; researchSources: { title: string; url: string }[] };
-
-/**
- * POST /api/linkedin/leads/discover  ->  buyer candidates found in public sources (Tavily search + Gemini, can take up to a minute).
- * Every candidate is checked against the source text on the server and lands in Target buyers as "Suggested".
- */
-export const discoverBuyers = () =>
-  unwrap(api<Res<DiscoverResult>>("/api/linkedin/leads/discover", { method: "POST", body: json({}) }));
+  unwrap(api<Res<{ importedCount: number; skippedDuplicates?: number; skippedNoProfile?: number; leads: Lead[] }>>("/api/linkedin/leads/import", { method: "POST", body: json({ leads }) }));
 
 /** Save a connection note for manual sending; does not send a LinkedIn invitation. */
 export const sendLead = (id: string, note?: string) =>

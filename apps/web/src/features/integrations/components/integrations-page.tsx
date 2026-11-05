@@ -140,13 +140,13 @@ export function IntegrationsPage() {
           <Reveal delay={140} className="grid">
             <IntegrationCard
               icon={Bot}
-              tone="violet"
+              tone="pink"
               title="AI provider"
               subtitle="Writes drafts, replies and post scripts."
               status="builtin"
               actions={
                 isOwner ? (
-                  <Link href="/settings?tab=usage" className={linkBtn(false, "violet")}>
+                  <Link href="/settings?tab=usage" className={linkBtn(false, "pink")}>
                     Usage and limits
                   </Link>
                 ) : undefined
@@ -162,12 +162,12 @@ export function IntegrationsPage() {
           <Reveal delay={180} className="grid">
             <IntegrationCard
               icon={Search}
-              tone="primary"
+              tone="success"
               title="Web research"
               subtitle="Tavily search. Looks things up on the public web."
               status="builtin"
               actions={
-                <Link href="/linkedin?tab=connections" className={linkBtn(false, "primary")}>
+                <Link href="/linkedin?tab=connections" className={linkBtn(false, "success")}>
                   Find buyers
                 </Link>
               }
@@ -228,19 +228,19 @@ export function IntegrationsPage() {
           </Reveal>
 
           <Reveal delay={300} className="grid">
-            <IntegrationCard icon={Video} tone="success" title="D-ID Video Generation"
-              subtitle="Turns an approved script into a photorealistic AI avatar video."
-              status="builtin"
+            <IntegrationCard icon={Video} tone="violet" title="Topic Video Montage"
+              subtitle="Matches topic-tagged stock footage to your script and adds word-timed captions and visual storyboards."
+              status="setup"
               actions={
                 <Link href="/linkedin?tab=content" className={linkBtn(true)}>
                   Content Engine
                 </Link>
               }
             >
-              <Row label="Provider">D-ID Avatar API</Row>
-              <Row label="Status"><Pill tone="success">Active</Pill></Row>
-              <Row label="Does">Creates talking head avatar videos from LinkedIn scripts</Row>
-              <Row label="Credentials">Configured with D_DI_KEY_AVATAR</Row>
+              <Row label="Provider">Pixabay video API + FFmpeg</Row>
+              <Row label="Status">Free account setup required</Row>
+              <Row label="Does">Finds topic-tagged stock clips, narrates the script and overlays a designed visual breakdown</Row>
+              <Row label="Setup">Add a Pixabay API key, FFmpeg, Python, Edge TTS and an AI provider</Row>
             </IntegrationCard>
           </Reveal>
         </div>

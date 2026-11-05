@@ -12,6 +12,7 @@ import {
   createScriptSchema,
   importLeadsSchema,
   importProfilePdfSchema,
+  resolveLeadProfilesSchema,
   markAppliedSchema,
   markPostedSchema,
   updateContentSettingsSchema,
@@ -665,27 +666,6 @@ export class LinkedinController {
     }
   }
 
-  async discoverConnections(req: Request, res: Response, next: NextFunction) {
-    try {
-      const organizationId = req.user!.organizationId;
-      const result = await trackLinkedinActivity({
-        organizationId,
-        kind: "discover",
-        title: "Research target buyers",
-        run: () => linkedinService.discoverConnections(organizationId),
-        output: () => "Buyer research completed. Review the suggested buyers before reaching out.",
-      });
-      res.status(201).json({
-        success: true,
-        message: "Buyer research completed",
-        data: result,
-        ...result,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
   async importLeads(req: Request, res: Response, next: NextFunction) {
     try {
       const validated = importLeadsSchema.parse(req.body ?? {});
@@ -696,6 +676,16 @@ export class LinkedinController {
         data: result,
         ...result,
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async resolveLeadProfiles(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { ids } = resolveLeadProfilesSchema.parse(req.body ?? {});
+      const result = await linkedinService.resolveLeadProfiles(req.user!.organizationId, ids);
+      res.status(200).json({ success: true, data: result, ...result });
     } catch (error) {
       next(error);
     }
@@ -749,7 +739,7 @@ export class LinkedinController {
       );
       res.status(200).json({
         success: true,
-        message: "AI video generation started with D-ID avatar.",
+        message: "Topic-matched video creation started using Pixabay footage.",
         data: script,
         ...script,
       });

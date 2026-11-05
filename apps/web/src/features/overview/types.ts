@@ -15,7 +15,7 @@ export type OverviewMetrics = {
 
 export type AttentionItem = {
   id: string;
-  kind: "reply" | "failure";
+  kind: "reply" | "failure" | "scheduled" | "content";
   title: string;
   subtitle: string;
 };

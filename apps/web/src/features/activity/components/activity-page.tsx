@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { cn } from "cn";
 import { Reveal } from "@/features/overview/components/reveal";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -36,9 +37,10 @@ const COLUMNS: { label: string; align?: "center" | "right" }[] = [
 
 export function ActivityPage() {
   const router = useRouter();
-  const { state, reload, busy, retry, cancel } = useActivity();
+  const searchParams = useSearchParams();
+  const { state, reload, busy, retry, cancel, remove } = useActivity();
   const now = useNow();
-  const [tab, setTab] = useState<ActivityTab>("all");
+  const [tab, setTab] = useState<ActivityTab>(() => searchParams.get("tab") === "failed" ? "failed" : "all");
   const [page, setPage] = useState(0);
   const [viewed, setViewed] = useState<ActivityJob | null>(null);
   const [viewOpen, setViewOpen] = useState(false);
@@ -142,6 +144,7 @@ export function ActivityPage() {
                           busy={busy.has(job.id)}
                           onRetry={retry}
                           onCancel={cancel}
+                          onDelete={remove}
                           onView={(j) => {
                             setViewed(j);
                             setViewOpen(true);

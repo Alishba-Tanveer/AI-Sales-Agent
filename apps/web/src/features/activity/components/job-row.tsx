@@ -1,6 +1,9 @@
 "use client";
 
-import { Ban, ExternalLink, FileText, MoreHorizontal, RotateCw } from "lucide-react";
+import { Ban, ExternalLink, FileText, MoreHorizontal, RotateCw, Trash2 } from "lucide-react";
+import { useRole } from "@/lib/use-role";
+import { useState } from "react";
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { TableCell, TableRow } from "@/components/ui/table";
 import type { ActivityJob } from "../types";
@@ -13,16 +16,20 @@ type Props = {
   busy: boolean;
   onRetry: (job: ActivityJob) => void;
   onCancel: (job: ActivityJob) => void;
+  onDelete: (job: ActivityJob) => void | Promise<void>;
   onView: (job: ActivityJob) => void;
   onOpenLead: (job: ActivityJob) => void;
 };
 
-export function JobRow({ job, busy, onRetry, onCancel, onView, onOpenLead }: Props) {
+export function JobRow({ job, busy, onRetry, onCancel, onDelete, onView, onOpenLead }: Props) {
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const canRetry = job.status === "failed" || job.status === "cancelled";
+  const isOwner = useRole() === "OWNER";
   const canCancel = job.status === "running" || job.status === "queued";
   const hasLead = !!job.lead.name;
 
   return (
+    <>
     <TableRow className="h-14 border-border">
       <TableCell className="overflow-hidden px-4 py-2 font-medium text-foreground" title={job.title}>
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
@@ -78,9 +85,14 @@ export function JobRow({ job, busy, onRetry, onCancel, onView, onOpenLead }: Pro
               <ExternalLink className="size-4" />
               Open lead
             </DropdownMenuItem>
+            {isOwner && <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteOpen(true)}>
+              <Trash2 className="size-4 text-destructive" /> Delete
+            </DropdownMenuItem>}
           </DropdownMenuContent>
         </DropdownMenu>
       </TableCell>
     </TableRow>
+    <ConfirmActionDialog open={deleteOpen} onOpenChange={setDeleteOpen} title="Delete this activity?" description={`“${job.title}” will be permanently removed from Activity.`} onConfirm={() => onDelete(job)} />
+    </>
   );
 }

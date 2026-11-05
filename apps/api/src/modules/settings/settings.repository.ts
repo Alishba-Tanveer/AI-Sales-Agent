@@ -6,7 +6,7 @@ export const DEFAULT_NOTIFICATION_RULES = [
     title: "Interested Leads (Positive Reply Intent)",
     badge: { label: "P0 Highest Priority", tone: "success" as const },
     description:
-      "Trigger instant webhook and notification when an AI sentiment analyzer flags positive buying sentiment.",
+      "Choose whether to receive email and in-app alerts when a reply is classified as interested.",
     email: true,
     inApp: true,
   },
@@ -15,18 +15,9 @@ export const DEFAULT_NOTIFICATION_RULES = [
     title: "Failed Jobs & Sync Errors",
     badge: { label: "System Warning", tone: "destructive" as const },
     description:
-      "Notify when mailbox SMTP warmup disconnects, LinkedIn session cookie invalidates, or scraping jobs abort.",
+      "Choose whether to receive email and in-app alerts for mailbox, LinkedIn, and other reported system failures.",
     email: true,
     inApp: false,
-  },
-  {
-    id: "digest",
-    title: "Daily Pipeline Summary Digest",
-    badge: { label: "08:30 AM Daily", tone: "primary" as const },
-    description:
-      "Send an executive morning briefing with conversion analytics, email reply rates, and queued opportunities.",
-    email: true,
-    inApp: true,
   },
 ];
 

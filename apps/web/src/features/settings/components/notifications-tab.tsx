@@ -40,8 +40,8 @@ function NotificationsForm({ initial }: { initial: NotificationRule[] }) {
       icon={BellRing}
       tone="primary"
       title="Incident & Operational Alert Routing"
-      description="Select high-fidelity channels to trigger notifications when urgent revenue events take place."
-      aside={<span className="text-[11px] tracking-wider text-muted-foreground uppercase">Multi-Channel</span>}
+      description="Choose how interested replies and reported system failures reach you."
+      aside={<span className="text-[11px] tracking-wider text-muted-foreground uppercase">Email and in-app</span>}
     >
       <div className="space-y-4">
         {rules.map((r) => (
@@ -57,7 +57,7 @@ function NotificationsForm({ initial }: { initial: NotificationRule[] }) {
               {(
                 [
                   ["email", "Email"],
-                  ["inApp", "In-app banner"],
+                  ["inApp", "In-app notification"],
                 ] as const
               ).map(([key, label]) => (
                 <label key={key} className="flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground">

@@ -5,8 +5,12 @@ import type { InboxItem, InboxThread } from "./types";
 const api = <T,>(path: string, init?: RequestInit) => baseApi<T>(path, { keepSessionOn401: true, ...init });
 const json = (value: unknown) => JSON.stringify(value);
 
-export const fetchInbox = async (q = "") => (await api<{ messages: InboxItem[] }>(`/api/inbox${q ? `?q=${encodeURIComponent(q)}` : ""}`)).messages;
+export const fetchInbox = async (q = "") => {
+  const normalized = q.trim();
+  return (await api<{ messages: InboxItem[] }>(`/api/inbox${normalized ? `?q=${encodeURIComponent(normalized)}` : ""}`)).messages;
+};
 export const fetchThread = (id: string) => api<InboxThread>(`/api/inbox/${id}`);
+export const deleteThread = (id: string) => api<{ deleted: boolean }>(`/api/inbox/${id}`, { method: "DELETE" });
 export const recordInbound = async (input: { leadId: string; channel: "EMAIL" | "LINKEDIN"; subject?: string; body: string }) =>
   (await api<{ message: LeadCommunication }>("/api/inbox", { method: "POST", body: json(input) })).message;
 export const draftReply = async (id: string, instruction?: string) =>

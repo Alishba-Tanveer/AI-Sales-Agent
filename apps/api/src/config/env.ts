@@ -37,6 +37,16 @@ const envSchema = z.object({
   MAIL_SEND_OVERRIDE_TO: z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), z.string().email().optional()),
   /** How often connected mailboxes are checked for replies (cron, default every 2 minutes). */
   MAIL_POLL_CRON: z.string().default("*/2 * * * *"),
+  PIXABAY_API_KEY: z.string().optional(),
+  /** Public API origin used for browser-playable generated montage URLs. */
+  API_PUBLIC_URL: z.string().url().optional(),
+  /** Local ffmpeg binary; defaults to resolving `ffmpeg` on PATH. */
+  FFMPEG_PATH: z.string().default("ffmpeg"),
+  VIDEO_FONT_PATH: z.string().optional(),
+  VIDEO_STORAGE_DIR: z.string().optional(),
+  /** Python command with edge-tts installed (`py` on Windows, `python3` elsewhere). */
+  VIDEO_TTS_PYTHON: z.string().default(process.platform === "win32" ? "py" : "python3"),
+  VIDEO_TTS_VOICE: z.string().default("en-US-JennyNeural"),
 });
 
 export const env = envSchema.parse(process.env);

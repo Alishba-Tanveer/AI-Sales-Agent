@@ -27,6 +27,10 @@ export const inboxController = {
     try { res.json(await inboxService.get(org(req), String(req.params.id))); }
     catch (error) { next(error); }
   },
+  deleteThread: async (req: Request, res: Response, next: NextFunction) => {
+    try { res.json(await inboxService.deleteThread(org(req), String(req.params.id))); }
+    catch (error) { next(error); }
+  },
   draftReply: async (req: Request, res: Response, next: NextFunction) => {
     try {
       const input = replySchema.parse(req.body ?? {});

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useNow } from "@/lib/use-now";
 import { groupByDay, relativeTime } from "../format";
@@ -95,6 +96,7 @@ function Panel({ onClose }: { onClose: () => void }) {
   const now = useNow();
   const { items, unread } = useNotifications();
   const [filter, setFilter] = useState<Filter>("all");
+  const [clearOpen, setClearOpen] = useState(false);
 
   const shown = filter === "unread" ? items.filter((n) => !n.read) : items;
   // `now` is 0 for the first instant after opening; the list appears as soon as the clock is read
@@ -187,11 +189,12 @@ function Panel({ onClose }: { onClose: () => void }) {
           <Settings className="size-3.5" />
           Notification settings
         </Link>
-        <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive" disabled={items.length === 0} onClick={notificationActions.clearAll}>
+        <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive" disabled={items.length === 0} onClick={() => setClearOpen(true)}>
           <Trash2 className="size-3.5" />
           Clear all
         </Button>
       </div>
+      <ConfirmActionDialog open={clearOpen} onOpenChange={setClearOpen} title="Clear all notifications?" description="All notifications will be removed from your notification list." confirmLabel="Clear all" onConfirm={() => notificationActions.clearAll()} />
     </>
   );
 }
